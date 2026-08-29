@@ -76,11 +76,13 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -125,6 +127,13 @@ const aspectOptions = [
   { value: '2:3', width: 832, height: 1216 },
   { value: '21:9', width: 1536, height: 640 },
   { value: '9:21', width: 640, height: 1536 },
+] as const;
+
+const sampleOutputImages = [
+  '/generated/mineral-machine.png',
+  '/generated/smoked-glass.png',
+  '/generated/field-camera.png',
+  '/generated/paper-terrain.png',
 ] as const;
 
 const nodes: Array<{
@@ -641,16 +650,18 @@ export function PlaygroundShell({
                   <Settings2 />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Studio workspace</DropdownMenuLabel>
-                  <DropdownMenuCheckboxItem checked disabled>
-                    Shared history (always on)
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={promptUpsampling}
-                    onCheckedChange={setPromptUpsampling}
-                  >
-                    Prompt upsampling
-                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Studio workspace</DropdownMenuLabel>
+                    <DropdownMenuCheckboxItem checked disabled>
+                      Shared history (always on)
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={promptUpsampling}
+                      onCheckedChange={setPromptUpsampling}
+                    >
+                      Prompt upsampling
+                    </DropdownMenuCheckboxItem>
+                  </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() =>
@@ -1159,7 +1170,7 @@ function ParameterSelect({
 }) {
   return (
     <Select value={value} onValueChange={(next) => next && onValueChange(next)}>
-      <SelectTrigger className={cn(parameterChipClass, 'w-auto py-0 pr-1.5')}>
+      <SelectTrigger className={cn(parameterChipClass, 'h-7! w-auto py-0 pr-1.5')}>
         <span className="text-muted-foreground">{label}</span>
         <SelectValue className="font-mono text-foreground" />
       </SelectTrigger>
@@ -1188,71 +1199,67 @@ function AspectParameter({
     aspectOptions.find((option) => option.value === value) ?? aspectOptions[0];
   const selectedGlyph = ratioGlyphSize(selected.width, selected.height);
   return (
-    <>
-      <ParameterChip
-        label={label}
-        value={value}
-        active={open}
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span className="flex h-4 w-6 items-center justify-center">
-          <span
-            className="rounded-[2px] border border-foreground/40 bg-muted"
-            style={selectedGlyph}
-          />
-        </span>
-      </ParameterChip>
-      {open && (
-        <div className="order-10 mt-1 w-full rounded-md border border-border bg-playground-surface-elevated p-3 shadow-xs">
-          <div className="mb-2 flex items-center gap-2">
-            <div>
-              <p className="text-[12px] font-medium">Aspect ratio</p>
-              <span className="font-mono text-[10px] text-muted-foreground">aspect_ratio</span>
-            </div>
-            <Badge variant="outline" className="ml-auto h-5 rounded-md font-mono text-[9px]">
-              ~1 MP
-            </Badge>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <ParameterChip label={label} value={value} active={open}>
+            <span className="flex h-4 w-6 items-center justify-center">
+              <span
+                className="rounded-[2px] border border-foreground/40 bg-muted"
+                style={selectedGlyph}
+              />
+            </span>
+          </ParameterChip>
+        }
+      />
+      <PopoverContent align="start" side="bottom" className="w-[296px] gap-0 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <div>
+            <p className="text-[12px] font-medium">Aspect ratio</p>
+            <span className="font-mono text-[10px] text-muted-foreground">aspect_ratio</span>
           </div>
-          <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
-            Sets width and height to matching ~1MP dimensions.
-          </p>
-          <Select
-            value={value}
-            onValueChange={(next) => {
-              if (!next) return;
-              onValueChange(next);
-              setOpen(false);
-            }}
-          >
-            <SelectTrigger className="h-7! w-full bg-playground-surface-elevated text-[11px]">
-              <SelectValue>
-                {selected.value} · {selected.width}×{selected.height}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent align="start" className="min-w-60">
-              <SelectGroup>
-                <SelectLabel>Preset ratios</SelectLabel>
-                {aspectOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value} className="py-1.5">
-                    <span className="flex h-4 w-6 items-center justify-center">
-                      <span
-                        className="rounded-[2px] border border-foreground/30 bg-muted"
-                        style={ratioGlyphSize(option.width, option.height)}
-                      />
-                    </span>
-                    <span className="font-medium">{option.value}</span>
-                    <span className="ml-auto font-mono text-[9px] text-muted-foreground">
-                      {option.width}×{option.height}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <Badge variant="outline" className="ml-auto h-5 rounded-md font-mono text-[9px]">
+            ~1 MP
+          </Badge>
         </div>
-      )}
-    </>
+        <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
+          Sets width and height to matching ~1MP dimensions.
+        </p>
+        <Select
+          value={value}
+          onValueChange={(next) => {
+            if (!next) return;
+            onValueChange(next);
+            setOpen(false);
+          }}
+        >
+          <SelectTrigger className="h-7! w-full bg-playground-surface-elevated text-[11px]">
+            <SelectValue>
+              {selected.value} · {selected.width}×{selected.height}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent align="start" side="bottom" className="min-w-60">
+            <SelectGroup>
+              <SelectLabel>Preset ratios</SelectLabel>
+              {aspectOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="py-1.5">
+                  <span className="flex h-4 w-6 items-center justify-center">
+                    <span
+                      className="rounded-[2px] border border-foreground/30 bg-muted"
+                      style={ratioGlyphSize(option.width, option.height)}
+                    />
+                  </span>
+                  <span className="font-medium">{option.value}</span>
+                  <span className="ml-auto font-mono text-[9px] text-muted-foreground">
+                    {option.width}×{option.height}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -1305,6 +1312,13 @@ function OutputCell({
     ? (run.assets.find((candidate) => candidate.jobId === job.id) ?? run.assets[outputIndex])
     : run.assets[outputIndex];
   const jobStatus = job?.status ?? (run.status === 'succeeded' ? 'succeeded' : run.status);
+  // Sample runs have no stored assets; show the bundled example imagery.
+  const sampleImage =
+    run.origin === 'sample'
+      ? sampleOutputImages[
+          ((Number(run.id.replace(/\D/g, '')) || 0) + outputIndex) % sampleOutputImages.length
+        ]
+      : null;
 
   return (
     <div
@@ -1320,6 +1334,14 @@ function OutputCell({
           width={160}
           height={120}
           unoptimized
+          className="size-full object-cover"
+        />
+      ) : sampleImage ? (
+        <NextImage
+          src={sampleImage}
+          alt="Example generated output"
+          width={160}
+          height={120}
           className="size-full object-cover"
         />
       ) : jobStatus === 'running' || jobStatus === 'queued' ? (
