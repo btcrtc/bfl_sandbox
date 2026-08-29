@@ -4,5 +4,7 @@ declare namespace Cloudflare {
     FILES: R2Bucket;
     BFL_API_KEY?: string;
     DAILY_RUN_LIMIT?: string;
+    VIDEO_ENABLED?: string;
+    VIDEO_DAILY_LIMIT?: string;
   }
 }

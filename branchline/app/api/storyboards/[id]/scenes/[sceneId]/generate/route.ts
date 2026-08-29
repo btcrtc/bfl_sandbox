@@ -1,22 +1,12 @@
-import { env } from 'cloudflare:workers';
 import { and, asc, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import {
-  generationAssets,
-  generations,
-  storyboardReferences,
-  storyboardScenes,
-  storyboards,
-} from '@/db/schema';
+import { storyboardReferences, storyboardScenes, storyboards } from '@/db/schema';
+import { loadAssetDataUri } from '@/lib/media';
 import { checkDailyBudget, submitGeneration } from '@/lib/run-service';
-
-// Reference images are inlined into the BFL request as data URIs; keep them
-// well under Workers' request-body comfort zone.
-const MAX_REFERENCE_BYTES = 8 * 1024 * 1024;
 
 // Scene stills are film frames: 16:9 at ~1MP, one output per scene.
 const SCENE_FRAME = { width: 1344, height: 768 } as const;
@@ -95,35 +85,11 @@ async function loadReferenceDataUris(
     .from(storyboardReferences)
     .where(eq(storyboardReferences.storyboardId, storyboardId))
     .orderBy(asc(storyboardReferences.refIndex));
-  if (!referenceRows.length) return [];
 
   const dataUris: string[] = [];
   for (const reference of referenceRows) {
-    const [asset] = await db
-      .select({ r2Key: generationAssets.r2Key, mimeType: generationAssets.mimeType })
-      .from(generationAssets)
-      .innerJoin(generations, eq(generations.id, generationAssets.generationId))
-      .where(
-        and(eq(generationAssets.id, reference.assetId), eq(generations.workspaceId, workspaceId)),
-      )
-      .limit(1);
-    if (!asset) continue;
-
-    const object = await env.FILES.get(asset.r2Key);
-    if (!object) continue;
-    const bytes = await object.arrayBuffer();
-    if (bytes.byteLength > MAX_REFERENCE_BYTES) continue;
-    dataUris.push(`data:${asset.mimeType};base64,${arrayBufferToBase64(bytes)}`);
+    const dataUri = await loadAssetDataUri(workspaceId, reference.assetId);
+    if (dataUri) dataUris.push(dataUri);
   }
   return dataUris;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return btoa(binary);
 }

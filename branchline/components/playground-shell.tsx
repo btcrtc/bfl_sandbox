@@ -1370,14 +1370,24 @@ function OutputCell({
       )}
     >
       {asset ? (
-        <NextImage
-          src={asset.url}
-          alt={`Output ${outputIndex + 1}`}
-          width={160}
-          height={120}
-          unoptimized
-          className="size-full object-cover"
-        />
+        asset.mimeType.startsWith('video/') ? (
+          <video
+            src={asset.url}
+            muted
+            playsInline
+            preload="metadata"
+            className="size-full object-cover"
+          />
+        ) : (
+          <NextImage
+            src={asset.url}
+            alt={`Output ${outputIndex + 1}`}
+            width={160}
+            height={120}
+            unoptimized
+            className="size-full object-cover"
+          />
+        )
       ) : sampleImage ? (
         <NextImage
           src={sampleImage}

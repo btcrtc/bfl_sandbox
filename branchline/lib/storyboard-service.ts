@@ -2,9 +2,23 @@ import { asc, desc, eq } from 'drizzle-orm';
 
 import { getDb } from '@/db/index';
 import { listHistory, type HistoryRun } from '@/db/history';
-import { storyboardReferences, storyboardScenes, storyboards } from '@/db/schema';
+import {
+  storyboardClips,
+  storyboardReferences,
+  storyboardScenes,
+  storyboards,
+} from '@/db/schema';
 
 export const MAX_STORYBOARD_REFERENCES = 3;
+
+export type ClipDto = {
+  id: string;
+  tier: string;
+  generationId: string;
+  sourceClipId: string | null;
+  createdAt: number;
+  run: HistoryRun | null;
+};
 
 export type SceneDto = {
   id: string;
@@ -15,6 +29,7 @@ export type SceneDto = {
   seed: number | null;
   generationId: string | null;
   run: HistoryRun | null;
+  clips: ClipDto[];
 };
 
 export type StoryboardDto = {
@@ -56,7 +71,7 @@ export async function getStoryboard(
     .limit(1);
   if (!row || row.workspaceId !== workspaceId) return null;
 
-  const [sceneRows, referenceRows] = await Promise.all([
+  const [sceneRows, referenceRows, clipRows] = await Promise.all([
     db
       .select()
       .from(storyboardScenes)
@@ -67,6 +82,11 @@ export async function getStoryboard(
       .from(storyboardReferences)
       .where(eq(storyboardReferences.storyboardId, storyboardId))
       .orderBy(asc(storyboardReferences.refIndex)),
+    db
+      .select()
+      .from(storyboardClips)
+      .where(eq(storyboardClips.storyboardId, storyboardId))
+      .orderBy(desc(storyboardClips.createdAt)),
   ]);
 
   // Scene stills reuse the shared generation pipeline; resolve their runs from
@@ -94,6 +114,16 @@ export async function getStoryboard(
       seed: scene.seed,
       generationId: scene.generationId,
       run: scene.generationId ? (runsById.get(scene.generationId) ?? null) : null,
+      clips: clipRows
+        .filter((clip) => clip.sceneId === scene.id)
+        .map((clip) => ({
+          id: clip.id,
+          tier: clip.tier,
+          generationId: clip.generationId,
+          sourceClipId: clip.sourceClipId,
+          createdAt: clip.createdAt,
+          run: runsById.get(clip.generationId) ?? null,
+        })),
     })),
   };
 }

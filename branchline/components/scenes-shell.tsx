@@ -67,9 +67,11 @@ const DURATION_OPTIONS = ['5', '8', '10', '12', '15', '20'];
 export function ScenesShell({
   viewer,
   signInPath,
+  videoEnabled,
 }: {
   viewer: { displayName: string; email: string } | null;
   signInPath: string;
+  videoEnabled: boolean;
 }) {
   const [storyboardList, setStoryboardList] = useState<StoryboardListItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -79,6 +81,8 @@ export function ScenesShell({
   );
   const [creating, setCreating] = useState(false);
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
+  const [videoBusyScenes, setVideoBusyScenes] = useState<Set<string>>(new Set());
+  const [assembling, setAssembling] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const activeIdRef = useRef<string | null>(null);
@@ -125,32 +129,37 @@ export function ScenesShell({
     return () => window.clearTimeout(timeout);
   }, [activeId, loadStoryboard]);
 
-  // While any scene still is queued/running, keep the board fresh.
+  // While any scene still or clip is queued/running, keep the board fresh.
+  // GET /api/generations/[id] advances BFL job state server-side; the
+  // storyboard fetch then reads the refreshed rows.
   const hasActiveRun = Boolean(
     storyboard?.scenes.some(
-      (scene) => scene.run && ['queued', 'running'].includes(scene.run.status),
+      (scene) =>
+        (scene.run && ['queued', 'running'].includes(scene.run.status)) ||
+        scene.clips.some((clip) => !clip.run || ['queued', 'running'].includes(clip.run.status)),
     ),
   );
   useEffect(() => {
-    if (!hasActiveRun || !activeId) return;
+    if (!hasActiveRun || !activeId || !storyboard) return;
+    const runningGenerationIds = storyboard.scenes.flatMap((scene) => [
+      ...(scene.run && ['queued', 'running'].includes(scene.run.status) && scene.generationId
+        ? [scene.generationId]
+        : []),
+      ...scene.clips
+        .filter((clip) => !clip.run || ['queued', 'running'].includes(clip.run.status))
+        .map((clip) => clip.generationId),
+    ]);
     const interval = window.setInterval(() => {
       const id = activeIdRef.current;
       if (id) {
-        // GET /api/generations/[id] advances BFL job state server-side; the
-        // storyboard fetch then reads the refreshed rows.
-        const running = storyboard?.scenes.filter(
-          (scene) => scene.run && ['queued', 'running'].includes(scene.run.status),
-        );
-        for (const scene of running ?? []) {
-          if (scene.generationId) {
-            void fetch(`/api/generations/${encodeURIComponent(scene.generationId)}`, {
-              cache: 'no-store',
-            });
-          }
+        for (const generationId of runningGenerationIds) {
+          void fetch(`/api/generations/${encodeURIComponent(generationId)}`, {
+            cache: 'no-store',
+          });
         }
         void loadStoryboard(id);
       }
-    }, 3_500);
+    }, 4_000);
     return () => window.clearInterval(interval);
   }, [hasActiveRun, activeId, loadStoryboard, storyboard]);
 
@@ -284,6 +293,110 @@ export function ScenesShell({
     },
     [activeId, loadStoryboard],
   );
+
+  const markVideoBusy = useCallback((sceneId: string, busy: boolean) => {
+    setVideoBusyScenes((current) => {
+      const next = new Set(current);
+      if (busy) next.add(sceneId);
+      else next.delete(sceneId);
+      return next;
+    });
+  }, []);
+
+  const draftClip = useCallback(
+    async (sceneId: string) => {
+      if (!activeId) return;
+      markVideoBusy(sceneId, true);
+      try {
+        const response = await fetch(
+          `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}/video`,
+          { method: 'POST' },
+        );
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(data.error);
+        setNotice({
+          tone: 'info',
+          text: 'Draft clip is rendering — long-running job, expect a few minutes.',
+        });
+        await loadStoryboard(activeId);
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          text:
+            error instanceof Error && error.message ? error.message : 'Could not start the clip.',
+        });
+      } finally {
+        markVideoBusy(sceneId, false);
+      }
+    },
+    [activeId, loadStoryboard, markVideoBusy],
+  );
+
+  const enhanceClip = useCallback(
+    async (sceneId: string, tier: 'hd' | 'fhd') => {
+      if (!activeId) return;
+      markVideoBusy(sceneId, true);
+      try {
+        const response = await fetch(
+          `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}/video/enhance`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ tier }),
+          },
+        );
+        const data = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(data.error);
+        setNotice({
+          tone: 'info',
+          text: `Enhancing the draft to ${tier.toUpperCase()} — same shot, full quality.`,
+        });
+        await loadStoryboard(activeId);
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          text:
+            error instanceof Error && error.message ? error.message : 'Could not start the enhance.',
+        });
+      } finally {
+        markVideoBusy(sceneId, false);
+      }
+    },
+    [activeId, loadStoryboard, markVideoBusy],
+  );
+
+  const draftableScenes = (storyboard?.scenes ?? []).filter(
+    (scene) =>
+      scene.run?.status === 'succeeded' &&
+      scene.run.assets.length > 0 &&
+      !scene.clips.some((clip) => clip.tier === 'draft'),
+  );
+
+  const assembleReel = async () => {
+    if (draftableScenes.length === 0) {
+      setNotice({
+        tone: 'info',
+        text: 'Nothing to assemble — every scene with a finished still already has a draft clip.',
+      });
+      return;
+    }
+    const totalCost = draftableScenes.reduce(
+      (sum, scene) => sum + estimateVideoCostUsd(scene.durationSec, 'draft'),
+      0,
+    );
+    const confirmed = window.confirm(
+      `Render ${draftableScenes.length} draft clip(s) for ~${formatUsd(totalCost)}?`,
+    );
+    if (!confirmed) return;
+    setAssembling(true);
+    try {
+      for (const scene of draftableScenes) {
+        await draftClip(scene.id);
+      }
+    } finally {
+      setAssembling(false);
+    }
+  };
 
   const totalSeconds = storyboard?.scenes.reduce((sum, scene) => sum + scene.durationSec, 0) ?? 0;
 
@@ -565,9 +678,13 @@ export function ScenesShell({
                           key={scene.id}
                           scene={scene}
                           busy={generatingScenes.has(scene.id)}
+                          videoEnabled={videoEnabled}
+                          videoBusy={videoBusyScenes.has(scene.id) || assembling}
                           onPatch={(patch) => void patchScene(scene.id, patch)}
                           onGenerate={() => void generateScene(scene.id)}
                           onDelete={() => void deleteScene(scene.id)}
+                          onDraftClip={() => void draftClip(scene.id)}
+                          onEnhance={(tier) => void enhanceClip(scene.id, tier)}
                         />
                       ))}
                       <button
@@ -589,7 +706,14 @@ export function ScenesShell({
             </div>
 
             {storyboard && (
-              <VideoPlanBar sceneCount={storyboard.scenes.length} totalSeconds={totalSeconds} />
+              <VideoPlanBar
+                sceneCount={storyboard.scenes.length}
+                totalSeconds={totalSeconds}
+                videoEnabled={videoEnabled}
+                draftableCount={draftableScenes.length}
+                assembling={assembling}
+                onAssemble={() => void assembleReel()}
+              />
             )}
           </section>
         </div>
@@ -615,20 +739,36 @@ export function ScenesShell({
 function SceneCard({
   scene,
   busy,
+  videoEnabled,
+  videoBusy,
   onPatch,
   onGenerate,
   onDelete,
+  onDraftClip,
+  onEnhance,
 }: {
   scene: SceneDto;
   busy: boolean;
+  videoEnabled: boolean;
+  videoBusy: boolean;
   onPatch: (patch: Record<string, unknown>) => void;
   onGenerate: () => void;
   onDelete: () => void;
+  onDraftClip: () => void;
+  onEnhance: (tier: 'hd' | 'fhd') => void;
 }) {
   const run = scene.run;
   const asset = run?.assets[0];
   const running = Boolean(run && ['queued', 'running'].includes(run.status));
   const draftCost = estimateVideoCostUsd(scene.durationSec, 'draft');
+  const latestClip = scene.clips[0] ?? null;
+  const latestClipAsset = latestClip?.run?.assets[0];
+  const clipRendering = scene.clips.some(
+    (clip) => !clip.run || ['queued', 'running'].includes(clip.run.status),
+  );
+  const hasFinishedDraft = scene.clips.some(
+    (clip) => clip.tier === 'draft' && clip.run?.status === 'succeeded',
+  );
 
   return (
     <article className={cn(surfaceClass, 'flex flex-col overflow-hidden')}>
@@ -697,6 +837,34 @@ function SceneCard({
         </p>
       )}
 
+      {videoEnabled && latestClip && (
+        <div className="mx-3 mt-1.5">
+          {latestClipAsset ? (
+            <video
+              controls
+              preload="metadata"
+              src={latestClipAsset.url}
+              className="w-full rounded-md border bg-black"
+            >
+              <track kind="captions" label="Captions unavailable" />
+            </video>
+          ) : latestClip.run?.errorMessage ? (
+            <p className="rounded bg-destructive/10 px-2 py-1.5 text-[10px] leading-relaxed text-destructive">
+              {latestClip.run.errorMessage}
+            </p>
+          ) : (
+            <div className="flex items-center gap-2 rounded-md border border-dashed px-2 py-1.5 text-[10px] text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> {latestClip.tier} clip rendering — long
+              job, a few minutes…
+            </div>
+          )}
+          <p className="mt-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+            clip · {latestClip.tier}
+            {latestClip.run ? ` · ${latestClip.run.status}` : ''}
+          </p>
+        </div>
+      )}
+
       <Textarea
         key={`${scene.id}-prompt`}
         defaultValue={scene.prompt}
@@ -734,6 +902,40 @@ function SceneCard({
           {asset ? 'Re-render' : 'Render still'}
         </Button>
       </div>
+
+      {videoEnabled && asset && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2.5">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={onDraftClip}
+            disabled={videoBusy || clipRendering}
+          >
+            {videoBusy ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+            Draft clip ~{formatUsd(draftCost)}
+          </Button>
+          {hasFinishedDraft && (
+            <>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => onEnhance('hd')}
+                disabled={videoBusy || clipRendering}
+              >
+                HD ~{formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => onEnhance('fhd')}
+                disabled={videoBusy || clipRendering}
+              >
+                FHD ~{formatUsd(estimateVideoCostUsd(scene.durationSec, 'fhd'))}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </article>
   );
 }
@@ -796,7 +998,21 @@ function SceneSeedControl({
   );
 }
 
-function VideoPlanBar({ sceneCount, totalSeconds }: { sceneCount: number; totalSeconds: number }) {
+function VideoPlanBar({
+  sceneCount,
+  totalSeconds,
+  videoEnabled,
+  draftableCount,
+  assembling,
+  onAssemble,
+}: {
+  sceneCount: number;
+  totalSeconds: number;
+  videoEnabled: boolean;
+  draftableCount: number;
+  assembling: boolean;
+  onAssemble: () => void;
+}) {
   return (
     <div className="shrink-0 border-t bg-background px-6 py-3">
       <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-2">
@@ -820,25 +1036,41 @@ function VideoPlanBar({ sceneCount, totalSeconds }: { sceneCount: number; totalS
           <span className="rounded border px-1.5 py-0.5">audio included</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Badge variant="outline" className="h-5 rounded-md font-mono text-[9px] tracking-wider">
-            CONCEPT
-          </Badge>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="inline-flex">
-                  <Button size="sm" className="h-8 text-[12px]" disabled>
-                    <Clapperboard /> Assemble draft reel
-                  </Button>
-                </span>
-              }
-            />
-            <TooltipContent side="top" className="max-w-64">
-              Stills above render live through FLUX.2. The FLUX 3 Video draft → enhance step is
-              staged behind a flag until the video API contract is wired — see the roadmap in the
-              README.
-            </TooltipContent>
-          </Tooltip>
+          {videoEnabled ? (
+            <Button
+              size="sm"
+              className="h-8 text-[12px]"
+              onClick={onAssemble}
+              disabled={assembling || draftableCount === 0}
+            >
+              {assembling ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+              Assemble draft reel{draftableCount > 0 ? ` (${draftableCount})` : ''}
+            </Button>
+          ) : (
+            <>
+              <Badge
+                variant="outline"
+                className="h-5 rounded-md font-mono text-[9px] tracking-wider"
+              >
+                CONCEPT
+              </Badge>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="inline-flex">
+                      <Button size="sm" className="h-8 text-[12px]" disabled>
+                        <Clapperboard /> Assemble draft reel
+                      </Button>
+                    </span>
+                  }
+                />
+                <TooltipContent side="top" className="max-w-64">
+                  Stills render live through FLUX.2. Set VIDEO_ENABLED=true on the deployment to
+                  turn on the FLUX 3 Video draft → enhance pipeline.
+                </TooltipContent>
+              </Tooltip>
+            </>
+          )}
         </div>
       </div>
       <p className="mx-auto mt-1.5 w-full max-w-[1200px] text-[10px] leading-relaxed text-muted-foreground">

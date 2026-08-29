@@ -101,6 +101,24 @@ export const storyboardReferences = sqliteTable(
   ],
 );
 
+// Video clips rendered from a scene: draft first, then enhanced tiers that
+// replay the draft's cache. source_clip_id links an enhance to its draft.
+export const storyboardClips = sqliteTable(
+  'storyboard_clips',
+  {
+    id: text('id').primaryKey(),
+    storyboardId: text('storyboard_id')
+      .notNull()
+      .references(() => storyboards.id, { onDelete: 'cascade' }),
+    sceneId: text('scene_id').notNull(),
+    tier: text('tier').notNull(),
+    generationId: text('generation_id').notNull(),
+    sourceClipId: text('source_clip_id'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('storyboard_clips_scene_idx').on(table.sceneId, table.createdAt)],
+);
+
 export const storyboardScenes = sqliteTable(
   'storyboard_scenes',
   {

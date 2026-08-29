@@ -43,6 +43,11 @@ Goal: a recorded 60-second demo: generate hero in Playground → pin in Scenes �
 
 Goal: the CONCEPT label comes off the plan bar for accounts with video access.
 
+> **Status: built, flag-gated, awaiting first live run.** Set `VIDEO_ENABLED=true` on the
+> deployment. The `flux-3-video` contract (mode t2v/i2v/draft_enhance, keyframes as
+> [seconds, dataURI], draft:true → draft_cache) was assembled from BFL's public docs and
+> lives in one place — `lib/bfl.ts` — so if the first live call 4xxes, the fix is local.
+
 1. Verify the FLUX 3 Video API contract against docs.bfl.ai with the real key first
    (endpoint names, draft tier parameter, `draft_enhance` + `draft_cache` mechanics,
    image-to-video input shape). Do not build against guessed shapes — that was the

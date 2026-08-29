@@ -33,7 +33,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
 // BFL polling URLs sign their results for ~10 minutes; a job that is still
 // non-terminal well past that window will never deliver a retrievable asset.
+// Video renders legitimately run for minutes, so they get a longer leash.
 const JOB_DEADLINE_MS = 15 * 60 * 1000;
+const VIDEO_JOB_DEADLINE_MS = 45 * 60 * 1000;
 const MODERATED_STATUSES = ['Request Moderated', 'Content Moderated'];
 const MODERATION_MESSAGE =
   'Flagged by the safety filter — this is often a false positive. Try rephrasing the prompt (brand names, real people and logos trip it most) or raising safety tolerance by one.';
@@ -41,6 +43,14 @@ const MODERATION_MESSAGE =
 async function refreshJobs(generationId: string, workspaceId: string, apiKey: string) {
   const db = getDb();
   const jobs = await db.select().from(generationJobs).where(eq(generationJobs.generationId, generationId));
+  const [generationRow] = await db
+    .select({ modelId: generations.modelId })
+    .from(generations)
+    .where(eq(generations.id, generationId))
+    .limit(1);
+  const jobDeadlineMs = generationRow?.modelId.startsWith('FLUX 3 Video')
+    ? VIDEO_JOB_DEADLINE_MS
+    : JOB_DEADLINE_MS;
 
   for (const job of jobs) {
     if (!job.pollingUrl || !['queued', 'running'].includes(job.status)) continue;
@@ -48,6 +58,11 @@ async function refreshJobs(generationId: string, workspaceId: string, apiKey: st
       const result = await pollBflGeneration(apiKey, job.pollingUrl);
       if (result.status === 'Ready' && result.result?.sample) {
         await storeResult(workspaceId, generationId, job.id, result.result.sample);
+        // Draft video runs hand back a cache reference; persisting it is what
+        // makes the later draft_enhance call possible.
+        if (result.result.draft_cache) {
+          await persistDraftCache(generationId, result.result.draft_cache);
+        }
         await db.update(generationJobs).set({ status: 'succeeded', errorMessage: null, updatedAt: Date.now() }).where(eq(generationJobs.id, job.id));
       } else if (MODERATED_STATUSES.includes(result.status)) {
         await db
@@ -59,7 +74,7 @@ async function refreshJobs(generationId: string, workspaceId: string, apiKey: st
           .update(generationJobs)
           .set({ status: 'failed', errorMessage: `BFL status: ${result.status}`, updatedAt: Date.now() })
           .where(eq(generationJobs.id, job.id));
-      } else if (Date.now() - job.createdAt > JOB_DEADLINE_MS) {
+      } else if (Date.now() - job.createdAt > jobDeadlineMs) {
         await db
           .update(generationJobs)
           .set({ status: 'failed', errorMessage: 'Timed out — the result link has likely expired. Re-run to generate again.', updatedAt: Date.now() })
@@ -68,7 +83,7 @@ async function refreshJobs(generationId: string, workspaceId: string, apiKey: st
         await db.update(generationJobs).set({ status: 'running', updatedAt: Date.now() }).where(eq(generationJobs.id, job.id));
       }
     } catch (error) {
-      const expired = Date.now() - job.createdAt > JOB_DEADLINE_MS;
+      const expired = Date.now() - job.createdAt > jobDeadlineMs;
       await db
         .update(generationJobs)
         .set({
@@ -112,6 +127,32 @@ async function refreshJobs(generationId: string, workspaceId: string, apiKey: st
     .where(eq(generations.id, generationId));
 }
 
+// Records a draft video's cache reference so draft_enhance can replay it.
+async function persistDraftCache(generationId: string, draftCache: string) {
+  const db = getDb();
+  const [generation] = await db
+    .select({ parametersJson: generations.parametersJson })
+    .from(generations)
+    .where(eq(generations.id, generationId))
+    .limit(1);
+  if (!generation) return;
+  let parameters: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(generation.parametersJson);
+    if (parsed && typeof parsed === 'object') parameters = parsed;
+  } catch {
+    // Keep an empty object; the cache reference still gets stored.
+  }
+  if (parameters.draftCache === draftCache) return;
+  await db
+    .update(generations)
+    .set({ parametersJson: JSON.stringify({ ...parameters, draftCache }) })
+    .where(eq(generations.id, generationId));
+}
+
+const MAX_BUFFERED_ASSET_BYTES = 20 * 1024 * 1024;
+const MAX_VIDEO_ASSET_BYTES = 256 * 1024 * 1024;
+
 async function storeResult(workspaceId: string, generationId: string, jobId: string, sourceUrl: string) {
   const db = getDb();
   const [existing] = await db.select().from(generationAssets).where(eq(generationAssets.jobId, jobId)).limit(1);
@@ -121,27 +162,56 @@ async function storeResult(workspaceId: string, generationId: string, jobId: str
   if (url.protocol !== 'https:') throw new Error('BFL returned an invalid asset URL.');
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Could not retrieve generated asset (${response.status}).`);
-  const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > 20 * 1024 * 1024) throw new Error('Generated asset exceeds the 20 MB limit.');
 
   const mimeType = response.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
-  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const isVideo = mimeType.startsWith('video/');
+  const extension = isVideo
+    ? mimeType === 'video/webm'
+      ? 'webm'
+      : 'mp4'
+    : mimeType === 'image/png'
+      ? 'png'
+      : mimeType === 'image/webp'
+        ? 'webp'
+        : 'jpg';
   // Deterministic per-job asset id and R2 key: concurrent observers (two tabs
   // polling the same run) write the same key and the insert is a no-op, so a
   // job can never grow duplicate asset rows or orphaned blobs.
   const assetId = jobId;
   const r2Key = `${workspaceId}/${generationId}/${jobId}.${extension}`;
-  await env.FILES.put(r2Key, bytes, {
+  const putOptions = {
     httpMetadata: { contentType: mimeType, cacheControl: 'private, max-age=3600' },
     customMetadata: { generationId, workspaceId },
-  });
+  };
+
+  const contentLength = Number(response.headers.get('content-length') ?? Number.NaN);
+  if (isVideo && Number.isFinite(contentLength) && contentLength > MAX_VIDEO_ASSET_BYTES) {
+    throw new Error('Generated video exceeds the 256 MB limit.');
+  }
+  if (
+    isVideo &&
+    response.body &&
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_BUFFERED_ASSET_BYTES
+  ) {
+    // Large clips stream straight into R2 instead of buffering in memory.
+    await env.FILES.put(r2Key, response.body, putOptions);
+  } else {
+    const bytes = await response.arrayBuffer();
+    const limit = isVideo ? MAX_VIDEO_ASSET_BYTES : MAX_BUFFERED_ASSET_BYTES;
+    if (bytes.byteLength > limit) {
+      throw new Error(`Generated asset exceeds the ${Math.round(limit / 1024 / 1024)} MB limit.`);
+    }
+    await env.FILES.put(r2Key, bytes, putOptions);
+  }
+
   await db
     .insert(generationAssets)
     .values({
       id: assetId,
       generationId,
       jobId,
-      kind: 'image',
+      kind: isVideo ? 'video' : 'image',
       r2Key,
       mimeType,
       createdAt: Date.now(),

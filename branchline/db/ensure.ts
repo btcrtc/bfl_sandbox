@@ -56,6 +56,12 @@ export function ensureDatabase() {
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboard_scenes_storyboard_idx ON storyboard_scenes(storyboard_id, scene_index)',
     ),
+    env.DB.prepare(
+      'CREATE TABLE IF NOT EXISTS storyboard_clips (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, scene_id TEXT NOT NULL, tier TEXT NOT NULL, generation_id TEXT NOT NULL, source_clip_id TEXT, created_at INTEGER NOT NULL)',
+    ),
+    env.DB.prepare(
+      'CREATE INDEX IF NOT EXISTS storyboard_clips_scene_idx ON storyboard_clips(scene_id, created_at)',
+    ),
   ]).then(() => undefined);
 
   return ready;
