@@ -27,8 +27,15 @@ export type HistoryRun = {
   errorMessage: string | null;
   createdAt: number;
   updatedAt: number;
-  assets: Array<{ id: string; url: string; mimeType: string; width: number | null; height: number | null }>;
-  jobs: Array<{ outputIndex: number; status: JobStatus; errorMessage: string | null }>;
+  assets: Array<{
+    id: string;
+    jobId: string | null;
+    url: string;
+    mimeType: string;
+    width: number | null;
+    height: number | null;
+  }>;
+  jobs: Array<{ id: string; outputIndex: number; status: JobStatus; errorMessage: string | null }>;
 };
 
 type GenerationRow = typeof generations.$inferSelect;
@@ -88,6 +95,7 @@ function mapRun(row: GenerationRow, assetRows: AssetRow[], jobRows: JobRow[]): H
       .filter((asset) => asset.generationId === row.id)
       .map((asset) => ({
         id: asset.id,
+        jobId: asset.jobId,
         url: `/api/assets/${asset.id}`,
         mimeType: asset.mimeType,
         width: asset.width,
@@ -97,6 +105,7 @@ function mapRun(row: GenerationRow, assetRows: AssetRow[], jobRows: JobRow[]): H
       .filter((job) => job.generationId === row.id)
       .sort((a, b) => a.outputIndex - b.outputIndex)
       .map((job) => ({
+        id: job.id,
         outputIndex: job.outputIndex,
         status: job.status as JobStatus,
         errorMessage: job.errorMessage,
