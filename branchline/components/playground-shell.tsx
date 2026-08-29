@@ -143,9 +143,9 @@ const nodes: Array<{
   icon: typeof WandSparkles;
   position: string;
 }> = [
-  { id: 'prompt', eyebrow: 'INPUT', icon: WandSparkles, position: 'left-[8%] top-[19%]' },
-  { id: 'model', eyebrow: 'MODEL', icon: Box, position: 'left-[40%] top-[42%]' },
-  { id: 'generate', eyebrow: 'ACTION', icon: Play, position: 'right-[7%] top-[22%]' },
+  { id: 'prompt', eyebrow: 'INPUT', icon: WandSparkles, position: 'left-[3%] top-[32%]' },
+  { id: 'model', eyebrow: 'MODEL', icon: Box, position: 'left-[38%] top-[46%]' },
+  { id: 'generate', eyebrow: 'ACTION', icon: Play, position: 'right-[3%] top-[32%]' },
 ];
 
 const inspectorCopy: Record<NodeId, { label: string; title: string; description: string }> = {
@@ -535,7 +535,7 @@ export function PlaygroundShell({
 
   // Edges are measured from real node geometry so they stay attached at every
   // viewport, instead of hardcoded path coordinates.
-  const canvasRef = useRef<HTMLElement | null>(null);
+  const fieldRef = useRef<HTMLDivElement | null>(null);
   const nodeRefs = useRef<Record<NodeId, HTMLButtonElement | null>>({
     prompt: null,
     model: null,
@@ -546,7 +546,7 @@ export function PlaygroundShell({
     modelGenerate: '',
   });
   const measureEdges = useCallback(() => {
-    const canvas = canvasRef.current;
+    const canvas = fieldRef.current;
     if (!canvas) return;
     const canvasRect = canvas.getBoundingClientRect();
     const edge = (from: NodeId, to: NodeId) => {
@@ -568,7 +568,7 @@ export function PlaygroundShell({
   useEffect(() => {
     measureEdges();
     const observer = new ResizeObserver(() => measureEdges());
-    if (canvasRef.current) observer.observe(canvasRef.current);
+    if (fieldRef.current) observer.observe(fieldRef.current);
     window.addEventListener('resize', measureEdges);
     return () => {
       observer.disconnect();
@@ -628,11 +628,9 @@ export function PlaygroundShell({
                 <Cloud
                   className={cn(
                     'size-3.5',
-                    !viewer
+                    !viewer || realtimeState === 'fallback'
                       ? 'text-muted-foreground'
-                      : realtimeState === 'fallback'
-                        ? 'text-amber-600'
-                        : 'text-[var(--success)]',
+                      : 'text-[var(--success)]',
                   )}
                 />
                 <span>
@@ -641,7 +639,7 @@ export function PlaygroundShell({
                     : realtimeState === 'live'
                       ? 'Realtime connected'
                       : realtimeState === 'fallback'
-                        ? 'Polling fallback'
+                        ? 'Synced · 15s refresh'
                         : 'Connecting realtime…'}
                 </span>
               </div>
@@ -724,7 +722,36 @@ export function PlaygroundShell({
               </IconTooltip>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+              {selectedNode === 'generate' && (
+                <div className="order-1 mb-5">
+                  <InspectorLabel>Run summary</InspectorLabel>
+                  <div className="space-y-1.5 rounded-md border bg-playground-surface-elevated p-3 shadow-xs">
+                    <SummaryRow label="Model" value={model} />
+                    <SummaryRow
+                      label="Size"
+                      value={`${aspect} · ${dimensions.width}×${dimensions.height}`}
+                    />
+                    <SummaryRow label="Outputs" value={`${outputs} · ${outputFormat.toUpperCase()}`} />
+                    <SummaryRow label="Seed" value={seed == null ? 'Random' : String(seed)} />
+                    <SummaryRow label="Estimate" value={`~${formatUsd(estimatedCost)}`} />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="mt-2"
+                    onClick={() => setSelectedNode('prompt')}
+                  >
+                    <WandSparkles /> Edit prompt
+                  </Button>
+                </div>
+              )}
+              <div
+                className={cn(
+                  selectedNode === 'prompt' ? 'order-2' : 'order-1',
+                  selectedNode === 'generate' && 'hidden',
+                )}
+              >
               <InspectorLabel>Model</InspectorLabel>
               <Select
                 value={model}
@@ -749,7 +776,14 @@ export function PlaygroundShell({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              </div>
 
+              <div
+                className={cn(
+                  selectedNode === 'prompt' ? 'order-1' : 'order-2',
+                  selectedNode === 'generate' && 'hidden',
+                )}
+              >
               <InspectorLabel>Prompt</InspectorLabel>
               <div className="relative mb-5">
                 <Textarea
@@ -764,7 +798,9 @@ export function PlaygroundShell({
                   {prompt.length.toLocaleString()} / 10,000
                 </span>
               </div>
+              </div>
 
+              <div className="order-3">
               <InspectorLabel>Parameters</InspectorLabel>
               <div className="flex flex-wrap items-center gap-1.5">
                 <AspectParameter
@@ -896,6 +932,7 @@ export function PlaygroundShell({
                   </div>
                 </CollapsibleContent>
               </Collapsible>
+              </div>
             </div>
 
             <div className="border-t bg-playground-surface p-4">
@@ -933,10 +970,7 @@ export function PlaygroundShell({
             </div>
           </aside>
 
-          <section
-            ref={canvasRef}
-            className="relative min-w-0 overflow-hidden bg-[var(--canvas)]"
-          >
+          <section className="relative min-w-0 overflow-hidden bg-[var(--canvas)]">
             <div className="absolute inset-0 graph-grid opacity-60" />
             <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
               <Badge
@@ -958,6 +992,11 @@ export function PlaygroundShell({
               <History /> History
             </Button>
 
+            {/* Centered node field: keeps the composition tight on wide screens. */}
+            <div
+              ref={fieldRef}
+              className="absolute inset-y-0 left-1/2 h-full w-full max-w-[1120px] -translate-x-1/2"
+            >
             <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
               {edgePaths.promptModel && <path d={edgePaths.promptModel} className="graph-edge" />}
               {edgePaths.modelGenerate && (
@@ -1006,6 +1045,7 @@ export function PlaygroundShell({
                 </button>
               );
             })}
+            </div>
 
             <div className="absolute bottom-4 left-4 z-10 flex items-center rounded-md border bg-background/90 p-1 shadow-xs backdrop-blur">
               <IconTooltip label="Node editing — planned (see roadmap)">
@@ -1796,6 +1836,15 @@ function RunDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-[12px]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-medium">{value}</span>
+    </div>
   );
 }
 

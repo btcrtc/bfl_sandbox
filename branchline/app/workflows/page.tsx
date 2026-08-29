@@ -1,13 +1,7 @@
-import { chatGPTSignInPath, getChatGPTUser } from '@/app/chatgpt-auth';
-import { SectionPage } from '@/components/section-page';
+import { redirect } from 'next/navigation';
 
-export default async function Page() {
-  const user = await getChatGPTUser();
-  return (
-    <SectionPage
-      section="workflows"
-      viewer={user ? { displayName: user.displayName, email: user.email } : null}
-      signInPath={chatGPTSignInPath('/workflows')}
-    />
-  );
+// The mock workflows gallery was removed; reusable workflows will return once
+// they are real objects. Keep the route alive for old links.
+export default function WorkflowsPage() {
+  redirect('/playground');
 }

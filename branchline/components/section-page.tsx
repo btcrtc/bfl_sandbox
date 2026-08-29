@@ -47,51 +47,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { HistoryRun } from '@/db/history';
 
-export type WorkspaceSection =
-  | 'workflows'
-  | 'assets'
-  | 'runs'
-  | 'components'
-  | 'settings';
-
-const workflowRows = [
-  [
-    'Product portrait / v3',
-    'Prompt → FLUX.2 [max] → Generate',
-    '12 sec ago',
-    'active',
-  ],
-  [
-    'Typography stress test',
-    'Brief → FLUX.2 [flex] → Compare',
-    '42 min ago',
-    'active',
-  ],
-  [
-    'Campaign aspect matrix',
-    'Prompt → 6 ratios → Export',
-    'Yesterday',
-    'draft',
-  ],
-  [
-    'Reference style transfer',
-    '3 references → FLUX.2 [pro] → Review',
-    '2 days ago',
-    'active',
-  ],
-  [
-    'Klein exploration loop',
-    'Seed list → FLUX.2 [klein] → Rank',
-    '4 days ago',
-    'paused',
-  ],
-  [
-    'Editorial batch runner',
-    'CSV prompts → FLUX.2 [pro] → Archive',
-    '1 week ago',
-    'draft',
-  ],
-] as const;
+export type WorkspaceSection = 'assets' | 'runs' | 'components' | 'settings';
 
 const generatedAssetImages = [
   { name: 'Mineral machine', src: '/generated/mineral-machine.png' },
@@ -152,11 +108,6 @@ const sectionMeta: Record<
   WorkspaceSection,
   { title: string; description: string; action: string }
 > = {
-  workflows: {
-    title: 'Workflows',
-    description: 'Reusable visual generation graphs for your Studio workspace.',
-    action: 'New workflow',
-  },
   assets: {
     title: 'Assets',
     description: 'Generated outputs and uploaded references, stored centrally.',
@@ -296,7 +247,6 @@ function SectionContent({
   query: string;
   signedIn: boolean;
 }) {
-  if (section === 'workflows') return <Workflows query={query} />;
   if (section === 'assets') return <Assets query={query} signedIn={signedIn} />;
   if (section === 'runs') return <Runs query={query} signedIn={signedIn} />;
   if (section === 'components') return <Components query={query} />;
@@ -340,77 +290,6 @@ function ExampleDataBadge() {
     <Badge variant="outline" className="rounded-md font-mono text-[9px] text-muted-foreground">
       EXAMPLE DATA
     </Badge>
-  );
-}
-
-function Workflows({ query }: { query: string }) {
-  const items = workflowRows.filter((row) =>
-    row.join(' ').toLowerCase().includes(query.toLowerCase()),
-  );
-  return (
-    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-      {items.map(([name, graph, age, status]) => {
-        const steps = graph.split(' → ');
-        return (
-          <article
-            key={name}
-            className={cn(
-              surfaceClass,
-              'group p-4 transition-colors hover:border-foreground/25',
-            )}
-          >
-            <div className="mb-3 flex items-start justify-between">
-              <Badge
-                variant="outline"
-                className="h-5 rounded-md font-mono text-[9px] uppercase tracking-wider"
-              >
-                {steps.length} nodes
-              </Badge>
-              <ExampleDataBadge />
-            </div>
-            <h2 className="text-[13px] font-semibold">{name}</h2>
-            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              {graph}
-            </p>
-            <div className="my-4 grid grid-cols-[minmax(0,1fr)_10px_minmax(0,1fr)_10px_minmax(0,1fr)] items-center gap-1 rounded-md border bg-playground-surface p-2">
-              {steps.map((step, node) => (
-                <span key={`${step}-${node}`} className="contents">
-                  <span className="min-w-0 rounded-md border bg-background px-2 py-1.5">
-                    <span className="block font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                      {node === 0
-                        ? 'Input'
-                        : node === steps.length - 1
-                          ? 'Output'
-                          : 'Model'}
-                    </span>
-                    <span
-                      className="mt-0.5 block truncate text-[10px] font-medium"
-                      title={step}
-                    >
-                      {step}
-                    </span>
-                  </span>
-                  {node < steps.length - 1 && (
-                    <span className="text-center font-mono text-[9px] text-muted-foreground">
-                      →
-                    </span>
-                  )}
-                </span>
-              ))}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-              <span>{age}</span>
-              <Badge
-                variant="outline"
-                className="h-5 rounded-md font-mono text-[9px] uppercase"
-              >
-                {status}
-              </Badge>
-            </div>
-          </article>
-        );
-      })}
-    </div>
   );
 }
 

@@ -9,7 +9,6 @@ import {
   Clapperboard,
   Clock3,
   Image as ImageIcon,
-  Layers3,
   Monitor,
   Moon,
   SlidersHorizontal,
@@ -27,7 +26,6 @@ import {
 import { cn } from '@/lib/utils';
 
 export type ProductSection =
-  | 'workflows'
   | 'playground'
   | 'scenes'
   | 'assets'
@@ -41,7 +39,6 @@ const productNavigation: Array<{
   href: string;
   icon: ElementType;
 }> = [
-  { id: 'workflows', label: 'Workflows', href: '/workflows', icon: Layers3 },
   {
     id: 'playground',
     label: 'Playground',
