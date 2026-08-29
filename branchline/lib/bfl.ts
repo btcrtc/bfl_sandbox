@@ -1,0 +1,68 @@
+export const BFL_ENDPOINTS = {
+  'FLUX.2 [max]': 'flux-2-max',
+  'FLUX.2 [pro]': 'flux-2-pro-preview',
+  'FLUX.2 [flex]': 'flux-2-flex',
+  'FLUX.2 [klein]': 'flux-2-klein-4b',
+} as const;
+
+export type BflModel = keyof typeof BFL_ENDPOINTS;
+
+type BflCreateResponse = {
+  id: string;
+  polling_url: string;
+  cost?: number | null;
+};
+
+export type BflPollResponse = {
+  status: string;
+  result?: { sample?: string } | null;
+};
+
+export async function createBflGeneration(
+  apiKey: string,
+  input: {
+    model: BflModel;
+    prompt: string;
+    width: number;
+    height: number;
+    outputFormat: 'jpeg' | 'png' | 'webp';
+    safetyTolerance: number;
+    promptUpsampling: boolean;
+    seed: number | null;
+  },
+) {
+  const endpoint = BFL_ENDPOINTS[input.model];
+  const response = await fetch(`https://api.bfl.ai/v1/${endpoint}`, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json', 'x-key': apiKey },
+    body: JSON.stringify({
+      prompt: input.prompt,
+      width: input.width,
+      height: input.height,
+      output_format: input.outputFormat,
+      safety_tolerance: input.safetyTolerance,
+      prompt_upsampling: input.promptUpsampling,
+      seed: input.seed,
+    }),
+  });
+
+  if (!response.ok) throw new Error(await providerError(response));
+  const data = (await response.json()) as BflCreateResponse;
+  if (!data.id || !data.polling_url) throw new Error('BFL returned an incomplete generation response.');
+  return data;
+}
+
+export async function pollBflGeneration(apiKey: string, pollingUrl: string) {
+  const url = new URL(pollingUrl);
+  if (url.protocol !== 'https:' || !url.hostname.endsWith('.bfl.ai')) {
+    throw new Error('BFL returned an invalid polling URL.');
+  }
+  const response = await fetch(url, { headers: { accept: 'application/json', 'x-key': apiKey } });
+  if (!response.ok) throw new Error(await providerError(response));
+  return (await response.json()) as BflPollResponse;
+}
+
+async function providerError(response: Response) {
+  const responseText = (await response.text()).slice(0, 400);
+  return `BFL API ${response.status}: ${responseText || response.statusText}`;
+}
