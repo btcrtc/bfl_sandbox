@@ -20,7 +20,7 @@ whole sequence and prices the resulting reel at video draft→enhance economics.
 | Realtime: WebSocket history updates with 15s polling fallback | **Live** (per-socket D1 polling — see tradeoffs below) |
 | Scenes: pinned reference sent as FLUX.2 `input_image`, pinned seed, style note, scene stills | **Live** |
 | Scenes: assemble the reel via FLUX 3 Video draft → `draft_enhance` | **Concept** — cost model is real, the video API call is staged behind a flag |
-| Workflows / Assets pages, node editing on the canvas | **Concept** — labeled in-UI |
+| Workflows / Assets / Runs pages, node editing on the canvas | **Concept** — labeled in-UI |
 
 ## Why these features
 
