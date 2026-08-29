@@ -29,10 +29,11 @@ Color is structural. Mint marks selection and context; dark green is reserved fo
 
 1. Group by task before adding borders. A label, control and help text form one group.
 2. Use a single elevated surface inside a neutral panel; avoid nested card-on-card styling unless the child is an opened parameter editor.
-3. Parameter summaries are 28 px chips. Their editor opens as a full-width 12 px padded detail card below the chip row.
+3. Parameter summaries are 28 px chips. Complex parameters use two stages: the chip opens a 12 px padded editor anchored 5 px below it, then the editor's field opens its value list.
 4. Align actions to the edge of the surface they affect. Workspace actions live in page headers; generation actions stay pinned to the inspector footer.
 5. Use tooltips for icon-only controls and visible labels for all consequential actions.
-6. Do not invent one-off font sizes or radii. Extend the scale in this document first.
+6. Selects and menus align to their trigger edge and open 5 px below it. Select value lists never overlap their trigger; near the viewport edge they remain below and become scrollable.
+7. Do not invent one-off font sizes or radii. Extend the scale in this document first.
 
 ## Implementation
 

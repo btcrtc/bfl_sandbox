@@ -1,5 +1,6 @@
 'use client';
 
+import NextImage from 'next/image';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Box,
@@ -91,6 +92,13 @@ const workflowRows = [
     '1 week ago',
     'draft',
   ],
+] as const;
+
+const generatedAssetImages = [
+  { name: 'Mineral machine', src: '/generated/mineral-machine.png' },
+  { name: 'Smoked glass', src: '/generated/smoked-glass.png' },
+  { name: 'Field camera', src: '/generated/field-camera.png' },
+  { name: 'Paper terrain', src: '/generated/paper-terrain.png' },
 ] as const;
 
 const runRows = [
@@ -248,65 +256,87 @@ function Workflows({ query }: { query: string }) {
   );
   return (
     <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-      {items.map(([name, graph, age, status]) => (
-        <article
-          key={name}
-          className={cn(
-            surfaceClass,
-            'group p-4 transition-colors hover:border-foreground/25',
-          )}
-        >
-          <div className="mb-3 flex items-start justify-between">
-            <div className="grid size-8 place-items-center rounded-md bg-[var(--brand-soft)]">
-              <Layers3 className="size-4" />
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Workflow actions"
-                  />
-                }
+      {items.map(([name, graph, age, status]) => {
+        const steps = graph.split(' → ');
+        return (
+          <article
+            key={name}
+            className={cn(
+              surfaceClass,
+              'group p-4 transition-colors hover:border-foreground/25',
+            )}
+          >
+            <div className="mb-3 flex items-start justify-between">
+              <Badge
+                variant="outline"
+                className="h-5 rounded-md font-mono text-[8px] uppercase tracking-wider"
               >
-                <MoreHorizontal />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Copy /> Duplicate
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Code2 /> Export JSON
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <h2 className="text-[13px] font-semibold">{name}</h2>
-          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-            {graph}
-          </p>
-          <div className="my-4 flex items-center gap-1.5 rounded-md border bg-playground-surface p-2.5">
-            {[WandSparkles, Box, Zap].map((Icon, node) => (
-              <span key={node} className="contents">
-                <span className="grid size-7 place-items-center rounded border bg-background">
-                  <Icon className="size-3" />
+                {steps.length} nodes
+              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Workflow actions"
+                    />
+                  }
+                >
+                  <MoreHorizontal />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>
+                    <Copy /> Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Code2 /> Export JSON
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <h2 className="text-[13px] font-semibold">{name}</h2>
+            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+              {graph}
+            </p>
+            <div className="my-4 grid grid-cols-[minmax(0,1fr)_10px_minmax(0,1fr)_10px_minmax(0,1fr)] items-center gap-1 rounded-md border bg-playground-surface p-2">
+              {steps.map((step, node) => (
+                <span key={`${step}-${node}`} className="contents">
+                  <span className="min-w-0 rounded-md border bg-background px-2 py-1.5">
+                    <span className="block font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                      {node === 0
+                        ? 'Input'
+                        : node === steps.length - 1
+                          ? 'Output'
+                          : 'Model'}
+                    </span>
+                    <span
+                      className="mt-0.5 block truncate text-[9px] font-medium"
+                      title={step}
+                    >
+                      {step}
+                    </span>
+                  </span>
+                  {node < steps.length - 1 && (
+                    <span className="text-center font-mono text-[9px] text-muted-foreground">
+                      →
+                    </span>
+                  )}
                 </span>
-                {node < 2 && <span className="h-px flex-1 bg-border" />}
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>{age}</span>
-            <Badge
-              variant="outline"
-              className="h-5 rounded-md font-mono text-[8px] uppercase"
-            >
-              {status}
-            </Badge>
-          </div>
-        </article>
-      ))}
+              ))}
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>{age}</span>
+              <Badge
+                variant="outline"
+                className="h-5 rounded-md font-mono text-[8px] uppercase"
+              >
+                {status}
+              </Badge>
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -317,10 +347,8 @@ function Assets({ query }: { query: string }) {
     () =>
       Array.from({ length: 12 }, (_, index) => ({
         id: index + 1,
-        name:
-          ['Mineral machine', 'Smoked glass', 'Alpine glyphs', 'Field camera'][
-            index % 4
-          ] + ` · ${index + 1}`,
+        name: `${generatedAssetImages[index % generatedAssetImages.length].name} · ${Math.floor(index / generatedAssetImages.length) + 1}`,
+        src: generatedAssetImages[index % generatedAssetImages.length].src,
         kind: index % 4 === 0 ? 'reference' : 'output',
       })).filter(
         (asset) =>
@@ -348,21 +376,21 @@ function Assets({ query }: { query: string }) {
         </Badge>
       </div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-        {assets.map((asset, index) => (
+        {assets.map((asset) => (
           <article
             key={asset.id}
-            className={cn(surfaceClass, 'overflow-hidden')}
+            className={cn(surfaceClass, 'group overflow-hidden')}
           >
-            <div
-              className={cn(
-                'aspect-square',
-                [
-                  'bg-[radial-gradient(circle_at_65%_35%,#d9a45a_0_8%,transparent_9%),linear-gradient(135deg,#e8e2d6,#a8b8a3)]',
-                  'bg-[linear-gradient(145deg,#193d2a_0_35%,#7b927b_36%_65%,#efe8dc_66%)]',
-                  'bg-[radial-gradient(circle,#345c42_0_15%,#d8dfd2_16%_30%,#ede9df_31%)]',
-                ][index % 3],
-              )}
-            />
+            <div className="aspect-square overflow-hidden bg-muted">
+              <NextImage
+                src={asset.src}
+                alt={asset.name}
+                width={640}
+                height={640}
+                sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+              />
+            </div>
             <div className="p-2">
               <p className="truncate text-[11px] font-medium">{asset.name}</p>
               <p className="mt-0.5 font-mono text-[9px] uppercase text-muted-foreground">
