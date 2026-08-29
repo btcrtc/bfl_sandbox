@@ -1,26 +1,18 @@
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Box,
-  Braces,
   CheckCircle2,
-  Clock3,
   Cloud,
   Code2,
   Copy,
   Ellipsis,
-  Image as ImageIcon,
   Layers3,
   ListFilter,
   MoreHorizontal,
   Plus,
   Search,
-  Settings2,
-  SlidersHorizontal,
-  Sparkles,
   Users,
   WandSparkles,
   Zap,
@@ -28,6 +20,15 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  PageHeading,
+  ParameterChip,
+  ProductHeader,
+  ProductRail,
+  Surface,
+  SystemLabel,
+  surfaceClass,
+} from '@/components/product-system';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,14 +43,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 export type WorkspaceSection =
@@ -58,20 +53,6 @@ export type WorkspaceSection =
   | 'runs'
   | 'components'
   | 'settings';
-
-const navigation = [
-  { id: 'workflows', label: 'Workflows', href: '/workflows', icon: Layers3 },
-  {
-    id: 'playground',
-    label: 'Playground',
-    href: '/playground',
-    icon: Sparkles,
-  },
-  { id: 'assets', label: 'Assets', href: '/assets', icon: ImageIcon },
-  { id: 'divider', label: '', href: '', icon: Box },
-  { id: 'runs', label: 'Runs', href: '/runs', icon: Clock3 },
-  { id: 'components', label: 'Components', href: '/components', icon: Box },
-] as const;
 
 const workflowRows = [
   [
@@ -180,9 +161,10 @@ const sectionMeta: Record<
     action: 'Run workflow',
   },
   components: {
-    title: 'Components',
-    description: 'Composable nodes, controls and presets for the graph.',
-    action: 'New component',
+    title: 'Design system',
+    description:
+      'Tokens, controls and composition rules used across Branchline.',
+    action: 'Export tokens',
   },
   settings: {
     title: 'Settings',
@@ -197,117 +179,52 @@ export function SectionPage({ section }: { section: WorkspaceSection }) {
   return (
     <TooltipProvider delay={350}>
       <main className="h-svh overflow-hidden bg-background text-foreground">
-        <header className="grid h-11 grid-cols-[190px_minmax(0,1fr)_190px] items-center border-b px-2.5">
-          <Link href="/playground" className="flex items-center gap-2.5">
-            <span className="grid size-7 place-items-center rounded-md bg-foreground text-background">
-              <Braces className="size-4" />
-            </span>
-            <span className="text-sm font-semibold tracking-tight">
-              Branchline
-            </span>
-          </Link>
-          <div className="relative mx-auto w-[min(360px,44vw)]">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search this workspace…"
-              className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none"
-            />
-          </div>
-          <div className="flex items-center justify-self-end gap-2 text-[10px] text-muted-foreground">
-            <Cloud className="size-3.5 text-[var(--success)]" />
-            <span className="hidden sm:inline">Studio synced</span>
-            <Button variant="ghost" size="icon-sm" aria-label="Workspace menu">
-              <Settings2 />
-            </Button>
-            <span className="grid size-7 place-items-center rounded-full bg-[#ead9cc] font-mono">
-              YW
-            </span>
-          </div>
-        </header>
-
-        <div className="grid h-[calc(100svh-44px)] grid-cols-[44px_minmax(0,1fr)]">
-          <nav className="flex flex-col items-center border-r py-2">
-            {navigation.map((item) =>
-              item.id === 'divider' ? (
-                <Separator key="divider" className="my-2 w-6" />
-              ) : (
-                <SectionNavButton
-                  key={item.id}
-                  href={item.href}
-                  label={item.label}
-                  icon={item.icon}
-                  active={section === item.id}
-                />
-              ),
-            )}
-            <div className="mt-auto">
-              <SectionNavButton
-                href="/settings"
-                label="Settings"
-                icon={SlidersHorizontal}
-                active={section === 'settings'}
+        <ProductHeader
+          center={
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search this workspace…"
+                className="h-9 border-0 bg-muted/60 pl-8 text-[13px] shadow-none"
               />
             </div>
-          </nav>
+          }
+          end={
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <Cloud className="size-3.5 text-[var(--success)]" />
+              <span className="hidden sm:inline">Studio synced</span>
+              <span className="grid size-7 place-items-center rounded-full bg-[#ead9cc] font-mono text-[10px]">
+                YW
+              </span>
+            </div>
+          }
+        />
 
-          <section className="min-w-0 overflow-y-auto bg-[var(--canvas)]">
-            <div className="mx-auto w-full max-w-[1320px] px-5 py-4">
-              <div className="mb-4 flex items-end justify-between gap-4">
-                <div>
-                  <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-muted-foreground">
-                    Studio workspace
-                  </p>
-                  <h1 className="mt-1 text-xl font-semibold tracking-tight">
-                    {meta.title}
-                  </h1>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {meta.description}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  className="bg-foreground text-background hover:bg-[var(--brand)]"
-                >
-                  <Plus /> {meta.action}
-                </Button>
-              </div>
+        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_minmax(0,1fr)]">
+          <ProductRail active={section} />
+
+          <section className="min-w-0 overflow-y-auto bg-playground-surface">
+            <div className="mx-auto w-full max-w-[1360px] px-6 py-5">
+              <PageHeading
+                title={meta.title}
+                description={meta.description}
+                action={
+                  <Button
+                    size="sm"
+                    className="bg-foreground px-3 text-background hover:bg-foreground/85 hover:text-background"
+                  >
+                    <Plus /> {meta.action}
+                  </Button>
+                }
+              />
               <SectionContent section={section} query={query} />
             </div>
           </section>
         </div>
       </main>
     </TooltipProvider>
-  );
-}
-
-function SectionNavButton({
-  href,
-  label,
-  icon: Icon,
-  active,
-}: {
-  href: string;
-  label: string;
-  icon: typeof Layers3;
-  active?: boolean;
-}) {
-  const router = useRouter();
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        aria-label={label}
-        onClick={() => router.push(href)}
-        className={cn(
-          'mb-1 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground',
-          active && 'bg-[var(--brand-soft)] text-foreground',
-        )}
-      >
-        <Icon className="size-4" />
-      </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
   );
 }
 
@@ -330,11 +247,14 @@ function Workflows({ query }: { query: string }) {
     row.join(' ').toLowerCase().includes(query.toLowerCase()),
   );
   return (
-    <div className="grid gap-2.5 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
       {items.map(([name, graph, age, status]) => (
         <article
           key={name}
-          className="group rounded-lg border bg-background p-3 shadow-xs transition-colors hover:border-[var(--brand)]"
+          className={cn(
+            surfaceClass,
+            'group p-4 transition-colors hover:border-foreground/25',
+          )}
         >
           <div className="mb-3 flex items-start justify-between">
             <div className="grid size-8 place-items-center rounded-md bg-[var(--brand-soft)]">
@@ -362,9 +282,11 @@ function Workflows({ query }: { query: string }) {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <h2 className="text-xs font-semibold">{name}</h2>
-          <p className="mt-1 text-[10px] text-muted-foreground">{graph}</p>
-          <div className="my-3 flex items-center gap-1.5 rounded-md border bg-[var(--canvas)] p-2">
+          <h2 className="text-[13px] font-semibold">{name}</h2>
+          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+            {graph}
+          </p>
+          <div className="my-4 flex items-center gap-1.5 rounded-md border bg-playground-surface p-2.5">
             {[WandSparkles, Box, Zap].map((Icon, node) => (
               <span key={node} className="contents">
                 <span className="grid size-7 place-items-center rounded border bg-background">
@@ -374,11 +296,11 @@ function Workflows({ query }: { query: string }) {
               </span>
             ))}
           </div>
-          <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
             <span>{age}</span>
             <Badge
               variant="outline"
-              className="h-5 font-mono text-[8px] uppercase"
+              className="h-5 rounded-md font-mono text-[8px] uppercase"
             >
               {status}
             </Badge>
@@ -421,7 +343,7 @@ function Assets({ query }: { query: string }) {
             <SelectItem value="reference">References</SelectItem>
           </SelectContent>
         </Select>
-        <Badge variant="outline" className="font-mono text-[8px]">
+        <Badge variant="outline" className="rounded-md font-mono text-[9px]">
           {assets.length} ITEMS
         </Badge>
       </div>
@@ -429,7 +351,7 @@ function Assets({ query }: { query: string }) {
         {assets.map((asset, index) => (
           <article
             key={asset.id}
-            className="overflow-hidden rounded-lg border bg-background"
+            className={cn(surfaceClass, 'overflow-hidden')}
           >
             <div
               className={cn(
@@ -442,8 +364,8 @@ function Assets({ query }: { query: string }) {
               )}
             />
             <div className="p-2">
-              <p className="truncate text-[10px] font-medium">{asset.name}</p>
-              <p className="mt-0.5 font-mono text-[8px] uppercase text-muted-foreground">
+              <p className="truncate text-[11px] font-medium">{asset.name}</p>
+              <p className="mt-0.5 font-mono text-[9px] uppercase text-muted-foreground">
                 {asset.kind}
               </p>
             </div>
@@ -459,8 +381,8 @@ function Runs({ query }: { query: string }) {
     row.join(' ').toLowerCase().includes(query.toLowerCase()),
   );
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
-      <div className="grid grid-cols-[74px_minmax(240px,1fr)_130px_84px_54px_64px_82px_28px] gap-3 border-b bg-muted/45 px-3 py-2 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+    <div className={cn(surfaceClass, 'overflow-hidden')}>
+      <div className="grid grid-cols-[74px_minmax(240px,1fr)_130px_84px_54px_64px_82px_28px] gap-3 border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
         <span>Run</span>
         <span>Prompt</span>
         <span>Model</span>
@@ -473,7 +395,7 @@ function Runs({ query }: { query: string }) {
       {rows.map(([id, prompt, model, status, images, cost, created]) => (
         <div
           key={id}
-          className="grid grid-cols-[74px_minmax(240px,1fr)_130px_84px_54px_64px_82px_28px] items-center gap-3 border-b px-3 py-2.5 text-[10px] last:border-0"
+          className="grid grid-cols-[74px_minmax(240px,1fr)_130px_84px_54px_64px_82px_28px] items-center gap-3 border-b px-3 py-3 text-[11px] last:border-0"
         >
           <span className="font-mono">{id}</span>
           <span className="truncate font-medium">{prompt}</span>
@@ -504,7 +426,17 @@ function Runs({ query }: { query: string }) {
 }
 
 function Components({ query }: { query: string }) {
-  const items = [
+  const matches = (value: string) =>
+    value.toLowerCase().includes(query.trim().toLowerCase());
+  const colors = [
+    ['Foreground', 'bg-foreground', '147 · 43% · 7%'],
+    ['Accent', 'bg-accent', '150 · 27% · 88%'],
+    ['Rail active', 'bg-sidebar-accent', '151 · 21% · 81%'],
+    ['Surface', 'bg-playground-surface', '0 · 0% · 98%'],
+    ['Border', 'bg-border', '0 · 0% · 90%'],
+    ['Muted copy', 'bg-muted-foreground', '0 · 0% · 50%'],
+  ].filter((color) => matches(color.join(' ')));
+  const componentItems = [
     [
       'Prompt',
       'Input',
@@ -525,54 +457,174 @@ function Components({ query }: { query: string }) {
       Layers3,
     ],
     [
-      'Transform',
-      'Utility',
-      'Resize, format and metadata pipeline',
-      SlidersHorizontal,
-    ],
-    [
       'Review gate',
       'Control',
       'Human approval before publishing outputs',
       CheckCircle2,
     ],
-  ].filter((item) =>
-    item.join(' ').toLowerCase().includes(query.toLowerCase()),
-  );
+  ].filter((item) => matches(item.join(' ')));
+
   return (
-    <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-      {items.map(([name, type, description, Icon]) => (
-        <article
-          key={String(name)}
-          className="flex items-start gap-3 rounded-lg border bg-background p-3"
-        >
-          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[var(--brand-soft)]">
-            {typeof Icon !== 'string' && <Icon className="size-4" />}
-          </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xs font-semibold">{String(name)}</h2>
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Surface className="p-5">
+          <SystemLabel>Color roles</SystemLabel>
+          <h2 className="mt-1.5 text-[15px] font-semibold">
+            Quiet surfaces, decisive foreground
+          </h2>
+          <p className="mt-1 max-w-xl text-[12px] leading-5 text-muted-foreground">
+            Mint communicates selection and context. Dark green is reserved for
+            primary actions, graph activity and high-confidence status.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {colors.map(([name, swatch, value]) => (
+              <div
+                key={name}
+                className="flex items-center gap-2.5 rounded-md border p-2.5"
+              >
+                <span
+                  className={cn('size-8 shrink-0 rounded-md border', swatch)}
+                />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium">{name}</p>
+                  <p className="truncate font-mono text-[9px] text-muted-foreground">
+                    {value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Surface>
+
+        <Surface className="p-5">
+          <SystemLabel>Type scale</SystemLabel>
+          <div className="mt-4 space-y-4">
+            <TypeSpec
+              label="Workspace heading · 24/32"
+              className="text-[24px] font-semibold leading-8 tracking-[-0.025em]"
+            >
+              Design system
+            </TypeSpec>
+            <TypeSpec
+              label="Section heading · 15/20"
+              className="text-[15px] font-semibold leading-5"
+            >
+              Shared history
+            </TypeSpec>
+            <TypeSpec label="Body · 13/20" className="text-[13px] leading-5">
+              Compose, run and compare visual workflows.
+            </TypeSpec>
+            <TypeSpec
+              label="Technical label · 10/14"
+              className="font-mono text-[10px] uppercase leading-[14px] tracking-wider text-muted-foreground"
+            >
+              Aspect ratio
+            </TypeSpec>
+          </div>
+        </Surface>
+      </div>
+
+      <Surface className="p-5">
+        <div className="grid gap-5 xl:grid-cols-[1fr_1fr_0.9fr]">
+          <div>
+            <SystemLabel>Controls</SystemLabel>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm">Primary action</Button>
+              <Button size="sm" variant="outline">
+                Secondary
+              </Button>
+              <Button size="sm" variant="ghost">
+                Ghost
+              </Button>
               <Badge
                 variant="outline"
-                className="h-4 font-mono text-[7px] uppercase"
+                className="rounded-md font-mono text-[9px]"
               >
-                {String(type)}
+                SYNCED
               </Badge>
             </div>
-            <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-              {String(description)}
-            </p>
           </div>
-        </article>
-      ))}
+          <div>
+            <SystemLabel>Parameter chips</SystemLabel>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <ParameterChip label="Aspect ratio" value="4:3" active />
+              <ParameterChip label="Outputs" value="2" />
+              <ParameterChip label="Safety" value="2" />
+              <ParameterChip label="Format" value="PNG" />
+            </div>
+          </div>
+          <div>
+            <SystemLabel>Spacing</SystemLabel>
+            <div className="mt-3 flex items-end gap-2">
+              {[4, 6, 8, 12, 16, 20, 24].map((space) => (
+                <div key={space} className="flex flex-col items-center gap-1.5">
+                  <span
+                    className="w-4 rounded-sm bg-sidebar-accent"
+                    style={{ height: space }}
+                  />
+                  <span className="font-mono text-[8px] text-muted-foreground">
+                    {space}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Surface>
+
+      <div>
+        <SystemLabel className="mb-2.5">Graph components</SystemLabel>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {componentItems.map(([name, type, description, Icon]) => (
+            <Surface key={String(name)} className="flex items-start gap-3 p-4">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-accent">
+                {typeof Icon !== 'string' && <Icon className="size-4" />}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[13px] font-semibold">{String(name)}</h2>
+                  <Badge
+                    variant="outline"
+                    className="h-5 rounded-md font-mono text-[8px] uppercase"
+                  >
+                    {String(type)}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  {String(description)}
+                </p>
+              </div>
+            </Surface>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TypeSpec({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[150px_minmax(0,1fr)] items-baseline gap-3 border-b pb-3 last:border-0 last:pb-0">
+      <span className="font-mono text-[9px] text-muted-foreground">
+        {label}
+      </span>
+      <span className={className}>{children}</span>
     </div>
   );
 }
 
 function Settings() {
   return (
-    <div className="grid gap-3 lg:grid-cols-[210px_minmax(0,1fr)]">
-      <aside className="rounded-lg border bg-background p-1.5">
+    <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <aside className={cn(surfaceClass, 'h-fit p-2')}>
         {[
           'General',
           'Generation defaults',
@@ -583,8 +635,8 @@ function Settings() {
           <button
             key={item}
             className={cn(
-              'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[11px] hover:bg-accent',
-              index === 0 && 'bg-[var(--brand-soft)] font-medium',
+              'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[12px] hover:bg-accent',
+              index === 0 && 'bg-sidebar-accent font-medium',
             )}
           >
             {item}
@@ -598,13 +650,13 @@ function Settings() {
         >
           <label
             htmlFor="workspace-name"
-            className="grid gap-1.5 text-[10px] font-medium"
+            className="grid gap-1.5 text-[12px] font-medium"
           >
             Workspace name
             <Input
               id="workspace-name"
               defaultValue="Studio"
-              className="h-8 text-xs"
+              className="h-9 text-[13px]"
             />
           </label>
         </SettingsCard>
@@ -632,8 +684,8 @@ function Settings() {
           title="Collaboration"
           description="Workspace-level access and generation permissions"
         >
-          <div className="flex items-center justify-between rounded-md border p-2.5">
-            <span className="flex items-center gap-2 text-[11px]">
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <span className="flex items-center gap-2 text-[12px]">
               <Users className="size-4" /> 1 workspace member
             </span>
             <Button variant="outline" size="xs">
@@ -656,11 +708,13 @@ function SettingsCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border bg-background p-3">
-      <h2 className="text-xs font-semibold">{title}</h2>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">{description}</p>
-      <div className="mt-3 space-y-3">{children}</div>
-    </section>
+    <Surface className="p-4">
+      <h2 className="text-[14px] font-semibold">{title}</h2>
+      <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+        {description}
+      </p>
+      <div className="mt-4 space-y-4">{children}</div>
+    </Surface>
   );
 }
 function SettingToggle({
@@ -675,8 +729,10 @@ function SettingToggle({
   return (
     <div className="flex items-center justify-between border-t pt-3 first:border-0 first:pt-0">
       <div>
-        <p className="text-[11px] font-medium">{label}</p>
-        <p className="text-[9px] text-muted-foreground">{description}</p>
+        <p className="text-[12px] font-medium">{label}</p>
+        <p className="text-[10px] leading-4 text-muted-foreground">
+          {description}
+        </p>
       </div>
       <Switch size="sm" defaultChecked={checked} />
     </div>

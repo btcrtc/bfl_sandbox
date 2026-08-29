@@ -8,13 +8,10 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   Box,
-  Braces,
   ChevronDown,
-  Clock3,
   Cloud,
   Code2,
   Command,
@@ -23,14 +20,12 @@ import {
   Ellipsis,
   History,
   Image as ImageIcon,
-  Layers3,
   Loader2,
   Play,
   Plus,
   Search,
   Settings2,
   SlidersHorizontal,
-  Sparkles,
   RefreshCw,
   Save,
   Share2,
@@ -42,6 +37,14 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  ParameterChip,
+  ProductHeader,
+  ProductRail,
+  SystemLabel,
+  parameterChipClass,
+  surfaceClass,
+} from '@/components/product-system';
 import {
   Collapsible,
   CollapsibleContent,
@@ -67,14 +70,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -263,7 +258,7 @@ export function PlaygroundShell({
   signInPath: string;
 }) {
   const [selectedNode, setSelectedNode] = useState<NodeId>('model');
-  const [historyOpen, setHistoryOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [prompt, setPrompt] = useState(
     'A precise product portrait of a compact creative machine, warm mineral background, soft studio light, tactile controls.',
   );
@@ -438,134 +433,106 @@ export function PlaygroundShell({
   return (
     <TooltipProvider delay={350}>
       <main className="h-svh overflow-hidden bg-background text-foreground">
-        <header className="grid h-11 grid-cols-[auto_1fr_auto] items-center border-b bg-background px-2.5">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-7 place-items-center rounded-md bg-foreground text-background">
-              <Braces className="size-4" />
-            </div>
-            <span className="text-sm font-semibold tracking-tight">
-              Branchline
-            </span>
-            <Badge
-              variant="outline"
-              className="font-mono text-[9px] tracking-wider"
+        <ProductHeader
+          concept
+          center={
+            <button
+              className="flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={() => setCommandOpen(true)}
             >
-              CONCEPT
-            </Badge>
-          </div>
-
-          <button
-            className="mx-auto flex h-8 w-[min(360px,46vw)] items-center gap-2 rounded-md px-3 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            onClick={() => setCommandOpen(true)}
-          >
-            <Search className="size-3.5" />
-            <span className="flex-1">Type command or search…</span>
-            <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[9px]">
-              ⌘ K
-            </kbd>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
-              <Cloud
-                className={cn(
-                  'size-3.5',
-                  realtimeState === 'fallback'
-                    ? 'text-amber-600'
-                    : 'text-[var(--success)]',
-                )}
-              />
-              <span>
-                {realtimeState === 'live'
-                  ? 'Realtime connected'
-                  : realtimeState === 'fallback'
-                    ? 'Polling fallback'
-                    : 'Connecting realtime…'}
+              <Search className="size-3.5" />
+              <span className="min-w-0 flex-1 truncate">
+                Type command or search…
               </span>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Workspace settings"
-                  />
-                }
-              >
-                <Settings2 />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel>Studio workspace</DropdownMenuLabel>
-                <DropdownMenuCheckboxItem checked>
-                  Shared history
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={promptUpsampling}
-                  onCheckedChange={setPromptUpsampling}
+              <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[9px]">
+                ⌘ K
+              </kbd>
+            </button>
+          }
+          end={
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
+                <Cloud
+                  className={cn(
+                    'size-3.5',
+                    realtimeState === 'fallback'
+                      ? 'text-amber-600'
+                      : 'text-[var(--success)]',
+                  )}
+                />
+                <span>
+                  {realtimeState === 'live'
+                    ? 'Realtime connected'
+                    : realtimeState === 'fallback'
+                      ? 'Polling fallback'
+                      : 'Connecting realtime…'}
+                </span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Workspace settings"
+                    />
+                  }
                 >
-                  Prompt upsampling
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Share2 /> Share workflow
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Download /> Export JSON
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {viewer ? (
-              <Tooltip>
-                <TooltipTrigger className="grid size-7 place-items-center rounded-full bg-[#ead9cc] font-mono text-[10px]">
-                  {initials(viewer.displayName)}
-                </TooltipTrigger>
-                <TooltipContent>{viewer.email}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <a
-                href={signInPath}
-                className={buttonVariants({
-                  variant: 'outline',
-                  size: 'sm',
-                  className: 'h-7 text-[10px]',
-                })}
-              >
-                Sign in to sync
-              </a>
-            )}
-          </div>
-        </header>
-
-        <div className="grid h-[calc(100svh-44px)] grid-cols-[44px_288px_minmax(0,1fr)_var(--history-width)] [--history-width:304px] max-xl:grid-cols-[44px_288px_minmax(0,1fr)]">
-          <nav className="flex flex-col items-center border-r bg-background py-2">
-            <RailButton label="Workflows" href="/workflows" icon={Layers3} />
-            <RailButton
-              label="Playground"
-              href="/playground"
-              active
-              icon={Sparkles}
-            />
-            <RailButton label="Assets" href="/assets" icon={ImageIcon} />
-            <Separator className="my-2 w-6" />
-            <RailButton label="Runs" href="/runs" icon={Clock3} />
-            <RailButton label="Components" href="/components" icon={Box} />
-            <div className="mt-auto">
-              <RailButton
-                label="Settings"
-                href="/settings"
-                icon={SlidersHorizontal}
-              />
+                  <Settings2 />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel>Studio workspace</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem checked>
+                    Shared history
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={promptUpsampling}
+                    onCheckedChange={setPromptUpsampling}
+                  >
+                    Prompt upsampling
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Share2 /> Share workflow
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Download /> Export JSON
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {viewer ? (
+                <Tooltip>
+                  <TooltipTrigger className="grid size-7 place-items-center rounded-full bg-[#ead9cc] font-mono text-[10px]">
+                    {initials(viewer.displayName)}
+                  </TooltipTrigger>
+                  <TooltipContent>{viewer.email}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <a
+                  href={signInPath}
+                  className={buttonVariants({
+                    variant: 'outline',
+                    size: 'sm',
+                    className: 'h-7 text-[10px]',
+                  })}
+                >
+                  Sign in to sync
+                </a>
+              )}
             </div>
-          </nav>
+          }
+        />
 
-          <aside className="flex min-h-0 flex-col border-r bg-[var(--surface)]">
-            <div className="flex h-11 items-center justify-between border-b px-3">
+        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_var(--app-inspector-width)_minmax(0,1fr)_var(--app-history-width)] max-2xl:grid-cols-[var(--app-rail-width)_var(--app-inspector-width)_minmax(0,1fr)]">
+          <ProductRail active="playground" />
+
+          <aside className="flex min-h-0 flex-col border-r bg-playground-surface">
+            <div className="flex h-[var(--app-header-height)] items-center justify-between border-b px-4">
               <div>
-                <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-                  Inspector
+                <SystemLabel>{selected.label}</SystemLabel>
+                <p className="mt-0.5 text-[13px] font-medium leading-4">
+                  {selected.title}
                 </p>
-                <p className="text-xs font-medium">{selected.title}</p>
               </div>
               <Button
                 variant="ghost"
@@ -576,18 +543,13 @@ export function PlaygroundShell({
               </Button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <InspectorLabel>{selected.label}</InspectorLabel>
-              <p className="mb-5 text-xs leading-relaxed text-muted-foreground">
-                {selected.description}
-              </p>
-
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
               <InspectorLabel>Model</InspectorLabel>
               <Select
                 value={model}
                 onValueChange={(value) => setModel(value as typeof model)}
               >
-                <SelectTrigger className="mb-3 h-8! w-full rounded-md bg-background text-[11px] shadow-xs">
+                <SelectTrigger className="mb-4 h-9! w-full bg-playground-surface-elevated text-[13px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="start">
@@ -601,7 +563,7 @@ export function PlaygroundShell({
                       >
                         <span className="flex flex-col">
                           <span className="font-medium">{option.value}</span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             {option.description}
                           </span>
                         </span>
@@ -612,11 +574,11 @@ export function PlaygroundShell({
               </Select>
 
               <InspectorLabel>Prompt</InspectorLabel>
-              <div className="relative mb-4">
+              <div className="relative mb-5">
                 <Textarea
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
-                  className="min-h-24 resize-none bg-background pb-7 text-[11px] leading-relaxed shadow-xs"
+                  className="min-h-[120px] resize-none bg-playground-surface-elevated pb-10 text-sm leading-5"
                 />
                 <span className="absolute bottom-2 right-2 font-mono text-[9px] text-muted-foreground">
                   {prompt.length.toLocaleString()} / 10,000
@@ -624,9 +586,9 @@ export function PlaygroundShell({
               </div>
 
               <InspectorLabel>Parameters</InspectorLabel>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <AspectParameter
-                  label="Aspect"
+                  label="Aspect ratio"
                   value={aspect}
                   onValueChange={(value) => setAspect(value as typeof aspect)}
                 />
@@ -655,9 +617,9 @@ export function PlaygroundShell({
               <Collapsible
                 open={advancedOpen}
                 onOpenChange={setAdvancedOpen}
-                className="mt-3"
+                className="mt-2.5"
               >
-                <CollapsibleTrigger className="flex h-8 w-full items-center justify-between rounded-md border border-dashed bg-background px-2.5 text-[10px] font-medium hover:border-[var(--brand)] hover:bg-accent">
+                <CollapsibleTrigger className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground">
                   <span>{advancedOpen ? 'Hide advanced' : '+3 advanced'}</span>
                   <ChevronDown
                     className={cn(
@@ -667,7 +629,7 @@ export function PlaygroundShell({
                   />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2">
-                  <div className="space-y-2.5 rounded-lg border bg-background p-2.5 shadow-xs">
+                  <div className="space-y-3 rounded-md border bg-playground-surface-elevated p-3 shadow-xs">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[11px] font-medium">
@@ -726,8 +688,8 @@ export function PlaygroundShell({
               </Collapsible>
             </div>
 
-            <div className="border-t bg-background p-2.5">
-              <div className="mb-2 flex items-center justify-between px-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+            <div className="border-t bg-playground-surface p-4">
+              <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 <span>Estimated run</span>
                 <span>
                   {model.includes('max') ? '$0.14+' : '$0.06+'} · {outputs}{' '}
@@ -735,12 +697,12 @@ export function PlaygroundShell({
                 </span>
               </div>
               {runMessage && (
-                <p className="mb-2 px-1 text-[10px] leading-relaxed text-muted-foreground">
+                <p className="mb-2 text-[11px] leading-4 text-muted-foreground">
                   {runMessage}
                 </p>
               )}
               <Button
-                className="w-full justify-between bg-foreground text-background hover:bg-[var(--brand)] hover:text-white"
+                className="h-9 w-full justify-between bg-foreground px-3 text-[13px] text-background hover:bg-foreground/85 hover:text-background"
                 onClick={runWorkflow}
                 disabled={isRunning || prompt.trim().length < 3}
               >
@@ -773,7 +735,7 @@ export function PlaygroundShell({
             <Button
               variant="outline"
               size="sm"
-              className="absolute right-4 top-4 z-10 bg-background/90 text-xs backdrop-blur xl:hidden"
+              className="absolute right-4 top-4 z-10 bg-background/90 text-xs backdrop-blur 2xl:hidden"
               onClick={() => setHistoryOpen((value) => !value)}
             >
               <History /> History
@@ -781,14 +743,16 @@ export function PlaygroundShell({
 
             <svg
               className="pointer-events-none absolute inset-0 size-full"
+              viewBox="0 0 1000 700"
+              preserveAspectRatio="none"
               aria-hidden="true"
             >
               <path
-                d="M 250 260 C 360 260, 350 410, 485 410"
+                d="M 290 184 C 355 184, 350 342, 400 342"
                 className="graph-edge"
               />
               <path
-                d="M 650 410 C 760 410, 760 270, 900 270"
+                d="M 610 342 C 670 342, 665 202, 720 202"
                 className="graph-edge graph-edge-active"
               />
             </svg>
@@ -810,22 +774,25 @@ export function PlaygroundShell({
                   key={node.id}
                   onClick={() => setSelectedNode(node.id)}
                   className={cn(
-                    'absolute z-10 w-48 rounded-xl border bg-background p-3 text-left shadow-[0_12px_30px_-22px_rgba(0,0,0,.35)] transition-all hover:-translate-y-0.5 hover:shadow-lg',
+                    surfaceClass,
+                    'absolute z-10 w-[21%] min-w-44 max-w-52 p-4 text-left shadow-[var(--floating-shadow)] transition-all hover:-translate-y-0.5',
                     node.position,
                     active &&
                       'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
                   )}
                 >
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="font-mono text-[9px] tracking-[0.12em] text-muted-foreground">
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                       {node.eyebrow}
                     </span>
                     <span className="grid size-6 place-items-center rounded-md bg-muted">
                       <Icon className="size-3.5" />
                     </span>
                   </div>
-                  <p className="text-sm font-medium">{nodeTitle}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <p className="text-[15px] font-medium leading-5">
+                    {nodeTitle}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
                     {nodeMeta}
                   </p>
                   <span className="absolute -right-1.5 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-[var(--brand)]" />
@@ -926,35 +893,6 @@ export function PlaygroundShell({
   );
 }
 
-function RailButton({
-  label,
-  href,
-  icon: Icon,
-  active = false,
-}: {
-  label: string;
-  href: string;
-  icon: typeof Layers3;
-  active?: boolean;
-}) {
-  const router = useRouter();
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        aria-label={label}
-        onClick={() => router.push(href)}
-        className={cn(
-          'mb-1 grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-          active && 'bg-[var(--brand-soft)] text-foreground',
-        )}
-      >
-        <Icon className="size-4" />
-      </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function IconTooltip({
   label,
   children,
@@ -971,11 +909,7 @@ function IconTooltip({
 }
 
 function InspectorLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-      {children}
-    </p>
-  );
+  return <SystemLabel className="mb-2">{children}</SystemLabel>;
 }
 
 function ParameterSelect({
@@ -991,11 +925,9 @@ function ParameterSelect({
 }) {
   return (
     <Select value={value} onValueChange={(next) => next && onValueChange(next)}>
-      <SelectTrigger className="h-11! w-full flex-col items-start gap-0 rounded-md bg-background px-2.5 shadow-xs hover:border-[var(--brand)] [&>svg]:absolute [&>svg]:right-2">
-        <span className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <SelectValue className="mt-0.5 text-xs font-medium" />
+      <SelectTrigger className={cn(parameterChipClass, 'w-auto py-0 pr-1.5')}>
+        <span className="text-muted-foreground">{label}</span>
+        <SelectValue className="font-mono text-foreground" />
       </SelectTrigger>
       <SelectContent align="start">
         {options.map((option) => (
@@ -1022,83 +954,81 @@ function AspectParameter({
     aspectOptions.find((option) => option.value === value) ?? aspectOptions[0];
   const selectedGlyph = ratioGlyphSize(selected.width, selected.height);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="flex h-11 w-full flex-col items-start justify-center rounded-md border bg-background px-2.5 text-left shadow-xs outline-none hover:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-ring/40">
-        <span className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <span className="mt-0.5 flex w-full items-center text-xs font-medium">
-          {value}
-          <span className="ml-auto flex h-4 w-6 items-center justify-center">
-            <span
-              className="rounded-[2px] border border-foreground/40 bg-muted"
-              style={selectedGlyph}
-            />
-          </span>
-        </span>
-      </PopoverTrigger>
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={7}
-        className="w-64 gap-3 p-3"
+    <>
+      <ParameterChip
+        label={label}
+        value={value}
+        active={open}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
       >
-        <PopoverHeader>
-          <div className="flex items-start justify-between gap-3">
+        <span className="flex h-4 w-6 items-center justify-center">
+          <span
+            className="rounded-[2px] border border-foreground/40 bg-muted"
+            style={selectedGlyph}
+          />
+        </span>
+      </ParameterChip>
+      {open && (
+        <div className="order-10 mt-1 w-full rounded-md border border-border bg-playground-surface-elevated p-3 shadow-xs">
+          <div className="mb-2 flex items-center gap-2">
             <div>
-              <PopoverTitle className="text-xs">Aspect ratio</PopoverTitle>
-              <span className="font-mono text-[8px] text-muted-foreground">
+              <p className="text-[12px] font-medium">Aspect ratio</p>
+              <span className="font-mono text-[10px] text-muted-foreground">
                 aspect_ratio
               </span>
             </div>
-            <Badge variant="outline" className="h-5 font-mono text-[8px]">
+            <Badge
+              variant="outline"
+              className="ml-auto h-5 rounded-md font-mono text-[9px]"
+            >
               ~1 MP
             </Badge>
           </div>
-          <PopoverDescription className="mt-2 text-[10px] leading-relaxed">
+          <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
             Sets width and height to matching ~1MP dimensions; fine-tune under
             Advanced.
-          </PopoverDescription>
-        </PopoverHeader>
-        <Select
-          value={value}
-          onValueChange={(next) => {
-            if (!next) return;
-            onValueChange(next);
-            setOpen(false);
-          }}
-        >
-          <SelectTrigger className="h-9! w-full rounded-md bg-background text-[11px]">
-            <SelectValue>
-              {selected.value} · {selected.width}×{selected.height}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent align="start" className="min-w-60">
-            <SelectGroup>
-              <SelectLabel>Preset ratios</SelectLabel>
-              {aspectOptions.map((option) => (
-                <SelectItem
-                  key={option.value}
-                  value={option.value}
-                  className="py-1.5"
-                >
-                  <span className="flex h-4 w-6 items-center justify-center">
-                    <span
-                      className="rounded-[2px] border border-foreground/30 bg-muted"
-                      style={ratioGlyphSize(option.width, option.height)}
-                    />
-                  </span>
-                  <span className="font-medium">{option.value}</span>
-                  <span className="ml-auto font-mono text-[9px] text-muted-foreground">
-                    {option.width}×{option.height}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </PopoverContent>
-    </Popover>
+          </p>
+          <Select
+            value={value}
+            onValueChange={(next) => {
+              if (!next) return;
+              onValueChange(next);
+              setOpen(false);
+            }}
+          >
+            <SelectTrigger className="h-7! w-full bg-playground-surface-elevated text-[11px]">
+              <SelectValue>
+                {selected.value} · {selected.width}×{selected.height}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="start" className="min-w-60">
+              <SelectGroup>
+                <SelectLabel>Preset ratios</SelectLabel>
+                {aspectOptions.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    className="py-1.5"
+                  >
+                    <span className="flex h-4 w-6 items-center justify-center">
+                      <span
+                        className="rounded-[2px] border border-foreground/30 bg-muted"
+                        style={ratioGlyphSize(option.width, option.height)}
+                      />
+                    </span>
+                    <span className="font-medium">{option.value}</span>
+                    <span className="ml-auto font-mono text-[9px] text-muted-foreground">
+                      {option.width}×{option.height}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1137,20 +1067,20 @@ function HistoryPanel({
   return (
     <aside
       className={cn(
-        'flex min-h-0 flex-col border-l bg-background max-xl:absolute max-xl:inset-y-11 max-xl:right-0 max-xl:z-30 max-xl:w-[304px] max-xl:shadow-2xl',
-        open ? 'max-xl:flex' : 'max-xl:hidden',
-        'xl:flex',
+        'flex min-h-0 flex-col border-l bg-background max-2xl:absolute max-2xl:bottom-0 max-2xl:right-0 max-2xl:top-[var(--app-header-height)] max-2xl:z-30 max-2xl:w-[var(--app-history-width)] max-2xl:shadow-2xl',
+        open ? 'max-2xl:flex' : 'max-2xl:hidden',
+        '2xl:flex',
       )}
     >
-      <div className="flex h-11 items-center justify-between border-b px-3">
+      <div className="flex h-[var(--app-header-height)] shrink-0 items-center justify-between border-b px-4">
         <div className="flex items-center gap-2">
           <History className="size-3.5" />
-          <span className="text-xs font-medium">Shared history</span>
+          <span className="text-[13px] font-medium">Shared history</span>
         </div>
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              'flex items-center gap-1 font-mono text-[9px]',
+              'flex items-center gap-1 font-mono text-[10px]',
               state === 'error' ? 'text-destructive' : 'text-[var(--success)]',
             )}
           >
@@ -1162,7 +1092,7 @@ function HistoryPanel({
                 : 'SYNCING'}
           </span>
           <Button
-            className="xl:hidden"
+            className="2xl:hidden"
             variant="ghost"
             size="icon-xs"
             onClick={onClose}
@@ -1173,8 +1103,8 @@ function HistoryPanel({
         </div>
       </div>
 
-      <div className="border-b px-3 py-2">
-        <div className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-2 text-[11px] text-muted-foreground">
+      <div className="border-b px-4 py-2.5">
+        <div className="flex items-center gap-2 rounded-md bg-muted/60 px-2.5 py-2 text-[11px] leading-4 text-muted-foreground">
           <Cloud className="size-3.5" />
           Synced to Studio workspace ·{' '}
           {realtime === 'live'
@@ -1185,11 +1115,9 @@ function HistoryPanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="mb-3 flex items-center justify-between px-1">
-          <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">
-            Recent runs
-          </span>
+          <SystemLabel>Recent runs</SystemLabel>
           <div className="flex items-center gap-1">
             <Select
               value={filter}
@@ -1241,7 +1169,10 @@ function HistoryPanel({
           {visibleItems.map((item, itemIndex) => (
             <article
               key={item.id}
-              className="rounded-lg border bg-[var(--surface)] p-2.5 transition-colors hover:border-[var(--brand)]"
+              className={cn(
+                surfaceClass,
+                'bg-playground-surface p-3 transition-colors hover:border-foreground/25',
+              )}
             >
               <div className="flex gap-2.5">
                 <div className="flex shrink-0 gap-1">
@@ -1277,10 +1208,10 @@ function HistoryPanel({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-[11px] font-medium leading-relaxed">
+                  <p className="line-clamp-2 text-[12px] font-medium leading-[17px]">
                     {item.prompt}
                   </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
                     <span>{item.modelId}</span>
                     <span>·</span>
                     <span>{item.outputCount} outputs</span>
@@ -1290,13 +1221,13 @@ function HistoryPanel({
                 </div>
               </div>
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-[9px] text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground">
                   {formatAge(item.createdAt)}
                 </span>
                 <div className="flex items-center gap-1">
                   <Badge
                     variant="outline"
-                    className="h-5 px-1.5 font-mono text-[8px] uppercase"
+                    className="h-5 rounded-md px-1.5 font-mono text-[8px] uppercase"
                   >
                     {item.origin === 'sample' ? 'example' : item.status}
                   </Badge>
