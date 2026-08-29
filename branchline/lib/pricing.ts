@@ -28,3 +28,21 @@ export function formatUsd(value: number) {
 export function creditsToUsd(credits: number) {
   return credits / 100;
 }
+
+// FLUX 3 Video per-second pricing (GA Aug 2026): draft previews, then
+// draft_enhance re-renders the approved cut at HD/FHD. Audio is included.
+export const VIDEO_RATES_PER_SEC = {
+  draft: 0.06,
+  hd: 0.17,
+  fhd: 0.29,
+} as const;
+
+export type VideoTier = keyof typeof VIDEO_RATES_PER_SEC;
+
+export function estimateVideoCostUsd(totalSeconds: number, tier: VideoTier) {
+  return totalSeconds * VIDEO_RATES_PER_SEC[tier];
+}
+
+// A scene still on FLUX.2 [pro]: ~1MP frame plus ~1MP reference input image
+// (input images are billed per megapixel).
+export const SCENE_STILL_ESTIMATE_USD = 0.045;

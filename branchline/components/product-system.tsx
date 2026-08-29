@@ -6,6 +6,7 @@ import type { ElementType, ReactNode } from 'react';
 import {
   Box,
   Braces,
+  Clapperboard,
   Clock3,
   Image as ImageIcon,
   Layers3,
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils';
 export type ProductSection =
   | 'workflows'
   | 'playground'
+  | 'scenes'
   | 'assets'
   | 'runs'
   | 'components'
@@ -43,6 +45,7 @@ const productNavigation: Array<{
     href: '/playground',
     icon: Sparkles,
   },
+  { id: 'scenes', label: 'Scenes', href: '/scenes', icon: Clapperboard },
   { id: 'assets', label: 'Assets', href: '/assets', icon: ImageIcon },
   { id: 'divider', label: '', href: '', icon: Box },
   { id: 'runs', label: 'Runs', href: '/runs', icon: Clock3 },

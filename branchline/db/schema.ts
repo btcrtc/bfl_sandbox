@@ -66,6 +66,42 @@ export const generationJobs = sqliteTable(
   (table) => [index('generation_jobs_generation_idx').on(table.generationId)],
 );
 
+export const storyboards = sqliteTable(
+  'storyboards',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').notNull(),
+    title: text('title').notNull(),
+    referenceAssetId: text('reference_asset_id'),
+    styleNote: text('style_note'),
+    seed: integer('seed'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('storyboards_workspace_idx').on(table.workspaceId, table.createdAt)],
+);
+
+export const storyboardScenes = sqliteTable(
+  'storyboard_scenes',
+  {
+    id: text('id').primaryKey(),
+    storyboardId: text('storyboard_id')
+      .notNull()
+      .references(() => storyboards.id, { onDelete: 'cascade' }),
+    sceneIndex: integer('scene_index').notNull(),
+    title: text('title').notNull(),
+    prompt: text('prompt').notNull(),
+    durationSec: integer('duration_sec').notNull().default(5),
+    generationId: text('generation_id'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('storyboard_scenes_storyboard_idx').on(table.storyboardId, table.sceneIndex)],
+);
+
 export const generationAssets = sqliteTable(
   'generation_assets',
   {

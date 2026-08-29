@@ -1,16 +1,9 @@
-import { env } from 'cloudflare:workers';
-import { and, eq, gt } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
-import { getDb } from '@/db/index';
-import { generationJobs, generations } from '@/db/schema';
-import { BFL_ENDPOINTS, MODEL_CAPS, createBflGeneration, type BflModel } from '@/lib/bfl';
-
-// Live-generation budget: a portfolio deployment runs on the owner's BFL key,
-// so cap paid runs per workspace per rolling 24h. Drafts and samples are free.
-const DEFAULT_DAILY_RUN_LIMIT = 40;
+import { BFL_ENDPOINTS, MODEL_CAPS, type BflModel } from '@/lib/bfl';
+import { checkDailyBudget, submitGeneration } from '@/lib/run-service';
 
 type CreateBody = {
   prompt?: unknown;
@@ -33,95 +26,29 @@ export async function POST(request: Request) {
   if ('error' in parsed) return NextResponse.json(parsed, { status: 400 });
 
   const workspaceId = await ensurePersonalWorkspace(user.userId, user.displayName);
-  const db = getDb();
-  const now = Date.now();
-  const generationId = crypto.randomUUID();
-  const apiKey = env.BFL_API_KEY;
 
-  if (apiKey) {
-    const dailyLimit = Number(env.DAILY_RUN_LIMIT ?? DEFAULT_DAILY_RUN_LIMIT);
-    const recentLive = await db
-      .select({ id: generations.id })
-      .from(generations)
-      .where(
-        and(
-          eq(generations.workspaceId, workspaceId),
-          eq(generations.origin, 'live'),
-          gt(generations.createdAt, now - 24 * 60 * 60 * 1000),
-        ),
-      );
-    if (recentLive.length >= dailyLimit) {
-      return NextResponse.json(
-        {
-          error: `Daily budget reached: this demo caps live generation at ${dailyLimit} runs per workspace per 24 hours. Try again later.`,
-        },
-        { status: 429 },
-      );
-    }
-  }
+  const budget = await checkDailyBudget(workspaceId);
+  if (!budget.ok) return NextResponse.json({ error: budget.message }, { status: 429 });
 
-  await db.insert(generations).values({
-    id: generationId,
+  const result = await submitGeneration({
     workspaceId,
     createdBy: user.userId,
-    status: apiKey ? 'queued' : 'draft',
-    origin: apiKey ? 'live' : 'preview',
-    modelId: parsed.model,
+    model: parsed.model,
     prompt: parsed.prompt,
-    parametersJson: JSON.stringify(parsed.parameters),
-    outputCount: parsed.outputs,
-    errorMessage: apiKey ? null : 'BFL_API_KEY is not configured yet. This run is saved as a shared draft.',
-    createdAt: now,
-    updatedAt: now,
+    outputs: parsed.outputs,
+    parameters: parsed.parameters,
   });
 
-  if (!apiKey) {
-    return NextResponse.json({ id: generationId, status: 'draft', mode: 'preview' }, { status: 202 });
-  }
-
-  const results = await Promise.allSettled(
-    Array.from({ length: parsed.outputs }, (_, outputIndex) =>
-      createBflGeneration(apiKey, {
-        model: parsed.model,
-        prompt: parsed.prompt,
-        ...parsed.parameters,
-        // Derive a distinct seed per output; identical seeds would return
-        // N identical images from the same prompt.
-        seed: parsed.parameters.seed == null ? null : (parsed.parameters.seed + outputIndex) % 2 ** 32,
-      }),
-    ),
-  );
-
-  await db.insert(generationJobs).values(
-    results.map((result, outputIndex) => ({
-      id: crypto.randomUUID(),
-      generationId,
-      outputIndex,
-      status: result.status === 'fulfilled' ? 'running' : 'failed',
-      providerRequestId: result.status === 'fulfilled' ? result.value.id : null,
-      pollingUrl: result.status === 'fulfilled' ? result.value.polling_url : null,
-      costCredits:
-        result.status === 'fulfilled' && result.value.cost != null ? String(result.value.cost) : null,
-      errorMessage: result.status === 'rejected' ? errorMessage(result.reason) : null,
-      createdAt: now,
-      updatedAt: Date.now(),
-    })),
-  );
-
-  const anyRunning = results.some((result) => result.status === 'fulfilled');
-  await db
-    .update(generations)
-    .set({ status: anyRunning ? 'running' : 'failed', updatedAt: Date.now() })
-    .where(eq(generations.id, generationId));
-
-  return NextResponse.json(
-    { id: generationId, status: anyRunning ? 'running' : 'failed', mode: 'live' },
-    { status: 202 },
-  );
+  return NextResponse.json(result, { status: 202 });
 }
 
 function validate(body: CreateBody | null) {
-  if (!body || typeof body.prompt !== 'string' || body.prompt.trim().length < 3 || body.prompt.length > 10_000) {
+  if (
+    !body ||
+    typeof body.prompt !== 'string' ||
+    body.prompt.trim().length < 3 ||
+    body.prompt.length > 10_000
+  ) {
     return { error: 'Prompt must be between 3 and 10,000 characters.' } as const;
   }
   const model = typeof body.model === 'string' ? body.model : 'FLUX.2 [max]';
@@ -129,9 +56,11 @@ function validate(body: CreateBody | null) {
 
   const width = dimension(body.width, 1024);
   const height = dimension(body.height, 768);
-  if (!width || !height) return { error: 'Width and height must be 256–2048 and divisible by 32.' } as const;
+  if (!width || !height)
+    return { error: 'Width and height must be 256–2048 and divisible by 32.' } as const;
   const outputs = Number(body.outputs ?? 2);
-  if (!Number.isInteger(outputs) || outputs < 1 || outputs > 4) return { error: 'Outputs must be between 1 and 4.' } as const;
+  if (!Number.isInteger(outputs) || outputs < 1 || outputs > 4)
+    return { error: 'Outputs must be between 1 and 4.' } as const;
   const outputFormat: 'jpeg' | 'png' | 'webp' =
     body.outputFormat === 'jpeg' || body.outputFormat === 'webp' ? body.outputFormat : 'png';
   const safetyTolerance = Number(body.safetyTolerance ?? 2);
@@ -166,9 +95,7 @@ function validate(body: CreateBody | null) {
 
 function dimension(value: unknown, fallback: number) {
   const number = Number(value ?? fallback);
-  return Number.isInteger(number) && number >= 256 && number <= 2048 && number % 32 === 0 ? number : null;
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Unknown generation error.';
+  return Number.isInteger(number) && number >= 256 && number <= 2048 && number % 32 === 0
+    ? number
+    : null;
 }

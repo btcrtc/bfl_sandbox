@@ -39,6 +39,9 @@ export async function createBflGeneration(
     promptUpsampling: boolean;
     seed: number | null;
     guidance?: number | null;
+    // Base64 data URI (or URL) used as FLUX.2 reference image for
+    // character/style continuity across generations.
+    inputImage?: string | null;
   },
 ) {
   const endpoint = BFL_ENDPOINTS[input.model];
@@ -56,6 +59,7 @@ export async function createBflGeneration(
       ...(input.guidance != null && MODEL_CAPS[input.model].guidance
         ? { guidance: input.guidance }
         : {}),
+      ...(input.inputImage ? { input_image: input.inputImage } : {}),
     }),
   });
 
