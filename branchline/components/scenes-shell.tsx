@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -214,6 +215,7 @@ export function ScenesShell({
           const data = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(data?.error);
         }
+        void loadStoryboard(activeId);
       } catch (error) {
         setNotice({
           tone: 'error',
@@ -221,7 +223,7 @@ export function ScenesShell({
         });
       }
     },
-    [activeId],
+    [activeId, loadStoryboard],
   );
 
   const addScene = useCallback(async () => {
@@ -375,47 +377,57 @@ export function ScenesShell({
             {storyboard && (
               <>
                 <div>
-                  <SystemLabel className="mb-2">Reference</SystemLabel>
-                  <button
-                    onClick={() => setPickerOpen(true)}
-                    className={cn(
-                      surfaceClass,
-                      'group relative block aspect-video w-full overflow-hidden text-left transition-colors hover:border-foreground/30',
-                    )}
-                    aria-label="Choose reference image"
-                  >
-                    {storyboard.referenceUrl ? (
-                      <NextImage
-                        src={storyboard.referenceUrl}
-                        alt="Storyboard reference"
-                        width={640}
-                        height={360}
-                        unoptimized
-                        className="size-full object-cover"
-                      />
-                    ) : (
-                      <span className="grid size-full place-items-center">
-                        <span className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                          <ImagePlus className="size-5" />
-                          <span className="text-[11px]">Pin a reference from your runs</span>
-                        </span>
-                      </span>
-                    )}
-                  </button>
+                  <SystemLabel className="mb-2">References</SystemLabel>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {Array.from({ length: 3 }, (_, slotIndex) => {
+                      const reference = storyboard.references[slotIndex];
+                      if (reference) {
+                        return (
+                          <div
+                            key={reference.assetId}
+                            className="group relative aspect-square overflow-hidden rounded-md border"
+                          >
+                            <NextImage
+                              src={reference.url}
+                              alt={`Reference ${slotIndex + 1}`}
+                              width={200}
+                              height={200}
+                              unoptimized
+                              className="size-full object-cover"
+                            />
+                            <button
+                              onClick={() =>
+                                void patchStoryboard({
+                                  referenceAssetIds: storyboard.references
+                                    .filter((entry) => entry.assetId !== reference.assetId)
+                                    .map((entry) => entry.assetId),
+                                })
+                              }
+                              aria-label={`Remove reference ${slotIndex + 1}`}
+                              className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-background/85 text-muted-foreground opacity-0 backdrop-blur transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <button
+                          key={`empty-${slotIndex}`}
+                          onClick={() => setPickerOpen(true)}
+                          disabled={slotIndex > storyboard.references.length}
+                          className="grid aspect-square place-items-center rounded-md border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-40"
+                          aria-label="Add reference"
+                        >
+                          <ImagePlus className="size-4" />
+                        </button>
+                      );
+                    })}
+                  </div>
                   <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-                    The pinned image is sent to FLUX.2 as <code>input_image</code> with every scene,
-                    so one subject carries through the whole board.
+                    Pinned images ride along as <code>input_image</code> 1–3 with every scene
+                    render — subject, style, palette.
                   </p>
-                  {storyboard.referenceAssetId && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="mt-1 text-muted-foreground"
-                      onClick={() => void patchStoryboard({ referenceAssetId: null })}
-                    >
-                      <X /> Remove reference
-                    </Button>
-                  )}
                 </div>
 
                 <div>
@@ -588,7 +600,11 @@ export function ScenesShell({
           onOpenChange={setPickerOpen}
           onPick={(assetId) => {
             setPickerOpen(false);
-            void patchStoryboard({ referenceAssetId: assetId });
+            const next = [
+              ...storyboard.references.map((entry) => entry.assetId).filter((id) => id !== assetId),
+              assetId,
+            ].slice(-3);
+            void patchStoryboard({ referenceAssetIds: next });
           }}
         />
       )}
@@ -691,8 +707,8 @@ function SceneCard({
         className="mx-3 mt-2 min-h-16 flex-1 resize-none bg-background text-[12px] leading-4"
       />
 
-      <div className="flex items-center justify-between gap-2 p-3">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Select
             value={String(scene.durationSec)}
             onValueChange={(next) => next && onPatch({ durationSec: Number(next) })}
@@ -708,6 +724,7 @@ function SceneCard({
               ))}
             </SelectContent>
           </Select>
+          <SceneSeedControl seed={scene.seed} onPatch={onPatch} />
           <span className="font-mono text-[10px] text-muted-foreground">
             draft ~{formatUsd(draftCost)}
           </span>
@@ -718,6 +735,64 @@ function SceneCard({
         </Button>
       </div>
     </article>
+  );
+}
+
+function SceneSeedControl({
+  seed,
+  onPatch,
+}: {
+  seed: number | null;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={seed == null ? 'Scene seed: board default' : `Scene seed: ${seed}`}
+            className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 font-mono text-[10px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+          >
+            <Dices className="size-3" />
+            {seed == null ? 'board' : seed}
+          </button>
+        }
+      />
+      <PopoverContent align="start" side="top" className="w-64 gap-2 p-3">
+        <p className="text-[12px] font-medium">Scene seed</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          Overrides the board seed for this shot only — re-roll one bad frame without breaking the
+          rest of the sequence.
+        </p>
+        <Input
+          key={seed == null ? 'board' : String(seed)}
+          defaultValue={seed == null ? '' : String(seed)}
+          placeholder="Board default"
+          inputMode="numeric"
+          onBlur={(event) => {
+            const raw = event.target.value.replace(/[^0-9]/g, '');
+            const next = raw ? Math.min(Number(raw), 2 ** 32 - 1) : null;
+            if (next !== seed) onPatch({ seed: next });
+          }}
+          className="h-8 bg-background font-mono text-[12px]"
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => onPatch({ seed: Math.floor(Math.random() * 2 ** 32) })}
+          >
+            <Dices /> Re-roll
+          </Button>
+          {seed != null && (
+            <Button variant="ghost" size="xs" onClick={() => onPatch({ seed: null })}>
+              <X /> Board default
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

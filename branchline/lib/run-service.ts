@@ -51,7 +51,7 @@ export async function submitGeneration(options: {
   prompt: string;
   outputs: number;
   parameters: GenerationParameters;
-  inputImage?: string | null;
+  inputImages?: string[] | null;
   // Extra keys persisted into parameters_json (e.g. storyboard/scene linkage).
   extraParameters?: Record<string, unknown>;
 }): Promise<{ id: string; status: string; mode: 'preview' | 'live' }> {
@@ -70,7 +70,7 @@ export async function submitGeneration(options: {
     prompt: options.prompt,
     parametersJson: JSON.stringify({
       ...options.parameters,
-      ...(options.inputImage ? { reference: true } : {}),
+      ...(options.inputImages?.length ? { references: options.inputImages.length } : {}),
       ...options.extraParameters,
     }),
     outputCount: options.outputs,
@@ -97,7 +97,7 @@ export async function submitGeneration(options: {
           options.parameters.seed == null
             ? null
             : (options.parameters.seed + outputIndex) % 2 ** 32,
-        inputImage: options.inputImage ?? null,
+        inputImages: options.inputImages ?? null,
       }),
     ),
   );

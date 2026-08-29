@@ -31,12 +31,10 @@ Goal: a recorded 60-second demo: generate hero in Playground → pin in Scenes �
    FLUX.2 rejecting large `input_image` payloads → downscale the reference server-side
    before base64; moderation on scene prompts → surface the existing humane moderation
    copy on the scene card, it is already plumbed through `run.errorMessage`).
-2. Multi-reference: FLUX.2 accepts `input_image` … `input_image_8`. Allow pinning up to
-   3 references per storyboard (subject + style + palette). Schema: new
-   `storyboard_references` table (additive DDL) or a JSON column on `storyboards`; prefer
-   the table. UI: reference rail instead of a single slot.
-3. Per-scene seed override (falls back to the storyboard seed) so one bad still can be
-   re-rolled without breaking the board's continuity.
+2. ✅ Multi-reference — done: `storyboard_references` table, up to 3 pins sent as
+   `input_image` 1–3, reference rail in the UI.
+3. ✅ Per-scene seed override — done: `seed` column on scenes, seed chip with re-roll /
+   board-default on every card.
 4. Acceptance: three consecutive scene renders visibly share the subject; a failed/
    moderated scene shows guidance and a retry; re-render with the same seeds is
    pixel-stable.

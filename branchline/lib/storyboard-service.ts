@@ -2,7 +2,9 @@ import { asc, desc, eq } from 'drizzle-orm';
 
 import { getDb } from '@/db/index';
 import { listHistory, type HistoryRun } from '@/db/history';
-import { storyboardScenes, storyboards } from '@/db/schema';
+import { storyboardReferences, storyboardScenes, storyboards } from '@/db/schema';
+
+export const MAX_STORYBOARD_REFERENCES = 3;
 
 export type SceneDto = {
   id: string;
@@ -10,6 +12,7 @@ export type SceneDto = {
   title: string;
   prompt: string;
   durationSec: number;
+  seed: number | null;
   generationId: string | null;
   run: HistoryRun | null;
 };
@@ -19,8 +22,7 @@ export type StoryboardDto = {
   title: string;
   styleNote: string | null;
   seed: number | null;
-  referenceAssetId: string | null;
-  referenceUrl: string | null;
+  references: Array<{ assetId: string; url: string }>;
   createdAt: number;
   updatedAt: number;
   scenes: SceneDto[];
@@ -54,11 +56,18 @@ export async function getStoryboard(
     .limit(1);
   if (!row || row.workspaceId !== workspaceId) return null;
 
-  const sceneRows = await db
-    .select()
-    .from(storyboardScenes)
-    .where(eq(storyboardScenes.storyboardId, storyboardId))
-    .orderBy(asc(storyboardScenes.sceneIndex));
+  const [sceneRows, referenceRows] = await Promise.all([
+    db
+      .select()
+      .from(storyboardScenes)
+      .where(eq(storyboardScenes.storyboardId, storyboardId))
+      .orderBy(asc(storyboardScenes.sceneIndex)),
+    db
+      .select()
+      .from(storyboardReferences)
+      .where(eq(storyboardReferences.storyboardId, storyboardId))
+      .orderBy(asc(storyboardReferences.refIndex)),
+  ]);
 
   // Scene stills reuse the shared generation pipeline; resolve their runs from
   // the same history source the playground uses.
@@ -70,8 +79,10 @@ export async function getStoryboard(
     title: row.title,
     styleNote: row.styleNote,
     seed: row.seed,
-    referenceAssetId: row.referenceAssetId,
-    referenceUrl: row.referenceAssetId ? `/api/assets/${row.referenceAssetId}` : null,
+    references: referenceRows.map((reference) => ({
+      assetId: reference.assetId,
+      url: `/api/assets/${reference.assetId}`,
+    })),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     scenes: sceneRows.map((scene) => ({
@@ -80,6 +91,7 @@ export async function getStoryboard(
       title: scene.title,
       prompt: scene.prompt,
       durationSec: scene.durationSec,
+      seed: scene.seed,
       generationId: scene.generationId,
       run: scene.generationId ? (runsById.get(scene.generationId) ?? null) : null,
     })),

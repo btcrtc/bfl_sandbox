@@ -75,13 +75,30 @@ export const storyboards = sqliteTable(
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     createdBy: text('created_by').notNull(),
     title: text('title').notNull(),
-    referenceAssetId: text('reference_asset_id'),
     styleNote: text('style_note'),
     seed: integer('seed'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
   (table) => [index('storyboards_workspace_idx').on(table.workspaceId, table.createdAt)],
+);
+
+// Up to three pinned reference images per storyboard (subject / style /
+// palette), sent to FLUX.2 as input_image, input_image_2, input_image_3.
+export const storyboardReferences = sqliteTable(
+  'storyboard_references',
+  {
+    id: text('id').primaryKey(),
+    storyboardId: text('storyboard_id')
+      .notNull()
+      .references(() => storyboards.id, { onDelete: 'cascade' }),
+    refIndex: integer('ref_index').notNull(),
+    assetId: text('asset_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    index('storyboard_references_storyboard_idx').on(table.storyboardId, table.refIndex),
+  ],
 );
 
 export const storyboardScenes = sqliteTable(
@@ -95,6 +112,8 @@ export const storyboardScenes = sqliteTable(
     title: text('title').notNull(),
     prompt: text('prompt').notNull(),
     durationSec: integer('duration_sec').notNull().default(5),
+    // Per-scene override; falls back to the storyboard seed when null.
+    seed: integer('seed'),
     generationId: text('generation_id'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),

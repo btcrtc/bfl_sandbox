@@ -39,13 +39,19 @@ export function ensureDatabase() {
       'CREATE INDEX IF NOT EXISTS generation_assets_job_idx ON generation_assets(job_id)',
     ),
     env.DB.prepare(
-      'CREATE TABLE IF NOT EXISTS storyboards (id TEXT PRIMARY KEY NOT NULL, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, created_by TEXT NOT NULL, title TEXT NOT NULL, reference_asset_id TEXT, style_note TEXT, seed INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS storyboards (id TEXT PRIMARY KEY NOT NULL, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, created_by TEXT NOT NULL, title TEXT NOT NULL, style_note TEXT, seed INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
     ),
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboards_workspace_idx ON storyboards(workspace_id, created_at)',
     ),
     env.DB.prepare(
-      'CREATE TABLE IF NOT EXISTS storyboard_scenes (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, scene_index INTEGER NOT NULL, title TEXT NOT NULL, prompt TEXT NOT NULL, duration_sec INTEGER NOT NULL DEFAULT 5, generation_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS storyboard_references (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, ref_index INTEGER NOT NULL, asset_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
+    ),
+    env.DB.prepare(
+      'CREATE INDEX IF NOT EXISTS storyboard_references_storyboard_idx ON storyboard_references(storyboard_id, ref_index)',
+    ),
+    env.DB.prepare(
+      'CREATE TABLE IF NOT EXISTS storyboard_scenes (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, scene_index INTEGER NOT NULL, title TEXT NOT NULL, prompt TEXT NOT NULL, duration_sec INTEGER NOT NULL DEFAULT 5, seed INTEGER, generation_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
     ),
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboard_scenes_storyboard_idx ON storyboard_scenes(storyboard_id, scene_index)',

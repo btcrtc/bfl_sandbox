@@ -38,6 +38,7 @@ export async function PATCH(
     title?: unknown;
     prompt?: unknown;
     durationSec?: unknown;
+    seed?: unknown;
   };
   const patch: Partial<typeof storyboardScenes.$inferInsert> = { updatedAt: Date.now() };
   if (typeof body.title === 'string' && body.title.trim()) {
@@ -51,6 +52,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Duration must be 5–20 seconds.' }, { status: 400 });
     }
     patch.durationSec = durationSec;
+  }
+  if (body.seed === null) patch.seed = null;
+  if (typeof body.seed === 'number') {
+    if (!Number.isSafeInteger(body.seed) || body.seed < 0 || body.seed > 2 ** 32 - 1) {
+      return NextResponse.json(
+        { error: 'Seed must be an integer between 0 and 4294967295.' },
+        { status: 400 },
+      );
+    }
+    patch.seed = body.seed;
   }
 
   const db = getDb();

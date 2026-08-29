@@ -1,11 +1,16 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { generationAssets, generations, storyboards } from '@/db/schema';
-import { getStoryboard } from '@/lib/storyboard-service';
+import {
+  generationAssets,
+  generations,
+  storyboardReferences,
+  storyboards,
+} from '@/db/schema';
+import { MAX_STORYBOARD_REFERENCES, getStoryboard } from '@/lib/storyboard-service';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getChatGPTUser();
@@ -22,7 +27,7 @@ type PatchBody = {
   title?: unknown;
   styleNote?: unknown;
   seed?: unknown;
-  referenceAssetId?: unknown;
+  referenceAssetIds?: unknown;
 };
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -53,19 +58,40 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     patch.seed = body.seed;
   }
-  if (body.referenceAssetId === null) patch.referenceAssetId = null;
-  if (typeof body.referenceAssetId === 'string') {
-    // The reference must be an asset in this workspace.
-    const [asset] = await db
-      .select({ id: generationAssets.id })
-      .from(generationAssets)
-      .innerJoin(generations, eq(generations.id, generationAssets.generationId))
-      .where(
-        and(eq(generationAssets.id, body.referenceAssetId), eq(generations.workspaceId, workspaceId)),
-      )
-      .limit(1);
-    if (!asset) return NextResponse.json({ error: 'Reference asset not found.' }, { status: 404 });
-    patch.referenceAssetId = asset.id;
+  if (Array.isArray(body.referenceAssetIds)) {
+    const assetIds = body.referenceAssetIds.filter(
+      (value): value is string => typeof value === 'string',
+    );
+    if (assetIds.length !== body.referenceAssetIds.length) {
+      return NextResponse.json({ error: 'Reference ids must be strings.' }, { status: 400 });
+    }
+    const unique = [...new Set(assetIds)].slice(0, MAX_STORYBOARD_REFERENCES);
+    if (unique.length > 0) {
+      // Every reference must be an asset in this workspace.
+      const owned = await db
+        .select({ id: generationAssets.id })
+        .from(generationAssets)
+        .innerJoin(generations, eq(generations.id, generationAssets.generationId))
+        .where(
+          and(inArray(generationAssets.id, unique), eq(generations.workspaceId, workspaceId)),
+        );
+      if (owned.length !== unique.length) {
+        return NextResponse.json({ error: 'Reference asset not found.' }, { status: 404 });
+      }
+    }
+    const now = Date.now();
+    await db.delete(storyboardReferences).where(eq(storyboardReferences.storyboardId, id));
+    if (unique.length > 0) {
+      await db.insert(storyboardReferences).values(
+        unique.map((assetId, refIndex) => ({
+          id: crypto.randomUUID(),
+          storyboardId: id,
+          refIndex,
+          assetId,
+          createdAt: now,
+        })),
+      );
+    }
   }
 
   await db.update(storyboards).set(patch).where(eq(storyboards.id, id));
