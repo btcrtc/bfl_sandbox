@@ -1,17 +1,16 @@
 'use client';
 
 import NextImage from 'next/image';
-import { useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Box,
   CheckCircle2,
   Cloud,
-  Code2,
-  Copy,
-  Ellipsis,
   Layers3,
   ListFilter,
-  MoreHorizontal,
+  Loader2,
+  Play,
   Plus,
   Search,
   Users,
@@ -20,7 +19,7 @@ import {
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   PageHeading,
   ParameterChip,
@@ -28,14 +27,9 @@ import {
   ProductRail,
   Surface,
   SystemLabel,
+  ThemeToggle,
   surfaceClass,
 } from '@/components/product-system';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -44,9 +38,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import type { HistoryRun } from '@/db/history';
 
 export type WorkspaceSection =
   | 'workflows'
@@ -181,7 +180,15 @@ const sectionMeta: Record<
   },
 };
 
-export function SectionPage({ section }: { section: WorkspaceSection }) {
+export function SectionPage({
+  section,
+  viewer,
+  signInPath,
+}: {
+  section: WorkspaceSection;
+  viewer: { displayName: string; email: string } | null;
+  signInPath: string;
+}) {
   const [query, setQuery] = useState('');
   const meta = sectionMeta[section];
   return (
@@ -201,11 +208,30 @@ export function SectionPage({ section }: { section: WorkspaceSection }) {
           }
           end={
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <Cloud className="size-3.5 text-[var(--success)]" />
-              <span className="hidden sm:inline">Studio synced</span>
-              <span className="grid size-7 place-items-center rounded-full bg-[#ead9cc] font-mono text-[10px]">
-                YW
-              </span>
+              <ThemeToggle />
+              {viewer ? (
+                <>
+                  <Cloud className="size-3.5 text-[var(--success)]" />
+                  <span className="hidden sm:inline">Studio synced</span>
+                  <Tooltip>
+                    <TooltipTrigger className="grid size-7 place-items-center rounded-full bg-accent font-mono text-[10px] text-accent-foreground">
+                      {initials(viewer.displayName)}
+                    </TooltipTrigger>
+                    <TooltipContent>{viewer.email}</TooltipContent>
+                  </Tooltip>
+                </>
+              ) : (
+                <a
+                  href={signInPath}
+                  className={buttonVariants({
+                    variant: 'outline',
+                    size: 'sm',
+                    className: 'h-7 text-[11px]',
+                  })}
+                >
+                  Sign in to sync
+                </a>
+              )}
             </div>
           }
         />
@@ -218,16 +244,9 @@ export function SectionPage({ section }: { section: WorkspaceSection }) {
               <PageHeading
                 title={meta.title}
                 description={meta.description}
-                action={
-                  <Button
-                    size="sm"
-                    className="bg-foreground px-3 text-background hover:bg-foreground/85 hover:text-background"
-                  >
-                    <Plus /> {meta.action}
-                  </Button>
-                }
+                action={<SectionAction section={section} action={meta.action} />}
               />
-              <SectionContent section={section} query={query} />
+              <SectionContent section={section} query={query} signedIn={Boolean(viewer)} />
             </div>
           </section>
         </div>
@@ -236,18 +255,92 @@ export function SectionPage({ section }: { section: WorkspaceSection }) {
   );
 }
 
+function SectionAction({ section, action }: { section: WorkspaceSection; action: string }) {
+  // Runs is the only section whose primary action has a real destination today;
+  // the rest stay visibly planned instead of silently dead.
+  if (section === 'runs') {
+    return (
+      <Link
+        href="/playground"
+        className={buttonVariants({
+          size: 'sm',
+          className: 'bg-foreground px-3 text-background hover:bg-foreground/85 hover:text-background',
+        })}
+      >
+        <Play /> {action}
+      </Link>
+    );
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="inline-flex">
+            <Button size="sm" variant="outline" disabled>
+              <Plus /> {action}
+            </Button>
+          </span>
+        }
+      />
+      <TooltipContent>Planned — see the roadmap in the README.</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function SectionContent({
   section,
   query,
+  signedIn,
 }: {
   section: WorkspaceSection;
   query: string;
+  signedIn: boolean;
 }) {
   if (section === 'workflows') return <Workflows query={query} />;
-  if (section === 'assets') return <Assets query={query} />;
-  if (section === 'runs') return <Runs query={query} />;
+  if (section === 'assets') return <Assets query={query} signedIn={signedIn} />;
+  if (section === 'runs') return <Runs query={query} signedIn={signedIn} />;
   if (section === 'components') return <Components query={query} />;
   return <Settings />;
+}
+
+// Shared history loader for the Runs and Assets sections. Sample rows stay the
+// fallback for signed-out viewers and load failures.
+function useLiveRuns(signedIn: boolean) {
+  const [runs, setRuns] = useState<HistoryRun[] | null>(null);
+  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    signedIn ? 'loading' : 'idle',
+  );
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      void fetch('/api/history', { cache: 'no-store' })
+        .then(async (response) => {
+          if (!response.ok) throw new Error();
+          const data = (await response.json()) as { runs: HistoryRun[] };
+          if (!cancelled) {
+            setRuns(data.runs);
+            setState('ready');
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setState('error');
+        });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [signedIn]);
+  return { runs, state };
+}
+
+function ExampleDataBadge() {
+  return (
+    <Badge variant="outline" className="rounded-md font-mono text-[9px] text-muted-foreground">
+      EXAMPLE DATA
+    </Badge>
+  );
 }
 
 function Workflows({ query }: { query: string }) {
@@ -269,31 +362,11 @@ function Workflows({ query }: { query: string }) {
             <div className="mb-3 flex items-start justify-between">
               <Badge
                 variant="outline"
-                className="h-5 rounded-md font-mono text-[8px] uppercase tracking-wider"
+                className="h-5 rounded-md font-mono text-[9px] uppercase tracking-wider"
               >
                 {steps.length} nodes
               </Badge>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="Workflow actions"
-                    />
-                  }
-                >
-                  <MoreHorizontal />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Copy /> Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Code2 /> Export JSON
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <ExampleDataBadge />
             </div>
             <h2 className="text-[13px] font-semibold">{name}</h2>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
@@ -303,7 +376,7 @@ function Workflows({ query }: { query: string }) {
               {steps.map((step, node) => (
                 <span key={`${step}-${node}`} className="contents">
                   <span className="min-w-0 rounded-md border bg-background px-2 py-1.5">
-                    <span className="block font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                    <span className="block font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                       {node === 0
                         ? 'Input'
                         : node === steps.length - 1
@@ -311,7 +384,7 @@ function Workflows({ query }: { query: string }) {
                           : 'Model'}
                     </span>
                     <span
-                      className="mt-0.5 block truncate text-[9px] font-medium"
+                      className="mt-0.5 block truncate text-[10px] font-medium"
                       title={step}
                     >
                       {step}
@@ -329,7 +402,7 @@ function Workflows({ query }: { query: string }) {
               <span>{age}</span>
               <Badge
                 variant="outline"
-                className="h-5 rounded-md font-mono text-[8px] uppercase"
+                className="h-5 rounded-md font-mono text-[9px] uppercase"
               >
                 {status}
               </Badge>
@@ -341,22 +414,44 @@ function Workflows({ query }: { query: string }) {
   );
 }
 
-function Assets({ query }: { query: string }) {
+function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
   const [kind, setKind] = useState('all');
-  const assets = useMemo(
+  const { runs, state } = useLiveRuns(signedIn);
+
+  const liveAssets = useMemo(
     () =>
-      Array.from({ length: 12 }, (_, index) => ({
-        id: index + 1,
-        name: `${generatedAssetImages[index % generatedAssetImages.length].name} · ${Math.floor(index / generatedAssetImages.length) + 1}`,
-        src: generatedAssetImages[index % generatedAssetImages.length].src,
-        kind: index % 4 === 0 ? 'reference' : 'output',
-      })).filter(
-        (asset) =>
-          (kind === 'all' || asset.kind === kind) &&
-          asset.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [kind, query],
+      (runs ?? [])
+        .filter((run) => run.origin !== 'sample')
+        .flatMap((run) =>
+          run.assets.map((asset) => ({
+            id: asset.id,
+            name: run.prompt,
+            src: asset.url,
+            kind: 'output',
+            live: true,
+          })),
+        ),
+    [runs],
   );
+  const isLive = state === 'ready' && liveAssets.length > 0;
+
+  const assets = useMemo(() => {
+    const source = isLive
+      ? liveAssets
+      : Array.from({ length: 12 }, (_, index) => ({
+          id: String(index + 1),
+          name: `${generatedAssetImages[index % generatedAssetImages.length].name} · ${Math.floor(index / generatedAssetImages.length) + 1}`,
+          src: generatedAssetImages[index % generatedAssetImages.length].src,
+          kind: index % 4 === 0 ? 'reference' : 'output',
+          live: false,
+        }));
+    return source.filter(
+      (asset) =>
+        (kind === 'all' || asset.kind === kind) &&
+        asset.name.toLowerCase().includes(query.toLowerCase()),
+    );
+  }, [isLive, liveAssets, kind, query]);
+
   return (
     <>
       <div className="mb-3 flex items-center gap-2">
@@ -374,7 +469,15 @@ function Assets({ query }: { query: string }) {
         <Badge variant="outline" className="rounded-md font-mono text-[9px]">
           {assets.length} ITEMS
         </Badge>
+        {state === 'loading' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+        {!isLive && state !== 'loading' && <ExampleDataBadge />}
       </div>
+      {isLive && assets.length === 0 && (
+        <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
+          No stored outputs match this filter yet — generate images in the Playground and they
+          land here automatically.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {assets.map((asset) => (
           <article
@@ -387,6 +490,7 @@ function Assets({ query }: { query: string }) {
                 alt={asset.name}
                 width={640}
                 height={640}
+                unoptimized={asset.live}
                 sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
                 className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
               />
@@ -404,52 +508,103 @@ function Assets({ query }: { query: string }) {
   );
 }
 
-function Runs({ query }: { query: string }) {
-  const rows = runRows.filter((row) =>
+const runsGridClass = 'grid grid-cols-[80px_minmax(240px,1fr)_130px_100px_54px_64px_92px] gap-3';
+
+function runStatusDotClass(status: string) {
+  if (['running', 'queued'].includes(status)) return 'bg-amber-500';
+  if (['failed'].includes(status)) return 'bg-destructive';
+  if (['partial', 'moderated'].includes(status)) return 'bg-amber-600';
+  if (status === 'draft') return 'bg-muted-foreground';
+  return 'bg-[var(--success)]';
+}
+
+function Runs({ query, signedIn }: { query: string; signedIn: boolean }) {
+  const { runs, state } = useLiveRuns(signedIn);
+  const liveRuns = (runs ?? []).filter((run) => run.origin !== 'sample');
+  const isLive = state === 'ready' && liveRuns.length > 0;
+
+  const liveRows = liveRuns.filter((run) =>
+    `${run.prompt} ${run.modelId} ${run.status}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  const sampleRows = runRows.filter((row) =>
     row.join(' ').toLowerCase().includes(query.toLowerCase()),
   );
+
   return (
-    <div className={cn(surfaceClass, 'overflow-hidden')}>
-      <div className="grid grid-cols-[74px_minmax(240px,1fr)_130px_84px_54px_64px_82px_28px] gap-3 border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-        <span>Run</span>
-        <span>Prompt</span>
-        <span>Model</span>
-        <span>Status</span>
-        <span>Images</span>
-        <span>Cost</span>
-        <span>Created</span>
-        <span />
-      </div>
-      {rows.map(([id, prompt, model, status, images, cost, created]) => (
-        <div
-          key={id}
-          className="grid grid-cols-[74px_minmax(240px,1fr)_130px_84px_54px_64px_82px_28px] items-center gap-3 border-b px-3 py-3 text-[11px] last:border-0"
-        >
-          <span className="font-mono">{id}</span>
-          <span className="truncate font-medium">{prompt}</span>
-          <span>{model}</span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className={cn(
-                'size-1.5 rounded-full',
-                status === 'Running'
-                  ? 'bg-amber-500'
-                  : status === 'Draft'
-                    ? 'bg-muted-foreground'
-                    : 'bg-[var(--success)]',
-              )}
-            />
-            {status}
+    <>
+      <div className="mb-3 flex items-center gap-2">
+        {state === 'loading' && (
+          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" /> Loading shared runs…
           </span>
-          <span>{images}</span>
-          <span>{cost}</span>
-          <span className="text-muted-foreground">{created}</span>
-          <Button variant="ghost" size="icon-xs">
-            <Ellipsis />
-          </Button>
+        )}
+        {!isLive && state !== 'loading' && <ExampleDataBadge />}
+      </div>
+      <div className={cn(surfaceClass, 'overflow-x-auto')}>
+        <div
+          className={cn(
+            runsGridClass,
+            'min-w-[760px] border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground',
+          )}
+        >
+          <span>Run</span>
+          <span>Prompt</span>
+          <span>Model</span>
+          <span>Status</span>
+          <span>Images</span>
+          <span>Cost</span>
+          <span>Created</span>
         </div>
-      ))}
-    </div>
+        {isLive
+          ? liveRows.map((run) => (
+              <div
+                key={run.id}
+                className={cn(
+                  runsGridClass,
+                  'min-w-[760px] items-center border-b px-3 py-3 text-[11px] last:border-0',
+                )}
+              >
+                <span className="font-mono">#{run.id.slice(0, 6)}</span>
+                <span className="truncate font-medium" title={run.prompt}>
+                  {run.prompt}
+                </span>
+                <span>{run.modelId}</span>
+                <span className="flex items-center gap-1.5 capitalize">
+                  <span className={cn('size-1.5 rounded-full', runStatusDotClass(run.status))} />
+                  {run.status}
+                </span>
+                <span>{run.outputCount}</span>
+                <span>{formatCost(run.costCredits)}</span>
+                <span className="text-muted-foreground">{formatAge(run.createdAt)}</span>
+              </div>
+            ))
+          : sampleRows.map(([id, prompt, model, status, images, cost, created]) => (
+              <div
+                key={id}
+                className={cn(
+                  runsGridClass,
+                  'min-w-[760px] items-center border-b px-3 py-3 text-[11px] last:border-0',
+                )}
+              >
+                <span className="font-mono">{id}</span>
+                <span className="truncate font-medium">{prompt}</span>
+                <span>{model}</span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={cn('size-1.5 rounded-full', runStatusDotClass(status.toLowerCase()))}
+                  />
+                  {status}
+                </span>
+                <span>{images}</span>
+                <span>{cost}</span>
+                <span className="text-muted-foreground">{created}</span>
+              </div>
+            ))}
+        {isLive && liveRows.length === 0 && (
+          <p className="px-3 py-4 text-[12px] text-muted-foreground">No runs match this search.</p>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -590,7 +745,7 @@ function Components({ query }: { query: string }) {
                     className="w-4 rounded-sm bg-sidebar-accent"
                     style={{ height: space }}
                   />
-                  <span className="font-mono text-[8px] text-muted-foreground">
+                  <span className="font-mono text-[9px] text-muted-foreground">
                     {space}
                   </span>
                 </div>
@@ -613,7 +768,7 @@ function Components({ query }: { query: string }) {
                   <h2 className="text-[13px] font-semibold">{String(name)}</h2>
                   <Badge
                     variant="outline"
-                    className="h-5 rounded-md font-mono text-[8px] uppercase"
+                    className="h-5 rounded-md font-mono text-[9px] uppercase"
                   >
                     {String(type)}
                   </Badge>
@@ -662,12 +817,20 @@ function Settings() {
         ].map((item, index) => (
           <button
             key={item}
+            disabled={index !== 0}
             className={cn(
-              'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[12px] hover:bg-accent',
-              index === 0 && 'bg-sidebar-accent font-medium',
+              'flex h-8 w-full items-center justify-between rounded-md px-2.5 text-left text-[12px]',
+              index === 0
+                ? 'bg-sidebar-accent font-medium'
+                : 'cursor-default text-muted-foreground',
             )}
           >
             {item}
+            {index !== 0 && (
+              <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
+                soon
+              </span>
+            )}
           </button>
         ))}
       </aside>
@@ -690,22 +853,19 @@ function Settings() {
         </SettingsCard>
         <SettingsCard
           title="Server behavior"
-          description="D1 persistence, R2 assets and realtime delivery"
+          description="These subsystems are always on for the prototype — shown as status, not switches"
         >
-          <SettingToggle
+          <SettingStatus
             label="Shared server history"
-            description="Sync generations across signed-in browsers"
-            checked
+            description="Generations sync across signed-in browsers via D1"
           />
-          <SettingToggle
+          <SettingStatus
             label="WebSocket updates"
-            description="Push run state and asset changes in realtime"
-            checked
+            description="Run state and asset changes push in realtime"
           />
-          <SettingToggle
+          <SettingStatus
             label="Polling fallback"
-            description="Refresh every 15 seconds if the socket disconnects"
-            checked
+            description="Refreshes every 15 seconds if the socket disconnects"
           />
         </SettingsCard>
         <SettingsCard
@@ -716,7 +876,7 @@ function Settings() {
             <span className="flex items-center gap-2 text-[12px]">
               <Users className="size-4" /> 1 workspace member
             </span>
-            <Button variant="outline" size="xs">
+            <Button variant="outline" size="xs" disabled>
               Manage
             </Button>
           </div>
@@ -745,14 +905,12 @@ function SettingsCard({
     </Surface>
   );
 }
-function SettingToggle({
+function SettingStatus({
   label,
   description,
-  checked,
 }: {
   label: string;
   description: string;
-  checked?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between border-t pt-3 first:border-0 first:pt-0">
@@ -762,7 +920,40 @@ function SettingToggle({
           {description}
         </p>
       </div>
-      <Switch size="sm" defaultChecked={checked} />
+      <Badge
+        variant="outline"
+        className="h-5 rounded-md border-[var(--success)]/40 font-mono text-[9px] uppercase text-[var(--success)]"
+      >
+        Active
+      </Badge>
     </div>
   );
+}
+
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || 'U'
+  );
+}
+
+function formatAge(timestamp: number) {
+  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  if (hours < 48) return 'Yesterday';
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+// costCredits stores BFL-reported credits; 1 credit = $0.01.
+function formatCost(credits: string | null) {
+  if (!credits) return '—';
+  const value = Number(credits);
+  return Number.isFinite(value) ? `$${(value / 100).toFixed(2)}` : '—';
 }

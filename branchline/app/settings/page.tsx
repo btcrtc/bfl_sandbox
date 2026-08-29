@@ -1,2 +1,13 @@
+import { chatGPTSignInPath, getChatGPTUser } from '@/app/chatgpt-auth';
 import { SectionPage } from '@/components/section-page';
-export default function SettingsPage() { return <SectionPage section="settings" />; }
+
+export default async function Page() {
+  const user = await getChatGPTUser();
+  return (
+    <SectionPage
+      section="settings"
+      viewer={user ? { displayName: user.displayName, email: user.email } : null}
+      signInPath={chatGPTSignInPath('/settings')}
+    />
+  );
+}

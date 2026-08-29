@@ -24,6 +24,7 @@ import {
   ProductRail,
   Surface,
   SystemLabel,
+  ThemeToggle,
   surfaceClass,
 } from '@/components/product-system';
 import {
@@ -297,6 +298,7 @@ export function ScenesShell({
           }
           end={
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               {viewer ? (
                 <Tooltip>
                   <TooltipTrigger className="grid size-7 place-items-center rounded-full bg-accent font-mono text-[10px] text-accent-foreground">

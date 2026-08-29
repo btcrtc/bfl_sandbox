@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { ElementType, ReactNode } from 'react';
+import { useEffect, useState, type ElementType, type ReactNode } from 'react';
 import {
   Box,
   Braces,
@@ -10,8 +10,11 @@ import {
   Clock3,
   Image as ImageIcon,
   Layers3,
+  Monitor,
+  Moon,
   SlidersHorizontal,
   Sparkles,
+  Sun,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -147,13 +150,78 @@ function RailItem({
         aria-current={active ? 'page' : undefined}
         onClick={() => router.push(href)}
         className={cn(
-          'mb-1 grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+          'mb-1 grid size-8 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
           active && 'pointer-events-none bg-sidebar-accent text-foreground',
         )}
       >
         <Icon className="size-4" />
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+type ThemePreference = 'system' | 'light' | 'dark';
+const THEME_STORAGE_KEY = 'branchline-theme';
+
+function applyTheme(preference: ThemePreference) {
+  const dark =
+    preference === 'dark' ||
+    (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
+}
+
+export function ThemeToggle() {
+  const [preference, setPreference] = useState<ThemePreference>('system');
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+        if (stored === 'light' || stored === 'dark') setPreference(stored);
+      } catch {
+        // Storage unavailable; stay on system.
+      }
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    applyTheme(preference);
+    if (preference !== 'system') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => applyTheme('system');
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [preference]);
+
+  const cycle = () => {
+    const next: ThemePreference =
+      preference === 'system' ? 'dark' : preference === 'dark' ? 'light' : 'system';
+    setPreference(next);
+    try {
+      if (next === 'system') window.localStorage.removeItem(THEME_STORAGE_KEY);
+      else window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // Storage unavailable; theme still applies for this tab.
+    }
+  };
+
+  const label =
+    preference === 'system' ? 'Theme: system' : preference === 'dark' ? 'Theme: dark' : 'Theme: light';
+  const Icon = preference === 'system' ? Monitor : preference === 'dark' ? Moon : Sun;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        type="button"
+        aria-label={`${label} — click to switch`}
+        onClick={cycle}
+        className="grid size-7 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <Icon className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 }

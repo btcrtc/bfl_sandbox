@@ -46,6 +46,7 @@ import {
   ProductHeader,
   ProductRail,
   SystemLabel,
+  ThemeToggle,
   parameterChipClass,
   surfaceClass,
 } from '@/components/product-system';
@@ -622,6 +623,7 @@ export function PlaygroundShell({
           }
           end={
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <div className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
                 <Cloud
                   className={cn(

@@ -7,7 +7,8 @@ export const metadata: Metadata = {
   ),
   title: 'Branchline — Visual generation workflows',
   description:
-    'A node-based workspace for composing, running, and sharing multimodal generation workflows.',
+    'A node-based workspace for composing, running, and sharing multimodal generation workflows. Independent concept — not affiliated with Black Forest Labs.',
+  icons: { icon: '/favicon.svg' },
   openGraph: {
     title: 'Branchline',
     description: 'Visual generation workflows',
@@ -35,7 +36,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {/* Applies the stored theme before first paint to avoid a light flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('branchline-theme');var d=t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}",
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }
