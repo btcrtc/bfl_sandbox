@@ -1,12 +1,16 @@
 import { env } from 'cloudflare:workers';
-import { eq } from 'drizzle-orm';
+import { and, eq, gt } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
 import { generationJobs, generations } from '@/db/schema';
-import { BFL_ENDPOINTS, createBflGeneration, type BflModel } from '@/lib/bfl';
+import { BFL_ENDPOINTS, MODEL_CAPS, createBflGeneration, type BflModel } from '@/lib/bfl';
+
+// Live-generation budget: a portfolio deployment runs on the owner's BFL key,
+// so cap paid runs per workspace per rolling 24h. Drafts and samples are free.
+const DEFAULT_DAILY_RUN_LIMIT = 40;
 
 type CreateBody = {
   prompt?: unknown;
@@ -18,6 +22,7 @@ type CreateBody = {
   safetyTolerance?: unknown;
   promptUpsampling?: unknown;
   seed?: unknown;
+  guidance?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -32,6 +37,28 @@ export async function POST(request: Request) {
   const now = Date.now();
   const generationId = crypto.randomUUID();
   const apiKey = env.BFL_API_KEY;
+
+  if (apiKey) {
+    const dailyLimit = Number(env.DAILY_RUN_LIMIT ?? DEFAULT_DAILY_RUN_LIMIT);
+    const recentLive = await db
+      .select({ id: generations.id })
+      .from(generations)
+      .where(
+        and(
+          eq(generations.workspaceId, workspaceId),
+          eq(generations.origin, 'live'),
+          gt(generations.createdAt, now - 24 * 60 * 60 * 1000),
+        ),
+      );
+    if (recentLive.length >= dailyLimit) {
+      return NextResponse.json(
+        {
+          error: `Daily budget reached: this demo caps live generation at ${dailyLimit} runs per workspace per 24 hours. Try again later.`,
+        },
+        { status: 429 },
+      );
+    }
+  }
 
   await db.insert(generations).values({
     id: generationId,
@@ -53,11 +80,14 @@ export async function POST(request: Request) {
   }
 
   const results = await Promise.allSettled(
-    Array.from({ length: parsed.outputs }, () =>
+    Array.from({ length: parsed.outputs }, (_, outputIndex) =>
       createBflGeneration(apiKey, {
         model: parsed.model,
         prompt: parsed.prompt,
         ...parsed.parameters,
+        // Derive a distinct seed per output; identical seeds would return
+        // N identical images from the same prompt.
+        seed: parsed.parameters.seed == null ? null : (parsed.parameters.seed + outputIndex) % 2 ** 32,
       }),
     ),
   );
@@ -110,13 +140,27 @@ function validate(body: CreateBody | null) {
   }
   const promptUpsampling = body.promptUpsampling !== false;
   const seed = body.seed == null ? null : Number(body.seed);
-  if (seed != null && !Number.isSafeInteger(seed)) return { error: 'Seed must be a safe integer.' } as const;
+  if (seed != null && (!Number.isSafeInteger(seed) || seed < 0 || seed > 2 ** 32 - 1)) {
+    return { error: 'Seed must be an integer between 0 and 4294967295.' } as const;
+  }
+  const guidance = body.guidance == null ? null : Number(body.guidance);
+  if (guidance != null && (!Number.isFinite(guidance) || guidance < 1.5 || guidance > 5)) {
+    return { error: 'Guidance must be between 1.5 and 5.' } as const;
+  }
 
   return {
     prompt: body.prompt.trim(),
     model: model as BflModel,
     outputs,
-    parameters: { width, height, outputFormat, safetyTolerance, promptUpsampling, seed },
+    parameters: {
+      width,
+      height,
+      outputFormat,
+      safetyTolerance,
+      promptUpsampling,
+      seed,
+      guidance: MODEL_CAPS[model as BflModel].guidance ? guidance : null,
+    },
   };
 }
 

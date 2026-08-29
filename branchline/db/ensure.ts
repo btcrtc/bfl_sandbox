@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { eq } from 'drizzle-orm';
 
 import { getDb } from './index';
 import { generations, workspaceMembers, workspaces } from './schema';
@@ -27,6 +28,15 @@ export async function ensurePersonalWorkspace(userId: string, displayName: strin
   const db = getDb();
   const workspaceId = `personal:${userId}`;
   const now = Date.now();
+
+  // Fast path: workspace already provisioned — skip member/sample writes so
+  // routine API requests cost one indexed read instead of three writes.
+  const [existing] = await db
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+  if (existing) return workspaceId;
 
   await db
     .insert(workspaces)

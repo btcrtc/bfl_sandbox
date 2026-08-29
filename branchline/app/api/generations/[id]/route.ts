@@ -31,10 +31,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   return NextResponse.json({ run: await getHistoryRun(workspaceId, id) });
 }
 
+// BFL polling URLs sign their results for ~10 minutes; a job that is still
+// non-terminal well past that window will never deliver a retrievable asset.
+const JOB_DEADLINE_MS = 15 * 60 * 1000;
+const MODERATED_STATUSES = ['Request Moderated', 'Content Moderated'];
+const MODERATION_MESSAGE =
+  'Flagged by the safety filter — this is often a false positive. Try rephrasing the prompt (brand names, real people and logos trip it most) or raising safety tolerance by one.';
+
 async function refreshJobs(generationId: string, workspaceId: string, apiKey: string) {
   const db = getDb();
   const jobs = await db.select().from(generationJobs).where(eq(generationJobs.generationId, generationId));
-  const startedAt = Date.now();
 
   for (const job of jobs) {
     if (!job.pollingUrl || !['queued', 'running'].includes(job.status)) continue;
@@ -42,35 +48,65 @@ async function refreshJobs(generationId: string, workspaceId: string, apiKey: st
       const result = await pollBflGeneration(apiKey, job.pollingUrl);
       if (result.status === 'Ready' && result.result?.sample) {
         await storeResult(workspaceId, generationId, job.id, result.result.sample);
-        await db.update(generationJobs).set({ status: 'succeeded', updatedAt: Date.now() }).where(eq(generationJobs.id, job.id));
-      } else if (['Error', 'Failed', 'Request Moderated', 'Content Moderated'].includes(result.status)) {
+        await db.update(generationJobs).set({ status: 'succeeded', errorMessage: null, updatedAt: Date.now() }).where(eq(generationJobs.id, job.id));
+      } else if (MODERATED_STATUSES.includes(result.status)) {
+        await db
+          .update(generationJobs)
+          .set({ status: 'moderated', errorMessage: MODERATION_MESSAGE, updatedAt: Date.now() })
+          .where(eq(generationJobs.id, job.id));
+      } else if (['Error', 'Failed'].includes(result.status)) {
         await db
           .update(generationJobs)
           .set({ status: 'failed', errorMessage: `BFL status: ${result.status}`, updatedAt: Date.now() })
+          .where(eq(generationJobs.id, job.id));
+      } else if (Date.now() - job.createdAt > JOB_DEADLINE_MS) {
+        await db
+          .update(generationJobs)
+          .set({ status: 'failed', errorMessage: 'Timed out — the result link has likely expired. Re-run to generate again.', updatedAt: Date.now() })
           .where(eq(generationJobs.id, job.id));
       } else {
         await db.update(generationJobs).set({ status: 'running', updatedAt: Date.now() }).where(eq(generationJobs.id, job.id));
       }
     } catch (error) {
+      const expired = Date.now() - job.createdAt > JOB_DEADLINE_MS;
       await db
         .update(generationJobs)
-        .set({ errorMessage: error instanceof Error ? error.message : 'Polling failed.', updatedAt: Date.now() })
+        .set({
+          ...(expired ? { status: 'failed' } : {}),
+          errorMessage: error instanceof Error ? error.message : 'Polling failed.',
+          updatedAt: Date.now(),
+        })
         .where(eq(generationJobs.id, job.id));
     }
   }
 
   const refreshed = await db.select().from(generationJobs).where(eq(generationJobs.generationId, generationId));
   const succeeded = refreshed.filter((job) => job.status === 'succeeded').length;
+  const moderated = refreshed.filter((job) => job.status === 'moderated').length;
   const failed = refreshed.filter((job) => job.status === 'failed').length;
-  const terminal = refreshed.length > 0 && succeeded + failed === refreshed.length;
-  const status = terminal ? (succeeded === refreshed.length ? 'succeeded' : succeeded > 0 ? 'partial' : 'failed') : 'running';
+  const terminal = refreshed.length > 0 && succeeded + moderated + failed === refreshed.length;
+  const status = terminal
+    ? succeeded === refreshed.length
+      ? 'succeeded'
+      : succeeded > 0
+        ? 'partial'
+        : moderated > 0
+          ? 'moderated'
+          : 'failed'
+    : 'running';
+  const firstError = refreshed.find((job) => job.status === 'moderated' && job.errorMessage)?.errorMessage
+    ?? refreshed.find((job) => job.status === 'failed' && job.errorMessage)?.errorMessage
+    ?? null;
   const totalCost = refreshed.reduce((sum, job) => sum + Number(job.costCredits ?? 0), 0);
   await db
     .update(generations)
     .set({
       status,
       costCredits: totalCost ? String(totalCost) : null,
-      latencyMs: terminal ? Date.now() - Math.min(...refreshed.map((job) => job.createdAt), startedAt) : null,
+      // Observed completion time: creation until the poll that saw the last
+      // job go terminal. An upper bound, not the model's own inference time.
+      latencyMs: terminal ? Date.now() - Math.min(...refreshed.map((job) => job.createdAt)) : null,
+      errorMessage: terminal && succeeded < refreshed.length ? firstError : null,
       updatedAt: Date.now(),
     })
     .where(eq(generations.id, generationId));
@@ -90,19 +126,25 @@ async function storeResult(workspaceId: string, generationId: string, jobId: str
 
   const mimeType = response.headers.get('content-type')?.split(';')[0] || 'image/jpeg';
   const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const assetId = crypto.randomUUID();
-  const r2Key = `${workspaceId}/${generationId}/${assetId}.${extension}`;
+  // Deterministic per-job asset id and R2 key: concurrent observers (two tabs
+  // polling the same run) write the same key and the insert is a no-op, so a
+  // job can never grow duplicate asset rows or orphaned blobs.
+  const assetId = jobId;
+  const r2Key = `${workspaceId}/${generationId}/${jobId}.${extension}`;
   await env.FILES.put(r2Key, bytes, {
     httpMetadata: { contentType: mimeType, cacheControl: 'private, max-age=3600' },
     customMetadata: { generationId, workspaceId },
   });
-  await db.insert(generationAssets).values({
-    id: assetId,
-    generationId,
-    jobId,
-    kind: 'image',
-    r2Key,
-    mimeType,
-    createdAt: Date.now(),
-  });
+  await db
+    .insert(generationAssets)
+    .values({
+      id: assetId,
+      generationId,
+      jobId,
+      kind: 'image',
+      r2Key,
+      mimeType,
+      createdAt: Date.now(),
+    })
+    .onConflictDoNothing();
 }

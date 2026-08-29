@@ -7,6 +7,15 @@ export const BFL_ENDPOINTS = {
 
 export type BflModel = keyof typeof BFL_ENDPOINTS;
 
+// Per-model parameter support; the inspector hides controls a model ignores
+// and the server refuses to forward them.
+export const MODEL_CAPS: Record<BflModel, { guidance: boolean }> = {
+  'FLUX.2 [max]': { guidance: false },
+  'FLUX.2 [pro]': { guidance: false },
+  'FLUX.2 [flex]': { guidance: true },
+  'FLUX.2 [klein]': { guidance: false },
+};
+
 type BflCreateResponse = {
   id: string;
   polling_url: string;
@@ -29,6 +38,7 @@ export async function createBflGeneration(
     safetyTolerance: number;
     promptUpsampling: boolean;
     seed: number | null;
+    guidance?: number | null;
   },
 ) {
   const endpoint = BFL_ENDPOINTS[input.model];
@@ -43,6 +53,9 @@ export async function createBflGeneration(
       safety_tolerance: input.safetyTolerance,
       prompt_upsampling: input.promptUpsampling,
       seed: input.seed,
+      ...(input.guidance != null && MODEL_CAPS[input.model].guidance
+        ? { guidance: input.guidance }
+        : {}),
     }),
   });
 
