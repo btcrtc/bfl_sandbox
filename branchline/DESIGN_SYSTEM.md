@@ -1,0 +1,42 @@
+# Branchline Design System
+
+Branchline uses a dense working-surface system distilled from the rendered BFL dashboard. It reproduces interaction grammar and measurable UI rules without copying private application source or branding assets.
+
+## Foundations
+
+- Shell: 48 px header, 48 px icon rail, 344 px inspector, 320 px history panel.
+- Spacing: 4, 6, 8, 10, 12, 16, 20, 24 and 32 px. Prefer 12–16 px inside working panels and 20 px inside focused cards.
+- Typography: system sans for UI and system mono for technical metadata.
+- Labels: 10/14 px mono, uppercase, wide tracking, muted.
+- Body: 13/20 px. Compact support text: 11/16 px. Controls: 11–14 px.
+- Headings: 24/32 px for workspace pages; 28/42 px for focused creation prompts.
+- Controls: 28 px compact and 36 px primary. Control radius is 6 px.
+- Surfaces: 8 px radius, 1 px neutral border, restrained 1 px shadow. Floating cards may use the shared 24/60/-32 shadow.
+
+## Color roles
+
+- Background and elevated surface: white.
+- Working surface: 98% neutral.
+- Border and input: 90% neutral.
+- Foreground: very dark green, `hsl(147 43% 7%)`.
+- Muted copy: 50% neutral.
+- Accent: quiet mint, `hsl(150 27% 88%)`.
+- Active rail: slightly deeper mint, `hsl(151 21% 81%)`.
+
+Color is structural. Mint marks selection and context; dark green is reserved for primary actions, graph activity and high-confidence status.
+
+## Composition rules
+
+1. Group by task before adding borders. A label, control and help text form one group.
+2. Use a single elevated surface inside a neutral panel; avoid nested card-on-card styling unless the child is an opened parameter editor.
+3. Parameter summaries are 28 px chips. Their editor opens as a full-width 12 px padded detail card below the chip row.
+4. Align actions to the edge of the surface they affect. Workspace actions live in page headers; generation actions stay pinned to the inspector footer.
+5. Use tooltips for icon-only controls and visible labels for all consequential actions.
+6. Do not invent one-off font sizes or radii. Extend the scale in this document first.
+
+## Implementation
+
+- Global tokens live in `app/globals.css`.
+- Shared product primitives live in `components/product-system.tsx`.
+- The `/components` route is the living specimen and visual regression surface.
+- Base controls in `components/ui` own interaction behavior; product primitives own Branchline composition.
