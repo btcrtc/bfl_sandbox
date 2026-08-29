@@ -1,5 +1,5 @@
 {
-  "name": "sites-project",
+  "name": "branchline",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -10,6 +10,7 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
+    "typecheck": "tsc --noEmit",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate"
   },

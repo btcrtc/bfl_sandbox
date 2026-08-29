@@ -723,7 +723,7 @@ function ParameterSelect({
   onValueChange: (value: string) => void;
 }) {
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select value={value} onValueChange={(next) => next != null && onValueChange(next)}>
       <SelectTrigger className="h-11! w-full flex-col items-start gap-0 rounded-md bg-background px-2.5 shadow-xs hover:border-[var(--brand)] [&>svg]:absolute [&>svg]:right-2">
         <span className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">{label}</span>
         <SelectValue className="mt-0.5 text-xs font-medium" />
@@ -774,7 +774,7 @@ function AspectParameter({
         <Select
           value={value}
           onValueChange={(next) => {
-            onValueChange(next);
+            if (next != null) onValueChange(next);
             setOpen(false);
           }}
         >
@@ -858,7 +858,7 @@ function HistoryPanel({
         <div className="mb-3 flex items-center justify-between px-1">
           <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Recent runs</span>
           <div className="flex items-center gap-1">
-            <Select value={filter} onValueChange={setFilter}>
+            <Select value={filter} onValueChange={(next) => next != null && setFilter(next)}>
               <SelectTrigger size="sm" className="h-6! w-[86px] border-0 bg-transparent px-1.5 text-[10px] shadow-none">
                 <SelectValue />
               </SelectTrigger>
