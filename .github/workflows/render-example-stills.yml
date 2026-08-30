@@ -6,6 +6,8 @@ name: Render example stills
 on:
   workflow_dispatch:
   push:
+    branches-ignore:
+      - main
     paths:
       - '.github/render-request'
 
