@@ -1,0 +1,40 @@
+name: Render example stills
+
+# Renders the five example-board frames with FLUX.2 [max] and commits them.
+# The key is passed per-dispatch and never stored in the repository.
+on:
+  workflow_dispatch:
+    inputs:
+      bfl_api_key:
+        description: BFL API key used only for this run
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask key in logs
+        run: echo "::add-mask::${{ inputs.bfl_api_key }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Render stills with FLUX.2 [max]
+        env:
+          BFL_API_KEY: ${{ inputs.bfl_api_key }}
+        run: node branchline/scripts/render-example-stills.mjs
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add branchline/public/example
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git commit -m "assets(scenes): Clockmakers of Light stills (FLUX.2 [max])"
+          git push
