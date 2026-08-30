@@ -21,53 +21,66 @@ const STILL_HEIGHT = 768;
 const STILL_MODEL = 'FLUX.2 [max]';
 
 const EXAMPLE = {
-  title: 'The Last Signal',
+  title: 'Clockmakers of Light',
   idea:
-    'A lone lighthouse keeper on a storm-battered Atlantic island discovers that the light itself ' +
-    'is alive: each night it paints scenes from his memories across the fog, and tonight it is ' +
-    'painting his last day ashore — the harbor, the goodbye, the door he never opened.',
+    'In a Freiburg atelier where Black Forest clockmakers once assembled time gear by gear, a ' +
+    'small studio now crafts moving images with the same patience. On the eve of their first ' +
+    'open-air premiere the dawn fog rolls off the pines into the old town; the team polishes ' +
+    'their film frame by frame, climbs to the forest edge to check their light against the real ' +
+    'one, and at night gives the city back its own morning on a screen beside the cathedral.',
   styleNote:
-    '35mm anamorphic, sodium-vapor warmth against storm blues, wet surfaces, heavy coastal ' +
-    'atmosphere, subtle filmic grain.',
+    'Scorsese key in the register of Hugo: slow confident push-ins, warm tungsten and brass ' +
+    'against cobalt-blue dawn, glowing halation, deep film blacks, 35mm Kodak grain, carved ' +
+    'wood and clockwork textures.',
   seed: 1968,
   scenes: [
     {
-      title: 'Establishing',
+      title: 'Blue hour, Freiburg',
       prompt:
-        'Wide establishing shot of a solitary lighthouse on a jagged Atlantic islet at dusk, ' +
-        'storm front rolling in, beam cutting through rain, the keeper a tiny figure on the gallery rail.',
+        'Wide establishing shot of Freiburg old town at blue-hour dawn: the gothic cathedral’s ' +
+        'openwork spire rising from morning fog spilling down from Black Forest pine hills, wet ' +
+        'cobblestone lanes with narrow water runnels catching first light, dark red-tile roofs, ' +
+        'one workshop window glowing warm amber.',
       durationSec: 6,
       still: '/example/scene-01.jpg',
     },
     {
-      title: 'The keeper',
+      title: 'The clockmaker’s heirs',
       prompt:
-        'Interior close-up of the keeper winding the clockwork of the lamp, hands weathered, ' +
-        'brass mechanisms glowing warm, storm light flickering across his face through the lens.',
+        'Interior of a former Black Forest clockmaker’s atelier turned digital image studio: ' +
+        'carved wooden gears and antique regulator clocks on the wall beside modern color-grading ' +
+        'monitors, a young engineer leaning into the glow adjusting a frame, brass desk lamps, ' +
+        'steam rising from an espresso cup, cold dawn light through tall workshop windows.',
       durationSec: 5,
       still: '/example/scene-02.jpg',
     },
     {
-      title: 'The light speaks',
+      title: 'Frame by frame',
       prompt:
-        'The rotating beam projects a translucent scene into the fog above the sea: a sunlit ' +
-        'harbor from decades ago, fishing boats and a waving crowd painted in light, keeper watching.',
-      durationSec: 6,
+        'Close over-the-shoulder shot: a reference monitor showing a frame of misty pine forest ' +
+        'being refined, an engineer’s fingers on a precision dial, her face reflected in the ' +
+        'screen glass, two colleagues watching in concentrated silence, monitor glow carving warm ' +
+        'light out of the workshop shadow.',
+      durationSec: 5,
       still: '/example/scene-03.jpg',
     },
     {
-      title: 'The goodbye',
+      title: 'Against the real light',
       prompt:
-        'Inside the fog projection: a young couple on a pier at golden hour, one boarding a small ' +
-        'boat, the other holding a lantern, rendered as luminous fog with soft edges bleeding into rain.',
-      durationSec: 5,
+        'Golden hour on a ridge path at the forest edge above the city: three friends with ' +
+        'bicycles hold up a tablet comparing their rendered frame with the real fog-filled Black ' +
+        'Forest valley below, low sun flaring through pine trunks, the image and the landscape in ' +
+        'quiet agreement.',
+      durationSec: 6,
       still: '/example/scene-04.jpg',
     },
     {
-      title: 'The door',
+      title: 'The premiere',
       prompt:
-        'Final shot: the keeper opens the lighthouse door into pure white light, silhouette ' +
-        'dissolving into the beam as the lamp completes one last rotation over calming water.',
+        'Night on the cathedral square: a film projected onto a large outdoor screen beside the ' +
+        'gothic minster showing a glowing forest dawn, a warm crowd of townspeople watching ' +
+        'upturned, the small studio team standing together at the back, their faces lit by their ' +
+        'own projected light.',
       durationSec: 8,
       still: '/example/scene-05.jpg',
     },

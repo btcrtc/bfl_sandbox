@@ -1,6 +1,6 @@
-// Renders the five "The Last Signal" example stills with FLUX.2 [max] and
-// saves them into public/example/ — the example-board seed registers them as
-// completed runs. Reproducible: fixed seeds, prompts identical to the seed
+// Renders the five "Clockmakers of Light" example stills with FLUX.2 [max]
+// and saves them into public/example/ — the example-board seed registers them
+// as completed runs. Reproducible: fixed seeds, prompts identical to the seed
 // route. Run from branchline/: `node scripts/render-example-stills.mjs`
 // (reads BFL_API_KEY from the environment or .dev.vars).
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -23,15 +23,16 @@ async function resolveKey() {
 }
 
 const STYLE =
-  '35mm anamorphic, sodium-vapor warmth against storm blues, wet surfaces, heavy coastal ' +
-  'atmosphere, subtle filmic grain.';
+  'Scorsese key in the register of Hugo: slow confident push-ins, warm tungsten and brass ' +
+  'against cobalt-blue dawn, glowing halation, deep film blacks, 35mm Kodak grain, carved ' +
+  'wood and clockwork textures.';
 
 const SCENES = [
-  'Wide establishing shot of a solitary lighthouse on a jagged Atlantic islet at dusk, storm front rolling in, beam cutting through rain, the keeper a tiny figure on the gallery rail.',
-  'Interior close-up of the keeper winding the clockwork of the lamp, hands weathered, brass mechanisms glowing warm, storm light flickering across his face through the lens.',
-  'The rotating beam projects a translucent scene into the fog above the sea: a sunlit harbor from decades ago, fishing boats and a waving crowd painted in light, keeper watching.',
-  'Inside the fog projection: a young couple on a pier at golden hour, one boarding a small boat, the other holding a lantern, rendered as luminous fog with soft edges bleeding into rain.',
-  'Final shot: the keeper opens the lighthouse door into pure white light, silhouette dissolving into the beam as the lamp completes one last rotation over calming water.',
+  'Wide establishing shot of Freiburg old town at blue-hour dawn: the gothic cathedral’s openwork spire rising from morning fog spilling down from Black Forest pine hills, wet cobblestone lanes with narrow water runnels catching first light, dark red-tile roofs, one workshop window glowing warm amber.',
+  'Interior of a former Black Forest clockmaker’s atelier turned digital image studio: carved wooden gears and antique regulator clocks on the wall beside modern color-grading monitors, a young engineer leaning into the glow adjusting a frame, brass desk lamps, steam rising from an espresso cup, cold dawn light through tall workshop windows.',
+  'Close over-the-shoulder shot: a reference monitor showing a frame of misty pine forest being refined, an engineer’s fingers on a precision dial, her face reflected in the screen glass, two colleagues watching in concentrated silence, monitor glow carving warm light out of the workshop shadow.',
+  'Golden hour on a ridge path at the forest edge above the city: three friends with bicycles hold up a tablet comparing their rendered frame with the real fog-filled Black Forest valley below, low sun flaring through pine trunks, the image and the landscape in quiet agreement.',
+  'Night on the cathedral square: a film projected onto a large outdoor screen beside the gothic minster showing a glowing forest dawn, a warm crowd of townspeople watching upturned, the small studio team standing together at the back, their faces lit by their own projected light.',
 ];
 
 const KEY = await resolveKey();
