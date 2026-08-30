@@ -18,54 +18,63 @@ export const EXAMPLE_BOARD = {
     'to the source, where a fallen tree has jammed the sluice. She heaves it free, the wheel ' +
     'shudders back to life, and the bells return to the valley with the sunrise.',
   styleNote:
-    'In the key of Scorsese: Hugo’s clockwork warmth — tungsten and brass against cobalt-blue ' +
-    'dawn, luminous halation, deep film blacks, slow confident push-ins — with the fog-drowned ' +
-    'forest register of Silence. 35mm grain.',
+    'Hyper-realistic 35mm cinema still in Martin Scorsese’s register, shot like Rodrigo Prieto ' +
+    '(Killers of the Flower Moon, The Irishman): Kodak Vision3 500T grain, anamorphic lens at ' +
+    'T2.8, practical tungsten and kerosene light against cold overcast blue dawn, deep film ' +
+    'blacks, muted earth palette, real skin pores, weathered fabric and wet stone texture, ' +
+    'documentary period naturalism — a frame from a real film, never illustration or stylization.',
   seed: 1968,
   scenes: [
     {
       title: 'The stopped clock',
       prompt:
-        'Blue-hour square of a Black Forest village: half-timbered houses around a great ' +
-        'astronomical tower clock frozen mid-swing, villagers in wool coats looking up, ' +
-        'unnaturally still fog sliding between the rooftops, amber lanterns burning against ' +
-        'cobalt dawn.',
+        'Dawn on the cobbled square of a Black Forest village, long-lens 75mm compression: a ' +
+        'plain stone-and-timber clock tower with its hands stopped at 6:12, a small crowd of ' +
+        'villagers in damp wool coats seen from behind at eye level looking up, wet cobblestones ' +
+        'mirroring one burning gas lantern, fog sliding between half-timbered facades, cold ' +
+        'overcast blue light.',
       durationSec: 6,
       still: '/example/scene-01.jpg',
     },
     {
       title: 'The verdict',
       prompt:
-        'Inside the clockmaker’s workshop: an old master and his young apprentice open the tower ' +
-        'clock’s brass movement, motionless gears reflected in his round glasses, tools laid out ' +
-        'like surgery, one warm tungsten lamp against tall blue windows.',
+        'Inside a clockmaker’s workshop, 40mm at T2.8, shallow focus: an old master with cracked ' +
+        'weathered hands and his apprentice — a young woman in her twenties, dark hair tied ' +
+        'back, gray wool coat — lean over the tower clock’s opened brass movement on a ' +
+        'workbench, motionless gears, tools laid out on linen, one tungsten work lamp, cold blue ' +
+        'window light behind, dust drifting in the beam.',
       durationSec: 5,
       still: '/example/scene-02.jpg',
     },
     {
       title: 'Up the water line',
       prompt:
-        'The apprentice climbs beside a dry wooden water flume through storm-bent Black Forest ' +
-        'pines, lantern held high, rain streaking through the fog between the trunks, the empty ' +
-        'channel running uphill into darkness.',
+        'Handheld 35mm frame on a rain-soaked Black Forest slope: the apprentice — a young woman ' +
+        'in her twenties, dark hair tied back, drenched gray wool coat — climbs uphill beside an ' +
+        'old dry wooden water flume, kerosene lantern flaring into the lens, mud on her boots, ' +
+        'breath visible, fog between towering pine trunks, documentary grit.',
       durationSec: 6,
       still: '/example/scene-03.jpg',
     },
     {
       title: 'The sluice',
       prompt:
-        'At the mountain spring a fallen pine jams the water-wheel sluice; the apprentice heaves ' +
-        'it free with a long iron bar, water bursting silver through the gate, the great wooden ' +
-        'wheel shuddering back into motion, spray catching her lantern light.',
+        'At the mountain spring, fast shutter freezing the spray: the apprentice — a young woman ' +
+        'in her twenties, dark hair tied back, soaked gray wool coat — strains on an iron bar ' +
+        'levering a fallen pine off a wooden sluice gate, the first water bursting through onto ' +
+        'the old mill wheel, lantern light on her wet exhausted face, dusk-blue forest behind, ' +
+        'physical and gritty.',
       durationSec: 6,
       still: '/example/scene-04.jpg',
     },
     {
       title: 'Time returns',
       prompt:
-        'Sunrise tearing the fog open over the valley: the tower clock’s hands sweep back to ' +
-        'life and the bells ring, townsfolk gathering on the square below, the old clockmaker ' +
-        'with his apprentice beside him, warm light flooding the half-timbered facades.',
+        'The village square as first sunlight breaks the fog, 75mm: the old clockmaker and his ' +
+        'apprentice — a young woman in her twenties, dark hair tied back, gray wool coat — stand ' +
+        'among townsfolk looking up at the tower clock’s moving hands, warm light raking across ' +
+        'half-timbered walls and tired real faces, honest period detail, film grain.',
       durationSec: 7,
       still: '/example/scene-05.jpg',
     },
