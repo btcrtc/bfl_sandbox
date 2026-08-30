@@ -436,13 +436,17 @@ export function ScenesShell({
   );
 
   const generateScene = useCallback(
-    async (sceneId: string) => {
+    async (sceneId: string, instruction?: string) => {
       if (!activeId) return;
       setGeneratingScenes((current) => new Set(current).add(sceneId));
       try {
         const response = await fetch(
           `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}/generate`,
-          { method: 'POST' },
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(instruction ? { instruction } : {}),
+          },
         );
         const data = (await response.json()) as { mode?: string; error?: string };
         if (!response.ok) throw new Error(data.error);
@@ -740,6 +744,11 @@ export function ScenesShell({
                       videoEnabled={videoEnabled}
                       totalSeconds={totalSeconds}
                       compact={density === 'compact'}
+                      busyScenes={generatingScenes}
+                      onSelectTake={(sceneId, generationId) =>
+                        void patchScene(sceneId, { activeGenerationId: generationId })
+                      }
+                      onNewTake={(sceneId) => void generateScene(sceneId)}
                     />
 
                     <div className="mt-5">
@@ -762,6 +771,9 @@ export function ScenesShell({
                           busyVideo={videoBusyScenes.has(selectedScene.id) || assembling}
                           onPatch={(patch) => void patchScene(selectedScene.id, patch)}
                           onRenderStill={() => void generateScene(selectedScene.id)}
+                          onRefine={(instruction) =>
+                            void generateScene(selectedScene.id, instruction)
+                          }
                           onDraftClip={() => void draftClip(selectedScene.id)}
                           onEnhance={(tier) => void enhanceClip(selectedScene.id, tier)}
                           onDelete={() => void deleteScene(selectedScene.id)}
@@ -1238,6 +1250,9 @@ function SequenceStrip({
   videoEnabled,
   totalSeconds,
   compact,
+  busyScenes,
+  onSelectTake,
+  onNewTake,
 }: {
   storyboard: StoryboardDto;
   selection: Selection;
@@ -1246,9 +1261,16 @@ function SequenceStrip({
   videoEnabled: boolean;
   totalSeconds: number;
   compact: boolean;
+  busyScenes: Set<string>;
+  onSelectTake: (sceneId: string, generationId: string) => void;
+  onNewTake: (sceneId: string) => void;
 }) {
+  const branchesOpen =
+    selection.kind === 'scene' &&
+    (storyboard.scenes.find((scene) => scene.id === selection.id)?.takes.length ?? 0) > 0;
+
   return (
-    <div className="overflow-x-auto pb-1">
+    <div className={cn('overflow-x-auto', branchesOpen ? 'pb-24' : 'pb-1')}>
       <div className="flex min-w-max items-stretch">
         <IdeaNode
           idea={storyboard.idea}
@@ -1257,18 +1279,32 @@ function SequenceStrip({
           onSelect={() => onSelect({ kind: 'idea' })}
           compact={compact}
         />
-        {storyboard.scenes.map((scene) => (
-          <span key={scene.id} className="contents">
-            <Connector compact={compact} />
-            <SceneNode
-              scene={scene}
-              videoEnabled={videoEnabled}
-              selected={selection.kind === 'scene' && selection.id === scene.id}
-              onSelect={() => onSelect({ kind: 'scene', id: scene.id })}
-              compact={compact}
-            />
-          </span>
-        ))}
+        {storyboard.scenes.map((scene) => {
+          const selected = selection.kind === 'scene' && selection.id === scene.id;
+          return (
+            <span key={scene.id} className="contents">
+              <Connector compact={compact} />
+              <div className="relative">
+                <SceneNode
+                  scene={scene}
+                  videoEnabled={videoEnabled}
+                  selected={selected}
+                  onSelect={() => onSelect({ kind: 'scene', id: scene.id })}
+                  compact={compact}
+                />
+                {selected && scene.takes.length > 0 && (
+                  <TakeBranches
+                    takes={scene.takes}
+                    activeGenerationId={scene.generationId}
+                    busy={busyScenes.has(scene.id)}
+                    onSelect={(generationId) => onSelectTake(scene.id, generationId)}
+                    onNew={() => onNewTake(scene.id)}
+                  />
+                )}
+              </div>
+            </span>
+          );
+        })}
         <Connector dashed={storyboard.scenes.length === 0} compact={compact} />
         <button
           onClick={onAddScene}
@@ -1288,6 +1324,87 @@ function SequenceStrip({
           onSelect={() => onSelect({ kind: 'reel' })}
           compact={compact}
         />
+      </div>
+    </div>
+  );
+}
+
+// Branches fanning out below the selected scene node: each take is a variant
+// of the shot; clicking one makes it the active still, the dashed tile
+// renders another.
+function TakeBranches({
+  takes,
+  activeGenerationId,
+  busy,
+  onSelect,
+  onNew,
+}: {
+  takes: TakeDto[];
+  activeGenerationId: string | null;
+  busy: boolean;
+  onSelect: (generationId: string) => void;
+  onNew: () => void;
+}) {
+  return (
+    <div className="absolute left-1/2 top-full z-10 flex -translate-x-1/2 flex-col items-center">
+      <span className="h-2.5 w-px bg-[var(--brand)]/60" aria-hidden />
+      <div className="relative flex items-start gap-1.5 px-4">
+        <span className="absolute left-8 right-8 top-0 h-px bg-border" aria-hidden />
+        {takes.map((take, index) => {
+          const asset = take.run?.assets[0];
+          const active = take.generationId === activeGenerationId;
+          return (
+            <span key={take.id} className="flex flex-col items-center">
+              <span className={cn('h-2.5 w-px', active ? 'bg-[var(--brand)]/60' : 'bg-border')} aria-hidden />
+              <button
+                type="button"
+                onClick={() => !active && onSelect(take.generationId)}
+                className={cn(
+                  'relative aspect-video w-16 shrink-0 overflow-hidden rounded border bg-muted shadow-sm outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
+                  active
+                    ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
+                    : 'hover:-translate-y-0.5 hover:border-foreground/30',
+                )}
+                aria-label={`Take ${index + 1}${active ? ' (active)' : ''}`}
+                aria-pressed={active}
+              >
+                {asset ? (
+                  <NextImage
+                    src={asset.url}
+                    alt={`Take ${index + 1}`}
+                    width={128}
+                    height={72}
+                    unoptimized
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <span className="grid size-full place-items-center text-muted-foreground">
+                    {take.run && ['queued', 'running'].includes(take.run.status) ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      <ShieldAlert className="size-3" />
+                    )}
+                  </span>
+                )}
+                <span className="absolute bottom-0 left-0 rounded-tr bg-background/85 px-0.5 font-mono text-[8px] backdrop-blur">
+                  T{index + 1}
+                </span>
+              </button>
+            </span>
+          );
+        })}
+        <span className="flex flex-col items-center">
+          <span className="h-2.5 w-px bg-border" aria-hidden />
+          <button
+            type="button"
+            onClick={onNew}
+            disabled={busy}
+            className="grid aspect-video w-16 shrink-0 place-items-center rounded border border-dashed bg-background/60 text-muted-foreground shadow-sm outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+            aria-label="Render a new take"
+          >
+            {busy ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3.5" />}
+          </button>
+        </span>
       </div>
     </div>
   );
@@ -1586,6 +1703,7 @@ function SceneDetail({
   busyVideo,
   onPatch,
   onRenderStill,
+  onRefine,
   onDraftClip,
   onEnhance,
   onDelete,
@@ -1597,6 +1715,7 @@ function SceneDetail({
   busyVideo: boolean;
   onPatch: (patch: Record<string, unknown>) => void;
   onRenderStill: () => void;
+  onRefine: (instruction: string) => void;
   onDraftClip: () => void;
   onEnhance: (tier: 'hd' | 'fhd') => void;
   onDelete: () => void;
@@ -1657,6 +1776,9 @@ function SceneDetail({
               onNewTake={onRenderStill}
               busy={busyStill || stillRunning}
             />
+          )}
+          {tab === 'still' && hasStill && (
+            <RefineTakeForm busy={busyStill || stillRunning} onRefine={onRefine} />
           )}
         </div>
 
@@ -2040,6 +2162,56 @@ function SceneSeedControl({
 
 // --- detail: reel ------------------------------------------------------------
 
+// Image-to-image refinement of the active take: describe what to add, remove
+// or change — the current frame rides along as the reference and a new take
+// branches off with the edit applied.
+function RefineTakeForm({
+  busy,
+  onRefine,
+}: {
+  busy: boolean;
+  onRefine: (instruction: string) => void;
+}) {
+  const [instruction, setInstruction] = useState('');
+  const submit = () => {
+    const trimmed = instruction.trim();
+    if (trimmed.length < 3 || busy) return;
+    onRefine(trimmed);
+    setInstruction('');
+  };
+  return (
+    <div className="mt-2">
+      <SystemLabel>Refine this take</SystemLabel>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <Input
+          value={instruction}
+          onChange={(event) => setInstruction(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') submit();
+          }}
+          placeholder="Add rain streaks · remove the second lantern · make her older…"
+          maxLength={500}
+          className="h-8 bg-background text-[12px]"
+          aria-label="Refinement instruction"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0"
+          onClick={submit}
+          disabled={busy || instruction.trim().length < 3}
+        >
+          {busy ? <Loader2 className="animate-spin" /> : <Sparkles />} Refine
+        </Button>
+      </div>
+      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+        Keeps the shot, applies your change, lands as a new take (~
+        {formatUsd(SCENE_STILL_ESTIMATE_USD)}).
+      </p>
+    </div>
+  );
+}
+
 // Alternate renders of one scene. Clicking a thumbnail makes that take the
 // scene's active still (the one the strip, timeline and video steps use);
 // the trailing tile renders another take without losing this one.
@@ -2299,8 +2471,8 @@ function ReelDetail({
     return () => window.clearTimeout(timeout);
   }, [playlist, playPos]);
 
-  const startAnimatic = () => {
-    const items = storyboard.scenes.flatMap((scene) => {
+  const buildPlaylist = () =>
+    storyboard.scenes.flatMap((scene) => {
       const asset = scene.run?.assets[0];
       const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
       const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
@@ -2317,8 +2489,12 @@ function ReelDetail({
           ]
         : [];
     });
+  const previewItem = playingItem ?? buildPlaylist()[0] ?? null;
+
+  const startAnimatic = () => {
+    const items = buildPlaylist();
     if (!items.length) {
-      onNotice('Render at least one still first — the animatic plays the cut from stills.');
+      onNotice('Render at least one still first — the cut plays from stills.');
       return;
     }
     setPlayPos(0);
@@ -2384,42 +2560,82 @@ function ReelDetail({
         </div>
       </div>
 
-      {playingItem && (
+      {previewItem && (
         <div className="relative mt-4 aspect-video max-w-2xl overflow-hidden rounded-lg border bg-muted">
-          {playingItem.clipUrl ? (
+          {playingItem ? (
+            playingItem.clipUrl ? (
+              <video
+                key={playingItem.id}
+                src={playingItem.clipUrl}
+                autoPlay
+                muted
+                playsInline
+                onEnded={() => setPlayPos((position) => position + 1)}
+                onError={() => setPlayPos((position) => position + 1)}
+                className="size-full bg-black object-cover"
+              />
+            ) : (
+              <NextImage
+                key={playingItem.id}
+                src={playingItem.url}
+                alt={playingItem.title}
+                width={1344}
+                height={768}
+                unoptimized
+                className="size-full object-cover"
+              />
+            )
+          ) : previewItem.clipUrl ? (
             <video
-              key={playingItem.id}
-              src={playingItem.clipUrl}
-              autoPlay
+              src={previewItem.clipUrl}
               muted
               playsInline
-              onEnded={() => setPlayPos((position) => position + 1)}
-              onError={() => setPlayPos((position) => position + 1)}
+              preload="metadata"
               className="size-full bg-black object-cover"
             />
           ) : (
             <NextImage
-              key={playingItem.id}
-              src={playingItem.url}
-              alt={playingItem.title}
+              src={previewItem.url}
+              alt={previewItem.title}
               width={1344}
               height={768}
               unoptimized
               className="size-full object-cover"
             />
           )}
+          {!playingItem && (
+            <button
+              type="button"
+              onClick={startAnimatic}
+              className="absolute inset-0 z-10 grid place-items-center outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              aria-label="Play the cut"
+            >
+              <span className="grid size-14 place-items-center rounded-full bg-background/85 shadow-lg backdrop-blur transition-transform hover:scale-105">
+                <Play className="ml-0.5 size-6" />
+              </span>
+            </button>
+          )}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-2 pt-6">
-            <p className="font-mono text-[10px] uppercase tracking-wider">
-              Scene {String(playingItem.sceneIndex + 1).padStart(2, '0')} · {playingItem.title} ·{' '}
-              {playingItem.durationSec}s{playingItem.clipUrl ? ' · clip' : ' · still'}
-            </p>
-            <div className="mt-1 h-0.5 overflow-hidden rounded bg-border">
-              <div
-                key={`${playingItem.id}-progress`}
-                className="reel-progress h-full bg-[var(--brand)]"
-                style={{ animationDuration: `${playingItem.durationSec}s` }}
-              />
-            </div>
+            {playingItem ? (
+              <>
+                <p className="font-mono text-[10px] uppercase tracking-wider">
+                  Scene {String(playingItem.sceneIndex + 1).padStart(2, '0')} · {playingItem.title}{' '}
+                  · {playingItem.durationSec}s{playingItem.clipUrl ? ' · clip' : ' · still'}
+                </p>
+                <div className="mt-1 h-0.5 overflow-hidden rounded bg-border">
+                  <div
+                    key={`${playingItem.id}-progress`}
+                    className="reel-progress h-full bg-[var(--brand)]"
+                    style={{ animationDuration: `${playingItem.durationSec}s` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="font-mono text-[10px] uppercase tracking-wider">
+                Cut ready · {storyboard.scenes.length} scenes · {totalSeconds}s — clips play where
+                rendered, stills hold elsewhere
+              </p>
+            )}
           </div>
         </div>
       )}

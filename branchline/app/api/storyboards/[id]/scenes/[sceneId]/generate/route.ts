@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardReferences, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
+import { generationAssets, storyboardReferences, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
 import { loadAssetDataUri } from '@/lib/media';
 import { checkDailyBudget, submitGeneration } from '@/lib/run-service';
 
@@ -12,7 +12,7 @@ import { checkDailyBudget, submitGeneration } from '@/lib/run-service';
 const SCENE_FRAME = { width: 1344, height: 768 } as const;
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string; sceneId: string }> },
 ) {
   const user = await getChatGPTUser();
@@ -33,9 +33,18 @@ export async function POST(
     .limit(1);
   if (!scene) return NextResponse.json({ error: 'Scene not found.' }, { status: 404 });
 
-  const prompt = [scene.prompt.trim(), storyboard.styleNote?.trim()]
-    .filter(Boolean)
-    .join('\n\nStyle: ');
+  // Optional refinement: image-to-image on top of the active take — the
+  // current frame rides along as the first reference and the instruction
+  // tells FLUX.2 what to add, remove or change while keeping the shot.
+  const body = ((await request.json().catch(() => null)) ?? {}) as { instruction?: unknown };
+  const instruction =
+    typeof body.instruction === 'string' ? body.instruction.trim().slice(0, 500) : '';
+
+  let basePrompt = scene.prompt.trim();
+  if (instruction) {
+    basePrompt = `${basePrompt}\n\nUsing the first reference image as the exact shot to keep, apply this change and nothing else: ${instruction}`;
+  }
+  const prompt = [basePrompt, storyboard.styleNote?.trim()].filter(Boolean).join('\n\nStyle: ');
   if (prompt.length < 3) {
     return NextResponse.json({ error: 'Write a scene prompt first.' }, { status: 400 });
   }
@@ -43,7 +52,26 @@ export async function POST(
   const budget = await checkDailyBudget(workspaceId);
   if (!budget.ok) return NextResponse.json({ error: budget.message }, { status: 429 });
 
-  const inputImages = await loadReferenceDataUris(workspaceId, id);
+  const referenceImages = await loadReferenceDataUris(workspaceId, id);
+  let inputImages = referenceImages;
+  if (instruction) {
+    if (!scene.generationId) {
+      return NextResponse.json({ error: 'Render a still before refining it.' }, { status: 400 });
+    }
+    const [activeAsset] = await db
+      .select({ id: generationAssets.id })
+      .from(generationAssets)
+      .where(eq(generationAssets.generationId, scene.generationId))
+      .limit(1);
+    const activeDataUri = activeAsset
+      ? await loadAssetDataUri(workspaceId, activeAsset.id)
+      : null;
+    if (!activeDataUri) {
+      return NextResponse.json({ error: 'The active take has no stored frame yet.' }, { status: 400 });
+    }
+    // Active frame first; board references fill the remaining slots.
+    inputImages = [activeDataUri, ...referenceImages.slice(0, 2)];
+  }
 
   const result = await submitGeneration({
     workspaceId,
@@ -62,7 +90,12 @@ export async function POST(
       guidance: null,
     },
     inputImages,
-    extraParameters: { storyboardId: id, sceneId, sceneIndex: scene.sceneIndex },
+    extraParameters: {
+      storyboardId: id,
+      sceneId,
+      sceneIndex: scene.sceneIndex,
+      ...(instruction ? { refinedFrom: scene.generationId, instruction } : {}),
+    },
   });
 
   const now = Date.now();
