@@ -7,7 +7,7 @@ import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
 import { generationAssets, generations } from '@/db/schema';
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: 'Sign in to view this asset.' }, { status: 401 });
 
@@ -37,7 +37,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         },
       });
     }
-    return NextResponse.redirect(new URL(staticPath, request.url), 302);
+    // Keep the redirect relative so the browser preserves the public scheme.
+    // Railway terminates TLS before forwarding the request, which can make
+    // the internal request appear as http:// inside the container.
+    return new Response(null, { status: 302, headers: { location: staticPath } });
   }
 
   const object = await env.FILES.get(asset.r2Key);
