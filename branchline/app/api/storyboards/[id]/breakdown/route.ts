@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardClips, storyboardScenes, storyboards } from '@/db/schema';
+import { storyboardClips, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
 import { breakdownIdea } from '@/lib/llm';
 import { getStoryboard } from '@/lib/storyboard-service';
 
@@ -51,6 +51,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   // deletions.
   await db.batch([
     db.delete(storyboardClips).where(eq(storyboardClips.storyboardId, id)),
+    db.delete(storyboardTakes).where(eq(storyboardTakes.storyboardId, id)),
     db.delete(storyboardScenes).where(eq(storyboardScenes.storyboardId, id)),
     db.insert(storyboardScenes).values(
       breakdown.scenes.map((scene, sceneIndex) => ({

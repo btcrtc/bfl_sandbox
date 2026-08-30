@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardReferences, storyboardScenes, storyboards } from '@/db/schema';
+import { storyboardReferences, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
 import { loadAssetDataUri } from '@/lib/media';
 import { checkDailyBudget, submitGeneration } from '@/lib/run-service';
 
@@ -66,11 +66,49 @@ export async function POST(
   });
 
   const now = Date.now();
-  await db
-    .update(storyboardScenes)
-    .set({ generationId: result.id, updatedAt: now })
-    .where(eq(storyboardScenes.id, sceneId));
-  await db.update(storyboards).set({ updatedAt: now }).where(eq(storyboards.id, id));
+  // Renders branch instead of overwriting: the previous still (from before
+  // takes existed) is backfilled as a take, the new one is added and made
+  // active.
+  const takeInserts = [
+    db.insert(storyboardTakes).values({
+      id: crypto.randomUUID(),
+      storyboardId: id,
+      sceneId,
+      generationId: result.id,
+      createdAt: now,
+    }),
+  ];
+  if (scene.generationId) {
+    const [existingTake] = await db
+      .select({ id: storyboardTakes.id })
+      .from(storyboardTakes)
+      .where(
+        and(
+          eq(storyboardTakes.sceneId, sceneId),
+          eq(storyboardTakes.generationId, scene.generationId),
+        ),
+      )
+      .limit(1);
+    if (!existingTake) {
+      takeInserts.push(
+        db.insert(storyboardTakes).values({
+          id: crypto.randomUUID(),
+          storyboardId: id,
+          sceneId,
+          generationId: scene.generationId,
+          createdAt: scene.updatedAt,
+        }),
+      );
+    }
+  }
+  await db.batch([
+    db
+      .update(storyboardScenes)
+      .set({ generationId: result.id, updatedAt: now })
+      .where(eq(storyboardScenes.id, sceneId)),
+    db.update(storyboards).set({ updatedAt: now }).where(eq(storyboards.id, id)),
+    ...takeInserts,
+  ]);
 
   return NextResponse.json({ ...result, sceneId }, { status: 202 });
 }

@@ -121,6 +121,23 @@ export const storyboardClips = sqliteTable(
   (table) => [index('storyboard_clips_scene_idx').on(table.sceneId, table.createdAt)],
 );
 
+// Every rendered still for a scene is kept as a take; the scene's
+// generation_id points at the active one, so re-renders branch instead of
+// overwriting.
+export const storyboardTakes = sqliteTable(
+  'storyboard_takes',
+  {
+    id: text('id').primaryKey(),
+    storyboardId: text('storyboard_id')
+      .notNull()
+      .references(() => storyboards.id, { onDelete: 'cascade' }),
+    sceneId: text('scene_id').notNull(),
+    generationId: text('generation_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('storyboard_takes_scene_idx').on(table.sceneId, table.createdAt)],
+);
+
 export const storyboardScenes = sqliteTable(
   'storyboard_scenes',
   {

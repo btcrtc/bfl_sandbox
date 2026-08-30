@@ -7,6 +7,7 @@ import {
   storyboardReferences,
   storyboardScenes,
   storyboards,
+  storyboardTakes,
 } from '@/db/schema';
 
 export const MAX_STORYBOARD_REFERENCES = 3;
@@ -20,6 +21,13 @@ export type ClipDto = {
   run: HistoryRun | null;
 };
 
+export type TakeDto = {
+  id: string;
+  generationId: string;
+  createdAt: number;
+  run: HistoryRun | null;
+};
+
 export type SceneDto = {
   id: string;
   sceneIndex: number;
@@ -29,6 +37,7 @@ export type SceneDto = {
   seed: number | null;
   generationId: string | null;
   run: HistoryRun | null;
+  takes: TakeDto[];
   clips: ClipDto[];
 };
 
@@ -60,6 +69,35 @@ export async function listStoryboards(workspaceId: string) {
   }));
 }
 
+type TakeRow = typeof storyboardTakes.$inferSelect;
+type SceneRow = typeof storyboardScenes.$inferSelect;
+
+// A scene rendered before takes existed has an active generation without a
+// take row; surface it as a synthetic take so the strip never loses history.
+function buildTakes(
+  scene: SceneRow,
+  takeRows: TakeRow[],
+  runsById: Map<string, HistoryRun>,
+): TakeDto[] {
+  const own = takeRows
+    .filter((take) => take.sceneId === scene.id)
+    .map((take) => ({
+      id: take.id,
+      generationId: take.generationId,
+      createdAt: take.createdAt,
+      run: runsById.get(take.generationId) ?? null,
+    }));
+  if (scene.generationId && !own.some((take) => take.generationId === scene.generationId)) {
+    own.push({
+      id: `legacy-${scene.id}`,
+      generationId: scene.generationId,
+      createdAt: scene.updatedAt,
+      run: runsById.get(scene.generationId) ?? null,
+    });
+  }
+  return own.sort((a, b) => a.createdAt - b.createdAt);
+}
+
 export async function getStoryboard(
   workspaceId: string,
   storyboardId: string,
@@ -72,7 +110,7 @@ export async function getStoryboard(
     .limit(1);
   if (!row || row.workspaceId !== workspaceId) return null;
 
-  const [sceneRows, referenceRows, clipRows] = await Promise.all([
+  const [sceneRows, referenceRows, clipRows, takeRows] = await Promise.all([
     db
       .select()
       .from(storyboardScenes)
@@ -88,13 +126,19 @@ export async function getStoryboard(
       .from(storyboardClips)
       .where(eq(storyboardClips.storyboardId, storyboardId))
       .orderBy(desc(storyboardClips.createdAt)),
+    db
+      .select()
+      .from(storyboardTakes)
+      .where(eq(storyboardTakes.storyboardId, storyboardId))
+      .orderBy(asc(storyboardTakes.createdAt)),
   ]);
 
-  // Scene stills and clips reuse the shared generation pipeline; resolve their
-  // runs by id so nothing ages out of a history window.
+  // Scene stills, takes and clips reuse the shared generation pipeline;
+  // resolve their runs by id so nothing ages out of a history window.
   const referencedIds = [
     ...sceneRows.flatMap((scene) => (scene.generationId ? [scene.generationId] : [])),
     ...clipRows.map((clip) => clip.generationId),
+    ...takeRows.map((take) => take.generationId),
   ];
   const runs = await listRunsByIds(workspaceId, [...new Set(referencedIds)]);
   const runsById = new Map(runs.map((run) => [run.id, run]));
@@ -120,6 +164,7 @@ export async function getStoryboard(
       seed: scene.seed,
       generationId: scene.generationId,
       run: scene.generationId ? (runsById.get(scene.generationId) ?? null) : null,
+      takes: buildTakes(scene, takeRows, runsById),
       clips: clipRows
         .filter((clip) => clip.sceneId === scene.id)
         .map((clip) => ({

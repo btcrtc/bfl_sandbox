@@ -62,6 +62,12 @@ export function ensureDatabase() {
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboard_clips_scene_idx ON storyboard_clips(scene_id, created_at)',
     ),
+    env.DB.prepare(
+      'CREATE TABLE IF NOT EXISTS storyboard_takes (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, scene_id TEXT NOT NULL, generation_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
+    ),
+    env.DB.prepare(
+      'CREATE INDEX IF NOT EXISTS storyboard_takes_scene_idx ON storyboard_takes(scene_id, created_at)',
+    ),
   ])
     .then(async () => {
       // Additive migration for databases created before the idea column

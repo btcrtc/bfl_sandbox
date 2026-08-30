@@ -10,6 +10,7 @@ import {
   generations,
   storyboards,
   storyboardScenes,
+  storyboardTakes,
 } from '@/db/schema';
 
 // A finished-looking board for first contact: the layout reads instantly
@@ -187,6 +188,20 @@ export async function POST(request: Request) {
     ),
   );
 
+  const sceneIds = EXAMPLE.scenes.map(() => crypto.randomUUID());
+  const takeRows = generationIds.flatMap((generationId, sceneIndex) =>
+    generationId
+      ? [
+          {
+            id: crypto.randomUUID(),
+            storyboardId,
+            sceneId: sceneIds[sceneIndex],
+            generationId,
+            createdAt: now,
+          },
+        ]
+      : [],
+  );
   await db.batch([
     db.insert(storyboards).values({
       id: storyboardId,
@@ -201,7 +216,7 @@ export async function POST(request: Request) {
     }),
     db.insert(storyboardScenes).values(
       EXAMPLE.scenes.map((scene, sceneIndex) => ({
-        id: crypto.randomUUID(),
+        id: sceneIds[sceneIndex],
         storyboardId,
         sceneIndex,
         title: scene.title,
@@ -213,6 +228,7 @@ export async function POST(request: Request) {
         updatedAt: now,
       })),
     ),
+    ...(takeRows.length ? [db.insert(storyboardTakes).values(takeRows)] : []),
   ]);
 
   return NextResponse.json({ id: storyboardId }, { status: 201 });

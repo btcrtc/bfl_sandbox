@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardClips, storyboardScenes, storyboards } from '@/db/schema';
+import { storyboardClips, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
 
 async function loadScene(workspaceId: string, storyboardId: string, sceneId: string) {
   const db = getDb();
@@ -39,8 +39,28 @@ export async function PATCH(
     prompt?: unknown;
     durationSec?: unknown;
     seed?: unknown;
+    activeGenerationId?: unknown;
   };
   const patch: Partial<typeof storyboardScenes.$inferInsert> = { updatedAt: Date.now() };
+  if (typeof body.activeGenerationId === 'string') {
+    // Switching the active take: only a generation already recorded as a take
+    // of this scene (or the current active one) qualifies.
+    const db = getDb();
+    const [take] = await db
+      .select({ id: storyboardTakes.id })
+      .from(storyboardTakes)
+      .where(
+        and(
+          eq(storyboardTakes.sceneId, sceneId),
+          eq(storyboardTakes.generationId, body.activeGenerationId),
+        ),
+      )
+      .limit(1);
+    if (!take && scene.generationId !== body.activeGenerationId) {
+      return NextResponse.json({ error: 'That take does not belong to this scene.' }, { status: 400 });
+    }
+    patch.generationId = body.activeGenerationId;
+  }
   if (typeof body.title === 'string' && body.title.trim()) {
     patch.title = body.title.trim().slice(0, 80);
   }
@@ -84,6 +104,7 @@ export async function DELETE(
   const db = getDb();
   await db.batch([
     db.delete(storyboardClips).where(eq(storyboardClips.sceneId, sceneId)),
+    db.delete(storyboardTakes).where(eq(storyboardTakes.sceneId, sceneId)),
     db.delete(storyboardScenes).where(eq(storyboardScenes.id, sceneId)),
   ]);
   return NextResponse.json({ ok: true });

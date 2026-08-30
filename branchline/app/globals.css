@@ -203,3 +203,20 @@
   stroke: var(--brand);
   stroke-width: 1.8;
 }
+
+/* Reel animatic: per-scene progress sweep, duration set inline per scene. */
+@keyframes reel-progress-sweep {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.reel-progress {
+  width: 0%;
+  animation-name: reel-progress-sweep;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
