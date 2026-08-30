@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers';
 import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
@@ -85,39 +84,24 @@ const EXAMPLE = {
   ],
 };
 
-// Fetches a bundled example still and registers it as a completed FLUX.2 [max]
-// run for this workspace. Returns null (scene seeds unrendered) when the
-// static file is not present in the build.
+// Registers a bundled example still as a completed FLUX.2 [max] run for this
+// workspace. The asset row points straight at the static file
+// (r2Key `static:/example/…`; the assets route redirects) — no self-fetch, no
+// R2 copy, works identically on every host.
 async function registerExampleStill(input: {
-  requestUrl: string;
   workspaceId: string;
   userId: string;
   scene: (typeof EXAMPLE.scenes)[number];
   sceneIndex: number;
   now: number;
-}): Promise<string | null> {
-  const { requestUrl, workspaceId, userId, scene, sceneIndex, now } = input;
-  let bytes: ArrayBuffer;
-  try {
-    const response = await fetch(new URL(scene.still, requestUrl));
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!response.ok || !contentType.startsWith('image/')) return null;
-    bytes = await response.arrayBuffer();
-  } catch {
-    return null;
-  }
-
+}): Promise<string> {
+  const { workspaceId, userId, scene, sceneIndex, now } = input;
   const db = getDb();
   const generationId = crypto.randomUUID();
   const jobId = crypto.randomUUID();
-  const r2Key = `${workspaceId}/${generationId}/${jobId}.jpg`;
+  const r2Key = `static:${scene.still}`;
   const prompt = `${scene.prompt} Style: ${EXAMPLE.styleNote}`;
   const seed = EXAMPLE.seed + sceneIndex;
-
-  await env.FILES.put(r2Key, bytes, {
-    httpMetadata: { contentType: 'image/jpeg', cacheControl: 'private, max-age=3600' },
-    customMetadata: { generationId, workspaceId },
-  });
 
   await db.batch([
     db.insert(generations).values({
@@ -163,7 +147,7 @@ async function registerExampleStill(input: {
   return generationId;
 }
 
-export async function POST(request: Request) {
+export async function POST() {
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: 'Sign in to create a storyboard.' }, { status: 401 });
 
@@ -172,33 +156,21 @@ export async function POST(request: Request) {
   const now = Date.now();
   const storyboardId = crypto.randomUUID();
 
-  const generationIds = await Promise.all(
-    EXAMPLE.scenes.map((scene, sceneIndex) =>
-      registerExampleStill({
-        requestUrl: request.url,
-        workspaceId,
-        userId: user.userId,
-        scene,
-        sceneIndex,
-        now,
-      }),
-    ),
-  );
+  const generationIds: string[] = [];
+  for (const [sceneIndex, scene] of EXAMPLE.scenes.entries()) {
+    generationIds.push(
+      await registerExampleStill({ workspaceId, userId: user.userId, scene, sceneIndex, now }),
+    );
+  }
 
   const sceneIds = EXAMPLE.scenes.map(() => crypto.randomUUID());
-  const takeRows = generationIds.flatMap((generationId, sceneIndex) =>
-    generationId
-      ? [
-          {
-            id: crypto.randomUUID(),
-            storyboardId,
-            sceneId: sceneIds[sceneIndex],
-            generationId,
-            createdAt: now,
-          },
-        ]
-      : [],
-  );
+  const takeRows = generationIds.map((generationId, sceneIndex) => ({
+    id: crypto.randomUUID(),
+    storyboardId,
+    sceneId: sceneIds[sceneIndex],
+    generationId,
+    createdAt: now,
+  }));
   await db.batch([
     db.insert(storyboards).values({
       id: storyboardId,

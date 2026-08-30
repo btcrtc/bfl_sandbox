@@ -7,7 +7,7 @@ import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
 import { generationAssets, generations } from '@/db/schema';
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: 'Sign in to view this asset.' }, { status: 401 });
 
@@ -21,6 +21,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     .where(and(eq(generationAssets.id, id), eq(generations.workspaceId, workspaceId)))
     .limit(1);
   if (!asset) return NextResponse.json({ error: 'Asset not found.' }, { status: 404 });
+
+  // Bundled example media lives as static files; the asset row just points
+  // there (no R2 copy), so hand the browser the static path.
+  if (asset.r2Key.startsWith('static:')) {
+    return NextResponse.redirect(new URL(asset.r2Key.slice('static:'.length), request.url), 302);
+  }
 
   const object = await env.FILES.get(asset.r2Key);
   if (!object) return NextResponse.json({ error: 'Asset blob is missing.' }, { status: 404 });

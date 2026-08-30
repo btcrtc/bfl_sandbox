@@ -808,6 +808,7 @@ export function ScenesShell({
                 draftableCount={draftableScenes.length}
                 assembling={assembling}
                 onAssemble={() => void assembleReel()}
+                onOpenTimeline={() => setRawSelection({ kind: 'reel' })}
               />
             )}
           </section>
@@ -1553,11 +1554,13 @@ function SceneDetail({
             fhd={fhd}
             effectiveSeed={effectiveSeed}
           />
-          {tab === 'still' && scene.takes.length > 1 && (
+          {tab === 'still' && scene.takes.length > 0 && (
             <TakesRow
               takes={scene.takes}
               activeGenerationId={scene.generationId}
               onSetActive={(generationId) => onPatch({ activeGenerationId: generationId })}
+              onNewTake={onRenderStill}
+              busy={busyStill || stillRunning}
             />
           )}
         </div>
@@ -1773,8 +1776,31 @@ function SceneStage({
       );
     } else if (clip?.run && clip.run.status !== 'succeeded') {
       content = <StagePlaceholder icon="alert" text={clip.run.errorMessage ?? 'Clip failed.'} />;
+    } else if (scene.run?.assets[0]) {
+      // Placeholder cut: the active take stands in for the clip until video
+      // renders, so the edit reads end-to-end before spending a credit.
+      content = (
+        <div className="relative size-full">
+          <NextImage
+            src={scene.run.assets[0].url}
+            alt={scene.title}
+            width={1344}
+            height={768}
+            unoptimized
+            className="size-full object-cover opacity-35"
+          />
+          <span className="absolute inset-0 grid place-items-center p-6">
+            <span className="flex max-w-sm flex-col items-center gap-2 text-center text-[11px] leading-relaxed">
+              <Film className="size-5" />
+              {tab === 'draft'
+                ? `Placeholder — the draft clip animates this take (${scene.durationSec}s · ~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'draft'))}).`
+                : `Placeholder — enhance replays the draft in ${tab.toUpperCase()} (~${formatUsd(estimateVideoCostUsd(scene.durationSec, tab as 'hd' | 'fhd'))}).`}
+            </span>
+          </span>
+        </div>
+      );
     } else {
-      content = <StagePlaceholder icon="film" text={`No ${tab} clip yet.`} />;
+      content = <StagePlaceholder icon="film" text={`No ${tab} clip yet — render the still first.`} />;
     }
     meta = `FLUX 3 Video [${tab}] · ${clip?.run?.status ?? 'not rendered'}${
       clip?.run?.costCredits ? ` · ${formatCost(clip.run.costCredits)}` : ''
@@ -1920,15 +1946,20 @@ function SceneSeedControl({
 // --- detail: reel ------------------------------------------------------------
 
 // Alternate renders of one scene. Clicking a thumbnail makes that take the
-// scene's active still (the one the strip, timeline and video steps use).
+// scene's active still (the one the strip, timeline and video steps use);
+// the trailing tile renders another take without losing this one.
 function TakesRow({
   takes,
   activeGenerationId,
   onSetActive,
+  onNewTake,
+  busy,
 }: {
   takes: TakeDto[];
   activeGenerationId: string | null;
   onSetActive: (generationId: string) => void;
+  onNewTake: () => void;
+  busy: boolean;
 }) {
   return (
     <div className="mt-2">
@@ -1975,6 +2006,22 @@ function TakesRow({
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={onNewTake}
+          disabled={busy}
+          className="grid aspect-video w-24 shrink-0 place-items-center rounded border border-dashed text-muted-foreground outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+          aria-label="Render a new take"
+        >
+          {busy ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <span className="flex flex-col items-center gap-0.5">
+              <Plus className="size-3.5" />
+              <span className="font-mono text-[8px] uppercase tracking-wider">New take</span>
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -2315,6 +2362,7 @@ function VideoPlanBar({
   draftableCount,
   assembling,
   onAssemble,
+  onOpenTimeline,
 }: {
   sceneCount: number;
   totalSeconds: number;
@@ -2322,6 +2370,7 @@ function VideoPlanBar({
   draftableCount: number;
   assembling: boolean;
   onAssemble: () => void;
+  onOpenTimeline: () => void;
 }) {
   return (
     <div className="shrink-0 border-t bg-background px-6 py-2.5">
@@ -2345,6 +2394,14 @@ function VideoPlanBar({
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-[12px]"
+            onClick={onOpenTimeline}
+          >
+            <Film /> Timeline
+          </Button>
           {videoEnabled ? (
             <Button
               size="sm"

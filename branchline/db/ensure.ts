@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { eq } from 'drizzle-orm';
 
 import { getDb } from './index';
-import { generations, workspaceMembers, workspaces } from './schema';
+import { workspaceMembers, workspaces } from './schema';
 
 let ready: Promise<void> | null = null;
 
@@ -77,6 +77,9 @@ export function ensureDatabase() {
       } catch {
         // Column already present.
       }
+      // Sweep the fake sample runs earlier builds seeded into new
+      // workspaces — Runs/Assets show real work or honest empty states.
+      await env.DB.prepare("DELETE FROM generations WHERE origin = 'sample'").run();
     })
     .then(() => undefined);
 
@@ -113,97 +116,6 @@ export async function ensurePersonalWorkspace(
     .insert(workspaceMembers)
     .values({ workspaceId, userId, role: 'owner', joinedAt: now })
     .onConflictDoNothing();
-
-  const samples = [
-    [
-      'Soft industrial product portrait on warm mineral paper',
-      'FLUX.2 [max]',
-      2,
-      18 * 60_000,
-    ],
-    [
-      'Retro-futurist desktop machine, quiet studio light',
-      'FLUX.2 [max]',
-      2,
-      24 * 60 * 60_000,
-    ],
-    [
-      'Compact field recorder with tactile orange controls',
-      'FLUX.2 [pro]',
-      4,
-      26 * 60 * 60_000,
-    ],
-    [
-      'Brutalist perfume bottle with smoked glass and sharp caustics',
-      'FLUX.2 [flex]',
-      2,
-      49 * 60 * 60_000,
-    ],
-    [
-      'Wayfinding icons for an alpine research station',
-      'FLUX.2 [klein]',
-      4,
-      3 * 24 * 60 * 60_000,
-    ],
-    [
-      'Editorial still life in moss green, chalk and anodized aluminum',
-      'FLUX.2 [pro]',
-      2,
-      4 * 24 * 60 * 60_000,
-    ],
-    [
-      'Modular field camera photographed as an archival artifact',
-      'FLUX.2 [max]',
-      2,
-      5 * 24 * 60 * 60_000,
-    ],
-    [
-      'Folded-paper terrain system with embossed contour labels',
-      'FLUX.2 [flex]',
-      3,
-      7 * 24 * 60 * 60_000,
-    ],
-  ] as const;
-
-  const [existingSample] = await db
-    .select({ id: generations.id })
-    .from(generations)
-    .where(eq(generations.id, `sample-${userId}-0`))
-    .limit(1);
-
-  if (!existingSample) {
-    for (const [
-      index,
-      [prompt, modelId, outputCount, age],
-    ] of samples.entries()) {
-      await db
-        .insert(generations)
-        .values({
-          id: `sample-${userId}-${index}`,
-          workspaceId,
-          createdBy: userId,
-          status: 'succeeded',
-          origin: 'sample',
-          modelId,
-          prompt,
-          parametersJson: JSON.stringify({
-            width: 1024,
-            height: 768,
-            outputFormat: 'png',
-          }),
-          outputCount,
-          costCredits: modelId.includes('max')
-            ? '38'
-            : modelId.includes('flex')
-              ? '32'
-              : '24',
-          latencyMs: 39_600,
-          createdAt: now - age,
-          updatedAt: now - age,
-        })
-        .onConflictDoNothing();
-    }
-  }
 
   return workspaceId;
 }

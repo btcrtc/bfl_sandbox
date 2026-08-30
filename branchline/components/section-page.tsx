@@ -49,61 +49,6 @@ import type { HistoryRun } from '@/db/history';
 
 export type WorkspaceSection = 'assets' | 'runs' | 'components' | 'settings';
 
-const generatedAssetImages = [
-  { name: 'Mineral machine', src: '/generated/mineral-machine.png' },
-  { name: 'Smoked glass', src: '/generated/smoked-glass.png' },
-  { name: 'Field camera', src: '/generated/field-camera.png' },
-  { name: 'Paper terrain', src: '/generated/paper-terrain.png' },
-] as const;
-
-const runRows = [
-  [
-    '#R-1042',
-    'Soft industrial product portrait on mineral paper',
-    'FLUX.2 [max]',
-    'Succeeded',
-    '2',
-    '$0.14',
-    '18 min ago',
-  ],
-  [
-    '#R-1041',
-    'Brutalist perfume bottle with smoked glass',
-    'FLUX.2 [flex]',
-    'Succeeded',
-    '2',
-    '$0.12',
-    '42 min ago',
-  ],
-  [
-    '#R-1040',
-    'Alpine wayfinding icon family, 24 glyphs',
-    'FLUX.2 [klein]',
-    'Running',
-    '4',
-    '—',
-    '1 hr ago',
-  ],
-  [
-    '#R-1039',
-    'Retro-futurist desktop machine, quiet studio',
-    'FLUX.2 [max]',
-    'Succeeded',
-    '2',
-    '$0.14',
-    'Yesterday',
-  ],
-  [
-    '#R-1038',
-    'Folded-paper terrain with contour labels',
-    'FLUX.2 [flex]',
-    'Draft',
-    '3',
-    '—',
-    'Yesterday',
-  ],
-] as const;
-
 const sectionMeta: Record<
   WorkspaceSection,
   { title: string; description: string; action: string }
@@ -253,8 +198,7 @@ function SectionContent({
   return <Settings />;
 }
 
-// Shared history loader for the Runs and Assets sections. Sample rows stay the
-// fallback for signed-out viewers and load failures.
+// Shared history loader for the Runs and Assets sections.
 function useLiveRuns(signedIn: boolean) {
   const [runs, setRuns] = useState<HistoryRun[] | null>(null);
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>(
@@ -285,51 +229,30 @@ function useLiveRuns(signedIn: boolean) {
   return { runs, state };
 }
 
-function ExampleDataBadge() {
-  return (
-    <Badge variant="outline" className="rounded-md font-mono text-[9px] text-muted-foreground">
-      EXAMPLE DATA
-    </Badge>
-  );
-}
-
 function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
   const [kind, setKind] = useState('all');
   const { runs, state } = useLiveRuns(signedIn);
 
-  const liveAssets = useMemo(
+  const assets = useMemo(
     () =>
       (runs ?? [])
-        .filter((run) => run.origin !== 'sample')
         .flatMap((run) =>
           run.assets.map((asset) => ({
             id: asset.id,
             name: run.prompt,
             src: asset.url,
-            kind: 'output',
-            live: true,
+            model: run.modelId,
+            video: asset.mimeType.startsWith('video/'),
+            createdAt: run.createdAt,
           })),
+        )
+        .filter(
+          (asset) =>
+            (kind === 'all' || (kind === 'video') === asset.video) &&
+            asset.name.toLowerCase().includes(query.toLowerCase()),
         ),
-    [runs],
+    [runs, kind, query],
   );
-  const isLive = state === 'ready' && liveAssets.length > 0;
-
-  const assets = useMemo(() => {
-    const source = isLive
-      ? liveAssets
-      : Array.from({ length: 12 }, (_, index) => ({
-          id: String(index + 1),
-          name: `${generatedAssetImages[index % generatedAssetImages.length].name} · ${Math.floor(index / generatedAssetImages.length) + 1}`,
-          src: generatedAssetImages[index % generatedAssetImages.length].src,
-          kind: index % 4 === 0 ? 'reference' : 'output',
-          live: false,
-        }));
-    return source.filter(
-      (asset) =>
-        (kind === 'all' || asset.kind === kind) &&
-        asset.name.toLowerCase().includes(query.toLowerCase()),
-    );
-  }, [isLive, liveAssets, kind, query]);
 
   return (
     <>
@@ -341,43 +264,50 @@ function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All assets</SelectItem>
-            <SelectItem value="output">Outputs</SelectItem>
-            <SelectItem value="reference">References</SelectItem>
+            <SelectItem value="image">Images</SelectItem>
+            <SelectItem value="video">Videos</SelectItem>
           </SelectContent>
         </Select>
         <Badge variant="outline" className="rounded-md font-mono text-[9px]">
           {assets.length} ITEMS
         </Badge>
         {state === 'loading' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
-        {!isLive && state !== 'loading' && <ExampleDataBadge />}
       </div>
-      {isLive && assets.length === 0 && (
+      {!signedIn && (
         <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
-          No stored outputs match this filter yet — generate images in the Playground and they
-          land here automatically.
+          Sign in to see the workspace&apos;s generated assets.
+        </p>
+      )}
+      {signedIn && state !== 'loading' && assets.length === 0 && (
+        <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
+          Nothing stored yet — render stills in Scenes or generate in the Playground and every
+          output lands here automatically.
         </p>
       )}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {assets.map((asset) => (
-          <article
-            key={asset.id}
-            className={cn(surfaceClass, 'group overflow-hidden')}
-          >
+          <article key={asset.id} className={cn(surfaceClass, 'group overflow-hidden')}>
             <div className="aspect-square overflow-hidden bg-muted">
-              <NextImage
-                src={asset.src}
-                alt={asset.name}
-                width={640}
-                height={640}
-                unoptimized={asset.live}
-                sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
-              />
+              {asset.video ? (
+                <video src={asset.src} muted playsInline preload="metadata" className="size-full object-cover" />
+              ) : (
+                <NextImage
+                  src={asset.src}
+                  alt={asset.name}
+                  width={640}
+                  height={640}
+                  unoptimized
+                  sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+                />
+              )}
             </div>
             <div className="p-2">
-              <p className="truncate text-[11px] font-medium">{asset.name}</p>
-              <p className="mt-0.5 font-mono text-[9px] uppercase text-muted-foreground">
-                {asset.kind}
+              <p className="truncate text-[11px] font-medium" title={asset.name}>
+                {asset.name}
+              </p>
+              <p className="mt-0.5 truncate font-mono text-[9px] uppercase text-muted-foreground">
+                {asset.video ? 'video' : 'image'} · {asset.model}
               </p>
             </div>
           </article>
@@ -387,7 +317,8 @@ function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
   );
 }
 
-const runsGridClass = 'grid grid-cols-[80px_minmax(240px,1fr)_130px_100px_54px_64px_92px] gap-3';
+const runsGridClass =
+  'grid grid-cols-[64px_80px_minmax(220px,1fr)_130px_100px_54px_64px_92px] gap-3';
 
 function runStatusDotClass(status: string) {
   if (['running', 'queued'].includes(status)) return 'bg-amber-500';
@@ -399,15 +330,17 @@ function runStatusDotClass(status: string) {
 
 function Runs({ query, signedIn }: { query: string; signedIn: boolean }) {
   const { runs, state } = useLiveRuns(signedIn);
-  const liveRuns = (runs ?? []).filter((run) => run.origin !== 'sample');
-  const isLive = state === 'ready' && liveRuns.length > 0;
-
-  const liveRows = liveRuns.filter((run) =>
+  const rows = (runs ?? []).filter((run) =>
     `${run.prompt} ${run.modelId} ${run.status}`.toLowerCase().includes(query.toLowerCase()),
   );
-  const sampleRows = runRows.filter((row) =>
-    row.join(' ').toLowerCase().includes(query.toLowerCase()),
-  );
+
+  if (!signedIn) {
+    return (
+      <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
+        Sign in to see the workspace&apos;s run history.
+      </p>
+    );
+  }
 
   return (
     <>
@@ -417,15 +350,15 @@ function Runs({ query, signedIn }: { query: string; signedIn: boolean }) {
             <Loader2 className="size-3.5 animate-spin" /> Loading shared runs…
           </span>
         )}
-        {!isLive && state !== 'loading' && <ExampleDataBadge />}
       </div>
       <div className={cn(surfaceClass, 'overflow-x-auto')}>
         <div
           className={cn(
             runsGridClass,
-            'min-w-[760px] border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground',
+            'min-w-[820px] border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground',
           )}
         >
+          <span>Output</span>
           <span>Run</span>
           <span>Prompt</span>
           <span>Model</span>
@@ -434,53 +367,57 @@ function Runs({ query, signedIn }: { query: string; signedIn: boolean }) {
           <span>Cost</span>
           <span>Created</span>
         </div>
-        {isLive
-          ? liveRows.map((run) => (
-              <div
-                key={run.id}
-                className={cn(
-                  runsGridClass,
-                  'min-w-[760px] items-center border-b px-3 py-3 text-[11px] last:border-0',
-                )}
-              >
-                <span className="font-mono">#{run.id.slice(0, 6)}</span>
-                <span className="truncate font-medium" title={run.prompt}>
-                  {run.prompt}
-                </span>
-                <span>{run.modelId}</span>
-                <span className="flex items-center gap-1.5 capitalize">
-                  <span className={cn('size-1.5 rounded-full', runStatusDotClass(run.status))} />
-                  {run.status}
-                </span>
-                <span>{run.outputCount}</span>
-                <span>{formatCost(run.costCredits)}</span>
-                <span className="text-muted-foreground">{formatAge(run.createdAt)}</span>
-              </div>
-            ))
-          : sampleRows.map(([id, prompt, model, status, images, cost, created]) => (
-              <div
-                key={id}
-                className={cn(
-                  runsGridClass,
-                  'min-w-[760px] items-center border-b px-3 py-3 text-[11px] last:border-0',
-                )}
-              >
-                <span className="font-mono">{id}</span>
-                <span className="truncate font-medium">{prompt}</span>
-                <span>{model}</span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={cn('size-1.5 rounded-full', runStatusDotClass(status.toLowerCase()))}
-                  />
-                  {status}
-                </span>
-                <span>{images}</span>
-                <span>{cost}</span>
-                <span className="text-muted-foreground">{created}</span>
-              </div>
-            ))}
-        {isLive && liveRows.length === 0 && (
-          <p className="px-3 py-4 text-[12px] text-muted-foreground">No runs match this search.</p>
+        {rows.map((run) => {
+          const thumb = run.assets[0];
+          return (
+            <div
+              key={run.id}
+              className={cn(
+                runsGridClass,
+                'min-w-[820px] items-center border-b px-3 py-2 text-[11px] last:border-0',
+              )}
+            >
+              <span className="block aspect-video w-16 overflow-hidden rounded border bg-muted">
+                {thumb ? (
+                  thumb.mimeType.startsWith('video/') ? (
+                    <video
+                      src={thumb.url}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <NextImage
+                      src={thumb.url}
+                      alt=""
+                      width={128}
+                      height={72}
+                      unoptimized
+                      className="size-full object-cover"
+                    />
+                  )
+                ) : null}
+              </span>
+              <span className="font-mono">#{run.id.slice(0, 6)}</span>
+              <span className="truncate font-medium" title={run.prompt}>
+                {run.prompt}
+              </span>
+              <span>{run.modelId}</span>
+              <span className="flex items-center gap-1.5 capitalize">
+                <span className={cn('size-1.5 rounded-full', runStatusDotClass(run.status))} />
+                {run.status}
+              </span>
+              <span>{run.outputCount}</span>
+              <span>{formatCost(run.costCredits)}</span>
+              <span className="text-muted-foreground">{formatAge(run.createdAt)}</span>
+            </div>
+          );
+        })}
+        {state === 'ready' && rows.length === 0 && (
+          <p className="px-3 py-4 text-[12px] text-muted-foreground">
+            No runs yet — render a still in Scenes or generate in the Playground.
+          </p>
         )}
       </div>
     </>
