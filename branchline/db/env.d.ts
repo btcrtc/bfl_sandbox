@@ -6,5 +6,6 @@ declare namespace Cloudflare {
     DAILY_RUN_LIMIT?: string;
     VIDEO_ENABLED?: string;
     VIDEO_DAILY_LIMIT?: string;
+    MISTRAL_API_KEY?: string;
   }
 }

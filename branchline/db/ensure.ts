@@ -39,7 +39,7 @@ export function ensureDatabase() {
       'CREATE INDEX IF NOT EXISTS generation_assets_job_idx ON generation_assets(job_id)',
     ),
     env.DB.prepare(
-      'CREATE TABLE IF NOT EXISTS storyboards (id TEXT PRIMARY KEY NOT NULL, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, created_by TEXT NOT NULL, title TEXT NOT NULL, style_note TEXT, seed INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS storyboards (id TEXT PRIMARY KEY NOT NULL, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, created_by TEXT NOT NULL, title TEXT NOT NULL, idea TEXT, style_note TEXT, seed INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
     ),
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboards_workspace_idx ON storyboards(workspace_id, created_at)',
@@ -62,7 +62,17 @@ export function ensureDatabase() {
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboard_clips_scene_idx ON storyboard_clips(scene_id, created_at)',
     ),
-  ]).then(() => undefined);
+  ])
+    .then(async () => {
+      // Additive migration for databases created before the idea column
+      // existed; the error on re-run ("duplicate column") is expected.
+      try {
+        await env.DB.prepare('ALTER TABLE storyboards ADD COLUMN idea TEXT').run();
+      } catch {
+        // Column already present.
+      }
+    })
+    .then(() => undefined);
 
   return ready;
 }

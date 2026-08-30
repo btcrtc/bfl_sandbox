@@ -1,18 +1,23 @@
 'use client';
 
 import NextImage from 'next/image';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  Check,
+  ChevronRight,
   Clapperboard,
+  Copy,
   Dices,
   Film,
   ImagePlus,
   Images,
+  Lightbulb,
   Loader2,
   Play,
   Plus,
   RefreshCw,
   ShieldAlert,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -25,6 +30,7 @@ import {
   Surface,
   SystemLabel,
   ThemeToggle,
+  parameterChipClass,
   surfaceClass,
 } from '@/components/product-system';
 import {
@@ -58,11 +64,53 @@ import {
 } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
 import type { HistoryRun } from '@/db/history';
-import type { SceneDto, StoryboardDto } from '@/lib/storyboard-service';
+import type { ClipDto, SceneDto, StoryboardDto } from '@/lib/storyboard-service';
 
 type StoryboardListItem = { id: string; title: string; createdAt: number; updatedAt: number };
 
+type Selection = { kind: 'idea' } | { kind: 'scene'; id: string } | { kind: 'reel' };
+
 const DURATION_OPTIONS = ['5', '8', '10', '12', '15', '20'];
+const SCENE_COUNT_OPTIONS = ['3', '4', '5', '6'];
+
+// --- pipeline step state -----------------------------------------------------
+
+type StepState = 'idle' | 'active' | 'done' | 'error';
+
+const STEP_DOT_CLASS: Record<StepState, string> = {
+  idle: 'bg-border',
+  active: 'animate-pulse bg-amber-500',
+  done: 'bg-[var(--success)]',
+  error: 'bg-destructive',
+};
+
+function runStepState(run: HistoryRun | null): StepState {
+  if (!run) return 'idle';
+  if (['queued', 'running'].includes(run.status)) return 'active';
+  if (run.status === 'succeeded') return 'done';
+  return 'error';
+}
+
+function latestClip(scene: SceneDto, tiers: string[]): ClipDto | null {
+  return scene.clips.find((clip) => tiers.includes(clip.tier)) ?? null;
+}
+
+function clipStepState(clip: ClipDto | null): StepState {
+  if (!clip) return 'idle';
+  // A clip whose run has not landed in the history window yet is in flight.
+  if (!clip.run) return 'active';
+  return runStepState(clip.run);
+}
+
+function sceneSteps(scene: SceneDto) {
+  return {
+    still: runStepState(scene.run),
+    draft: clipStepState(latestClip(scene, ['draft'])),
+    enhance: clipStepState(latestClip(scene, ['hd', 'fhd'])),
+  };
+}
+
+// ----------------------------------------------------------------------------
 
 export function ScenesShell({
   viewer,
@@ -80,15 +128,20 @@ export function ScenesShell({
     viewer ? 'loading' : 'ready',
   );
   const [creating, setCreating] = useState(false);
+  const [breakingDown, setBreakingDown] = useState(false);
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
   const [videoBusyScenes, setVideoBusyScenes] = useState<Set<string>>(new Set());
   const [assembling, setAssembling] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [rawSelection, setRawSelection] = useState<Selection>({ kind: 'idea' });
+
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => {
     activeIdRef.current = activeId;
   }, [activeId]);
+
+  // --- data loading ---------------------------------------------------------
 
   const loadList = useCallback(async () => {
     if (!viewer) return;
@@ -111,7 +164,7 @@ export function ScenesShell({
       });
       if (!response.ok) throw new Error();
       const data = (await response.json()) as { storyboard: StoryboardDto };
-      // Ignore stale responses after the user switched storyboards.
+      // Ignore stale responses after the user switched boards.
       if (activeIdRef.current === id) setStoryboard(data.storyboard);
     } catch {
       setNotice({ tone: 'error', text: 'Could not load the storyboard.' });
@@ -163,6 +216,8 @@ export function ScenesShell({
     return () => window.clearInterval(interval);
   }, [hasActiveRun, activeId, loadStoryboard, storyboard]);
 
+  // --- board actions --------------------------------------------------------
+
   const createStoryboard = useCallback(async () => {
     setCreating(true);
     try {
@@ -175,10 +230,14 @@ export function ScenesShell({
       if (!response.ok || !data.id) throw new Error(data.error);
       await loadList();
       setActiveId(data.id);
+      setRawSelection({ kind: 'idea' });
     } catch (error) {
       setNotice({
         tone: 'error',
-        text: error instanceof Error && error.message ? error.message : 'Could not create a storyboard.',
+        text:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Could not create a storyboard.',
       });
     } finally {
       setCreating(false);
@@ -208,6 +267,65 @@ export function ScenesShell({
     [activeId, loadList],
   );
 
+  const writeSequence = useCallback(
+    async (idea: string, sceneCount: number) => {
+      if (!activeId || !storyboard) return;
+      const hasRenderedWork = storyboard.scenes.some((scene) => scene.run || scene.clips.length);
+      if (
+        hasRenderedWork &&
+        !window.confirm(
+          'Rewriting the sequence replaces the current scenes and their renders. Continue?',
+        )
+      ) {
+        return;
+      }
+      setBreakingDown(true);
+      try {
+        const response = await fetch(
+          `/api/storyboards/${encodeURIComponent(activeId)}/breakdown`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ idea, sceneCount }),
+          },
+        );
+        const data = (await response.json()) as {
+          source?: 'mistral' | 'template';
+          storyboard?: StoryboardDto;
+          error?: string;
+        };
+        if (!response.ok || !data.storyboard) throw new Error(data.error);
+        setStoryboard(data.storyboard);
+        const firstScene = data.storyboard.scenes[0];
+        setRawSelection(firstScene ? { kind: 'scene', id: firstScene.id } : { kind: 'idea' });
+        setNotice(
+          data.source === 'mistral'
+            ? {
+                tone: 'info',
+                text: 'Sequence written by Mistral — walk the nodes, refine each shot, then render.',
+              }
+            : {
+                tone: 'info',
+                text: 'Sequence written from template beats. Set MISTRAL_API_KEY on the deployment for AI direction.',
+              },
+        );
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          text:
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not write the sequence.',
+        });
+      } finally {
+        setBreakingDown(false);
+      }
+    },
+    [activeId, storyboard],
+  );
+
+  // --- scene actions --------------------------------------------------------
+
   const patchScene = useCallback(
     async (sceneId: string, patch: Record<string, unknown>) => {
       if (!activeId) return;
@@ -228,7 +346,8 @@ export function ScenesShell({
       } catch (error) {
         setNotice({
           tone: 'error',
-          text: error instanceof Error && error.message ? error.message : 'Could not save the scene.',
+          text:
+            error instanceof Error && error.message ? error.message : 'Could not save the scene.',
         });
       }
     },
@@ -237,12 +356,14 @@ export function ScenesShell({
 
   const addScene = useCallback(async () => {
     if (!activeId) return;
-    await fetch(`/api/storyboards/${encodeURIComponent(activeId)}/scenes`, {
+    const response = await fetch(`/api/storyboards/${encodeURIComponent(activeId)}/scenes`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
     });
-    void loadStoryboard(activeId);
+    const data = (await response.json().catch(() => null)) as { id?: string } | null;
+    await loadStoryboard(activeId);
+    if (data?.id) setRawSelection({ kind: 'scene', id: data.id });
   }, [activeId, loadStoryboard]);
 
   const deleteScene = useCallback(
@@ -252,6 +373,7 @@ export function ScenesShell({
         `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}`,
         { method: 'DELETE' },
       );
+      setRawSelection({ kind: 'idea' });
       void loadStoryboard(activeId);
     },
     [activeId, loadStoryboard],
@@ -281,7 +403,9 @@ export function ScenesShell({
         setNotice({
           tone: 'error',
           text:
-            error instanceof Error && error.message ? error.message : 'Could not start the render.',
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not start the render.',
         });
       } finally {
         setGeneratingScenes((current) => {
@@ -356,7 +480,9 @@ export function ScenesShell({
         setNotice({
           tone: 'error',
           text:
-            error instanceof Error && error.message ? error.message : 'Could not start the enhance.',
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not start the enhance.',
         });
       } finally {
         markVideoBusy(sceneId, false);
@@ -398,7 +524,59 @@ export function ScenesShell({
     }
   };
 
-  const totalSeconds = storyboard?.scenes.reduce((sum, scene) => sum + scene.durationSec, 0) ?? 0;
+  // --- selection ------------------------------------------------------------
+
+  const scenes = storyboard?.scenes ?? [];
+  // Normalize: a selected scene that no longer exists falls back gracefully.
+  const selection: Selection =
+    rawSelection.kind === 'scene' && !scenes.some((scene) => scene.id === rawSelection.id)
+      ? scenes.length
+        ? { kind: 'scene', id: scenes[0].id }
+        : { kind: 'idea' }
+      : rawSelection;
+  const selectedScene =
+    selection.kind === 'scene'
+      ? (scenes.find((scene) => scene.id === selection.id) ?? null)
+      : null;
+
+  // Arrow keys walk the strip: idea → scenes → reel. Ignored while typing.
+  const selectionOrder: Selection[] = [
+    { kind: 'idea' },
+    ...scenes.map((scene): Selection => ({ kind: 'scene', id: scene.id })),
+    { kind: 'reel' },
+  ];
+  const selectionOrderRef = useRef<Selection[]>(selectionOrder);
+  const selectionRef = useRef<Selection>(selection);
+  useEffect(() => {
+    selectionOrderRef.current = selectionOrder;
+    selectionRef.current = selection;
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (target?.isContentEditable) return;
+      const order = selectionOrderRef.current;
+      const current = selectionRef.current;
+      const currentIndex = order.findIndex((entry) =>
+        entry.kind === 'scene' && current.kind === 'scene'
+          ? entry.id === current.id
+          : entry.kind === current.kind,
+      );
+      if (currentIndex === -1) return;
+      const nextIndex = currentIndex + (event.key === 'ArrowRight' ? 1 : -1);
+      if (nextIndex < 0 || nextIndex >= order.length) return;
+      event.preventDefault();
+      setRawSelection(order[nextIndex]);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const totalSeconds = scenes.reduce((sum, scene) => sum + scene.durationSec, 0);
+
+  // --- render ---------------------------------------------------------------
 
   return (
     <TooltipProvider delay={350}>
@@ -408,7 +586,7 @@ export function ScenesShell({
           center={
             <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
               <Clapperboard className="size-3.5" />
-              <span>Scenes — reference-driven storyboards</span>
+              <span>Scenes — one idea, a sequence of shots</span>
             </div>
           }
           end={
@@ -437,230 +615,30 @@ export function ScenesShell({
           }
         />
 
-        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_var(--app-inspector-width)_minmax(0,1fr)]">
+        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_minmax(0,1fr)]">
           <ProductRail active="scenes" />
 
-          <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto border-r bg-playground-surface p-4">
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <SystemLabel>Storyboards</SystemLabel>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => void createStoryboard()}
-                  disabled={creating || !viewer}
-                >
-                  {creating ? <Loader2 className="animate-spin" /> : <Plus />} New
-                </Button>
-              </div>
-              {!viewer && (
-                <p className="rounded-md border border-dashed p-3 text-[11px] leading-relaxed text-muted-foreground">
-                  Sign in to create storyboards. Below is what the workspace looks like once a
-                  reference is pinned and scenes are laid out.
-                </p>
-              )}
-              {viewer && listState === 'loading' && (
-                <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" /> Loading…
-                </p>
-              )}
-              {viewer && listState === 'ready' && storyboardList.length === 0 && (
-                <p className="rounded-md border border-dashed p-3 text-[11px] leading-relaxed text-muted-foreground">
-                  No storyboards yet. Create one, pin a reference image, and carry one subject
-                  through a sequence of scenes.
-                </p>
-              )}
-              <div className="space-y-1">
-                {storyboardList.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveId(item.id)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-accent',
-                      item.id === activeId && 'bg-sidebar-accent font-medium',
-                    )}
-                  >
-                    <Film className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {storyboard && (
-              <>
-                <div>
-                  <SystemLabel className="mb-2">References</SystemLabel>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {Array.from({ length: 3 }, (_, slotIndex) => {
-                      const reference = storyboard.references[slotIndex];
-                      if (reference) {
-                        return (
-                          <div
-                            key={reference.assetId}
-                            className="group relative aspect-square overflow-hidden rounded-md border"
-                          >
-                            <NextImage
-                              src={reference.url}
-                              alt={`Reference ${slotIndex + 1}`}
-                              width={200}
-                              height={200}
-                              unoptimized
-                              className="size-full object-cover"
-                            />
-                            <button
-                              onClick={() =>
-                                void patchStoryboard({
-                                  referenceAssetIds: storyboard.references
-                                    .filter((entry) => entry.assetId !== reference.assetId)
-                                    .map((entry) => entry.assetId),
-                                })
-                              }
-                              aria-label={`Remove reference ${slotIndex + 1}`}
-                              className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-background/85 text-muted-foreground opacity-0 backdrop-blur transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
-                            >
-                              <X className="size-3" />
-                            </button>
-                          </div>
-                        );
-                      }
-                      return (
-                        <button
-                          key={`empty-${slotIndex}`}
-                          onClick={() => setPickerOpen(true)}
-                          disabled={slotIndex > storyboard.references.length}
-                          className="grid aspect-square place-items-center rounded-md border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-40"
-                          aria-label="Add reference"
-                        >
-                          <ImagePlus className="size-4" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-                    Pinned images ride along as <code>input_image</code> 1–3 with every scene
-                    render — subject, style, palette.
-                  </p>
-                </div>
-
-                <div>
-                  <SystemLabel className="mb-2">Style continuity</SystemLabel>
-                  <div className="space-y-2.5 rounded-md border bg-playground-surface-elevated p-3 shadow-xs">
-                    <div>
-                      <p className="mb-1 text-[11px] font-medium">Style note</p>
-                      <Textarea
-                        key={`${storyboard.id}-style`}
-                        defaultValue={storyboard.styleNote ?? ''}
-                        onBlur={(event) => {
-                          const value = event.target.value.trim();
-                          if (value !== (storyboard.styleNote ?? ''))
-                            void patchStoryboard({ styleNote: value });
-                        }}
-                        placeholder="35mm film, warm mineral palette, soft studio light…"
-                        className="min-h-16 resize-none bg-background text-[12px] leading-4"
-                      />
-                      <p className="mt-1 text-[10px] text-muted-foreground">
-                        Appended to every scene prompt.
-                      </p>
-                    </div>
-                    <div>
-                      <div className="mb-1 flex items-center justify-between">
-                        <p className="text-[11px] font-medium">Pinned seed</p>
-                        <div className="flex items-center gap-1">
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <Button
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  aria-label="Roll a new seed"
-                                  onClick={() =>
-                                    void patchStoryboard({
-                                      seed: Math.floor(Math.random() * 2 ** 32),
-                                    })
-                                  }
-                                />
-                              }
-                            >
-                              <Dices />
-                            </TooltipTrigger>
-                            <TooltipContent>Roll a new seed</TooltipContent>
-                          </Tooltip>
-                          {storyboard.seed != null && (
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <Button
-                                    variant="ghost"
-                                    size="icon-xs"
-                                    aria-label="Unpin seed"
-                                    onClick={() => void patchStoryboard({ seed: null })}
-                                  />
-                                }
-                              >
-                                <X />
-                              </TooltipTrigger>
-                              <TooltipContent>Unpin seed</TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </div>
-                      <Input
-                        key={`${storyboard.id}-seed`}
-                        defaultValue={storyboard.seed == null ? '' : String(storyboard.seed)}
-                        placeholder="Random"
-                        inputMode="numeric"
-                        onBlur={(event) => {
-                          const raw = event.target.value.replace(/[^0-9]/g, '');
-                          const next = raw ? Math.min(Number(raw), 2 ** 32 - 1) : null;
-                          if (next !== storyboard.seed) void patchStoryboard({ seed: next });
-                        }}
-                        className="h-8 bg-background font-mono text-[12px]"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </aside>
-
           <section className="flex min-h-0 min-w-0 flex-col bg-playground-surface">
+            {storyboard && (
+              <BoardBar
+                storyboard={storyboard}
+                boards={storyboardList}
+                onSwitch={(id) => {
+                  setActiveId(id);
+                  setRawSelection({ kind: 'idea' });
+                }}
+                onCreate={() => void createStoryboard()}
+                creating={creating}
+                onPatch={(patch) => void patchStoryboard(patch)}
+                onOpenPicker={() => setPickerOpen(true)}
+                onRefresh={() => activeId && void loadStoryboard(activeId)}
+              />
+            )}
+
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto w-full max-w-[1200px] px-6 py-5">
+              <div className="mx-auto w-full max-w-[1240px] px-6 py-5">
                 {storyboard ? (
                   <>
-                    <div className="mb-4 flex items-end justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <SystemLabel>Storyboard</SystemLabel>
-                        <Input
-                          key={`${storyboard.id}-title`}
-                          defaultValue={storyboard.title}
-                          onBlur={(event) => {
-                            const value = event.target.value.trim();
-                            if (value && value !== storyboard.title)
-                              void patchStoryboard({ title: value });
-                          }}
-                          className="mt-1 h-10 max-w-md border-0 bg-transparent px-0 text-[22px] font-semibold tracking-[-0.02em] shadow-none focus-visible:ring-0"
-                          aria-label="Storyboard title"
-                        />
-                      </div>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="Refresh storyboard"
-                              onClick={() => activeId && void loadStoryboard(activeId)}
-                            />
-                          }
-                        >
-                          <RefreshCw />
-                        </TooltipTrigger>
-                        <TooltipContent>Refresh</TooltipContent>
-                      </Tooltip>
-                    </div>
-
                     {notice && (
                       <p
                         className={cn(
@@ -672,33 +650,62 @@ export function ScenesShell({
                       </p>
                     )}
 
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {storyboard.scenes.map((scene) => (
-                        <SceneCard
-                          key={scene.id}
-                          scene={scene}
-                          busy={generatingScenes.has(scene.id)}
-                          videoEnabled={videoEnabled}
-                          videoBusy={videoBusyScenes.has(scene.id) || assembling}
-                          onPatch={(patch) => void patchScene(scene.id, patch)}
-                          onGenerate={() => void generateScene(scene.id)}
-                          onDelete={() => void deleteScene(scene.id)}
-                          onDraftClip={() => void draftClip(scene.id)}
-                          onEnhance={(tier) => void enhanceClip(scene.id, tier)}
+                    <SequenceStrip
+                      storyboard={storyboard}
+                      selection={selection}
+                      onSelect={setRawSelection}
+                      onAddScene={() => void addScene()}
+                      videoEnabled={videoEnabled}
+                      totalSeconds={totalSeconds}
+                    />
+
+                    <div className="mt-5">
+                      {selection.kind === 'idea' && (
+                        <IdeaDetail
+                          key={storyboard.id}
+                          storyboard={storyboard}
+                          busy={breakingDown}
+                          onSaveIdea={(idea) => void patchStoryboard({ idea })}
+                          onWriteSequence={(idea, count) => void writeSequence(idea, count)}
                         />
-                      ))}
-                      <button
-                        onClick={() => void addScene()}
-                        className="grid min-h-56 place-items-center rounded-lg border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-                      >
-                        <span className="flex flex-col items-center gap-1.5 text-[12px]">
-                          <Plus className="size-4" /> Add scene
-                        </span>
-                      </button>
+                      )}
+                      {selection.kind === 'scene' && selectedScene && (
+                        <SceneDetail
+                          key={selectedScene.id}
+                          scene={selectedScene}
+                          sceneCount={scenes.length}
+                          boardSeed={storyboard.seed}
+                          videoEnabled={videoEnabled}
+                          busyStill={generatingScenes.has(selectedScene.id)}
+                          busyVideo={videoBusyScenes.has(selectedScene.id) || assembling}
+                          onPatch={(patch) => void patchScene(selectedScene.id, patch)}
+                          onRenderStill={() => void generateScene(selectedScene.id)}
+                          onDraftClip={() => void draftClip(selectedScene.id)}
+                          onEnhance={(tier) => void enhanceClip(selectedScene.id, tier)}
+                          onDelete={() => void deleteScene(selectedScene.id)}
+                        />
+                      )}
+                      {selection.kind === 'reel' && (
+                        <ReelDetail
+                          storyboard={storyboard}
+                          totalSeconds={totalSeconds}
+                          videoEnabled={videoEnabled}
+                          draftableCount={draftableScenes.length}
+                          assembling={assembling}
+                          onAssemble={() => void assembleReel()}
+                          onNotice={(text) => setNotice({ tone: 'info', text })}
+                        />
+                      )}
                     </div>
                   </>
                 ) : viewer ? (
-                  <EmptyBoard onCreate={() => void createStoryboard()} creating={creating} />
+                  listState === 'loading' ? (
+                    <p className="mt-10 flex items-center justify-center gap-2 text-[12px] text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" /> Loading storyboards…
+                    </p>
+                  ) : (
+                    <EmptyBoard onCreate={() => void createStoryboard()} creating={creating} />
+                  )
                 ) : (
                   <SignedOutPreview signInPath={signInPath} />
                 )}
@@ -707,7 +714,7 @@ export function ScenesShell({
 
             {storyboard && (
               <VideoPlanBar
-                sceneCount={storyboard.scenes.length}
+                sceneCount={scenes.length}
                 totalSeconds={totalSeconds}
                 videoEnabled={videoEnabled}
                 draftableCount={draftableScenes.length}
@@ -725,7 +732,9 @@ export function ScenesShell({
           onPick={(assetId) => {
             setPickerOpen(false);
             const next = [
-              ...storyboard.references.map((entry) => entry.assetId).filter((id) => id !== assetId),
+              ...storyboard.references
+                .map((entry) => entry.assetId)
+                .filter((id) => id !== assetId),
               assetId,
             ].slice(-3);
             void patchStoryboard({ referenceAssetIds: next });
@@ -736,207 +745,928 @@ export function ScenesShell({
   );
 }
 
-function SceneCard({
-  scene,
-  busy,
-  videoEnabled,
-  videoBusy,
+// --- board bar ---------------------------------------------------------------
+
+function BoardBar({
+  storyboard,
+  boards,
+  onSwitch,
+  onCreate,
+  creating,
   onPatch,
-  onGenerate,
-  onDelete,
-  onDraftClip,
-  onEnhance,
+  onOpenPicker,
+  onRefresh,
+}: {
+  storyboard: StoryboardDto;
+  boards: StoryboardListItem[];
+  onSwitch: (id: string) => void;
+  onCreate: () => void;
+  creating: boolean;
+  onPatch: (patch: Record<string, unknown>) => void;
+  onOpenPicker: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
+      <Select value={storyboard.id} onValueChange={(next) => next && onSwitch(next)}>
+        <SelectTrigger size="sm" className="h-8! w-40 text-[12px]">
+          <Film className="size-3.5 shrink-0 text-muted-foreground" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start">
+          {boards.map((board) => (
+            <SelectItem key={board.id} value={board.id}>
+              {board.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="New storyboard"
+              onClick={onCreate}
+              disabled={creating}
+            />
+          }
+        >
+          {creating ? <Loader2 className="animate-spin" /> : <Plus />}
+        </TooltipTrigger>
+        <TooltipContent>New storyboard</TooltipContent>
+      </Tooltip>
+
+      <Input
+        key={`${storyboard.id}-title`}
+        defaultValue={storyboard.title}
+        onBlur={(event) => {
+          const value = event.target.value.trim();
+          if (value && value !== storyboard.title) onPatch({ title: value });
+        }}
+        className="h-8 max-w-xs border-0 bg-transparent px-2 text-[13px] font-medium shadow-none focus-visible:ring-1"
+        aria-label="Storyboard title"
+      />
+
+      <div className="ml-auto flex items-center gap-1.5">
+        <ReferencesChip storyboard={storyboard} onPatch={onPatch} onOpenPicker={onOpenPicker} />
+        <BoardSeedChip seed={storyboard.seed} onPatch={onPatch} />
+        <StyleChip styleNote={storyboard.styleNote} onPatch={onPatch} />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Refresh storyboard"
+                onClick={onRefresh}
+              />
+            }
+          >
+            <RefreshCw />
+          </TooltipTrigger>
+          <TooltipContent>Refresh</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+function ReferencesChip({
+  storyboard,
+  onPatch,
+  onOpenPicker,
+}: {
+  storyboard: StoryboardDto;
+  onPatch: (patch: Record<string, unknown>) => void;
+  onOpenPicker: () => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button type="button" className={cn(parameterChipClass, 'h-8')}>
+            <Images className="size-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Refs</span>
+            <span className="font-mono text-foreground">{storyboard.references.length}/3</span>
+          </button>
+        }
+      />
+      <PopoverContent align="end" className="w-72 gap-2 p-3">
+        <p className="text-[12px] font-medium">Reference images</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          Pinned images ride along as <code>input_image</code> 1–3 with every scene render —
+          subject, style, palette.
+        </p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {Array.from({ length: 3 }, (_, slotIndex) => {
+            const reference = storyboard.references[slotIndex];
+            if (reference) {
+              return (
+                <div
+                  key={reference.assetId}
+                  className="group relative aspect-square overflow-hidden rounded-md border"
+                >
+                  <NextImage
+                    src={reference.url}
+                    alt={`Reference ${slotIndex + 1}`}
+                    width={200}
+                    height={200}
+                    unoptimized
+                    className="size-full object-cover"
+                  />
+                  <button
+                    onClick={() =>
+                      onPatch({
+                        referenceAssetIds: storyboard.references
+                          .filter((entry) => entry.assetId !== reference.assetId)
+                          .map((entry) => entry.assetId),
+                      })
+                    }
+                    aria-label={`Remove reference ${slotIndex + 1}`}
+                    className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-background/85 text-muted-foreground opacity-0 backdrop-blur transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={`empty-${slotIndex}`}
+                onClick={onOpenPicker}
+                disabled={slotIndex > storyboard.references.length}
+                className="grid aspect-square place-items-center rounded-md border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground disabled:opacity-40"
+                aria-label="Add reference"
+              >
+                <ImagePlus className="size-4" />
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function BoardSeedChip({
+  seed,
+  onPatch,
+}: {
+  seed: number | null;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button type="button" className={cn(parameterChipClass, 'h-8')}>
+            <Dices className="size-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Seed</span>
+            <span className="font-mono text-foreground">{seed == null ? 'auto' : seed}</span>
+          </button>
+        }
+      />
+      <PopoverContent align="end" className="w-64 gap-2 p-3">
+        <p className="text-[12px] font-medium">Board seed</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          One seed for the whole sequence keeps the look coherent; scenes can override it
+          individually.
+        </p>
+        <Input
+          key={seed == null ? 'auto' : String(seed)}
+          defaultValue={seed == null ? '' : String(seed)}
+          placeholder="Random"
+          inputMode="numeric"
+          onBlur={(event) => {
+            const raw = event.target.value.replace(/[^0-9]/g, '');
+            const next = raw ? Math.min(Number(raw), 2 ** 32 - 1) : null;
+            if (next !== seed) onPatch({ seed: next });
+          }}
+          className="h-8 bg-background font-mono text-[12px]"
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => onPatch({ seed: Math.floor(Math.random() * 2 ** 32) })}
+          >
+            <Dices /> Re-roll
+          </Button>
+          {seed != null && (
+            <Button variant="ghost" size="xs" onClick={() => onPatch({ seed: null })}>
+              <X /> Random
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function StyleChip({
+  styleNote,
+  onPatch,
+}: {
+  styleNote: string | null;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button type="button" className={cn(parameterChipClass, 'h-8 max-w-52')}>
+            <Sparkles className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">Style</span>
+            <span className="truncate font-mono text-foreground">
+              {styleNote ? styleNote : '—'}
+            </span>
+          </button>
+        }
+      />
+      <PopoverContent align="end" className="w-80 gap-2 p-3">
+        <p className="text-[12px] font-medium">Style note</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          Appended to every scene prompt — the shared visual grammar of the film.
+        </p>
+        <Textarea
+          key={styleNote ?? 'empty'}
+          defaultValue={styleNote ?? ''}
+          onBlur={(event) => {
+            const value = event.target.value.trim();
+            if (value !== (styleNote ?? '')) onPatch({ styleNote: value });
+          }}
+          placeholder="35mm film, warm mineral palette, soft studio light…"
+          className="min-h-20 resize-none bg-background text-[12px] leading-4"
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// --- sequence strip ----------------------------------------------------------
+
+function SequenceStrip({
+  storyboard,
+  selection,
+  onSelect,
+  onAddScene,
+  videoEnabled,
+  totalSeconds,
+}: {
+  storyboard: StoryboardDto;
+  selection: Selection;
+  onSelect: (selection: Selection) => void;
+  onAddScene: () => void;
+  videoEnabled: boolean;
+  totalSeconds: number;
+}) {
+  return (
+    <div className="overflow-x-auto pb-1">
+      <div className="flex min-w-max items-stretch">
+        <IdeaNode
+          idea={storyboard.idea}
+          sceneCount={storyboard.scenes.length}
+          selected={selection.kind === 'idea'}
+          onSelect={() => onSelect({ kind: 'idea' })}
+        />
+        {storyboard.scenes.map((scene) => (
+          <span key={scene.id} className="contents">
+            <Connector />
+            <SceneNode
+              scene={scene}
+              videoEnabled={videoEnabled}
+              selected={selection.kind === 'scene' && selection.id === scene.id}
+              onSelect={() => onSelect({ kind: 'scene', id: scene.id })}
+            />
+          </span>
+        ))}
+        <Connector dashed={storyboard.scenes.length === 0} />
+        <button
+          onClick={onAddScene}
+          className="grid w-16 shrink-0 place-items-center self-stretch rounded-lg border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          aria-label="Add scene"
+        >
+          <Plus className="size-4" />
+        </button>
+        <Connector dashed />
+        <ReelNode
+          totalSeconds={totalSeconds}
+          sceneCount={storyboard.scenes.length}
+          selected={selection.kind === 'reel'}
+          onSelect={() => onSelect({ kind: 'reel' })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Connector({ dashed = false }: { dashed?: boolean }) {
+  return (
+    <div className="flex w-8 shrink-0 items-center justify-center self-stretch" aria-hidden>
+      <span className={cn('h-px w-3 bg-border', dashed && 'opacity-60')} />
+      <ChevronRight className="-mx-1.5 size-3 shrink-0 text-muted-foreground/40" />
+      <span className={cn('h-px w-3 bg-border', dashed && 'opacity-60')} />
+    </div>
+  );
+}
+
+// Keeps the selected node visible while walking the strip with arrow keys.
+function useNodeScrollIntoView(selected: boolean) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (selected) {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, [selected]);
+  return ref;
+}
+
+function nodeClass(selected: boolean) {
+  return cn(
+    surfaceClass,
+    'w-44 shrink-0 cursor-pointer p-2.5 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring/50',
+    selected && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+  );
+}
+
+function IdeaNode({
+  idea,
+  sceneCount,
+  selected,
+  onSelect,
+}: {
+  idea: string | null;
+  sceneCount: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const ref = useNodeScrollIntoView(selected);
+  return (
+    <button ref={ref} onClick={onSelect} className={nodeClass(selected)}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          Idea
+        </span>
+        <span className="grid size-5 place-items-center rounded bg-muted">
+          <Lightbulb className="size-3" />
+        </span>
+      </div>
+      <p
+        className={cn(
+          'line-clamp-4 min-h-16 text-[11px] leading-4',
+          idea ? 'text-foreground' : 'text-muted-foreground',
+        )}
+      >
+        {idea || 'Describe the film — one paragraph the whole sequence is written from.'}
+      </p>
+      <p className="mt-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+        {sceneCount ? `${sceneCount} scenes` : 'no scenes yet'}
+      </p>
+    </button>
+  );
+}
+
+function SceneNode({
+  scene,
+  videoEnabled,
+  selected,
+  onSelect,
 }: {
   scene: SceneDto;
-  busy: boolean;
   videoEnabled: boolean;
-  videoBusy: boolean;
-  onPatch: (patch: Record<string, unknown>) => void;
-  onGenerate: () => void;
-  onDelete: () => void;
-  onDraftClip: () => void;
-  onEnhance: (tier: 'hd' | 'fhd') => void;
+  selected: boolean;
+  onSelect: () => void;
 }) {
-  const run = scene.run;
-  const asset = run?.assets[0];
-  const running = Boolean(run && ['queued', 'running'].includes(run.status));
-  const draftCost = estimateVideoCostUsd(scene.durationSec, 'draft');
-  const latestClip = scene.clips[0] ?? null;
-  const latestClipAsset = latestClip?.run?.assets[0];
-  const clipRendering = scene.clips.some(
-    (clip) => !clip.run || ['queued', 'running'].includes(clip.run.status),
-  );
-  const hasFinishedDraft = scene.clips.some(
-    (clip) => clip.tier === 'draft' && clip.run?.status === 'succeeded',
-  );
+  const steps = sceneSteps(scene);
+  const stillAsset = scene.run?.assets[0];
+  const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
+  const clipAsset = clip?.run?.assets[0];
+  const rendering =
+    runStepState(scene.run) === 'active' ||
+    scene.clips.some((entry) => clipStepState(entry) === 'active');
+  const ref = useNodeScrollIntoView(selected);
 
   return (
-    <article className={cn(surfaceClass, 'flex flex-col overflow-hidden')}>
-      <div className="flex items-center justify-between px-3 pt-2.5">
+    <button ref={ref} onClick={onSelect} className={nodeClass(selected)}>
+      <div className="mb-1.5 flex items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
         </span>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Delete scene"
-          className="text-muted-foreground hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash2 />
-        </Button>
+        {rendering && <Loader2 className="size-3 animate-spin text-amber-600" />}
       </div>
-      <Input
-        key={`${scene.id}-title`}
-        defaultValue={scene.title}
-        onBlur={(event) => {
-          const value = event.target.value.trim();
-          if (value && value !== scene.title) onPatch({ title: value });
-        }}
-        className="mx-3 h-7 border-0 bg-transparent px-0 text-[13px] font-medium shadow-none focus-visible:ring-0"
-        aria-label="Scene title"
-      />
-
-      <div className="relative mx-3 mt-1.5 aspect-video overflow-hidden rounded-md border bg-muted">
-        {asset ? (
+      <div className="relative mb-1.5 aspect-video overflow-hidden rounded border bg-muted">
+        {clipAsset ? (
+          <video
+            src={clipAsset.url}
+            muted
+            playsInline
+            preload="metadata"
+            className="size-full object-cover"
+          />
+        ) : stillAsset ? (
           <NextImage
-            src={asset.url}
+            src={stillAsset.url}
             alt={scene.title}
-            width={640}
-            height={360}
+            width={320}
+            height={180}
             unoptimized
             className="size-full object-cover"
           />
         ) : (
           <span className="grid size-full place-items-center text-muted-foreground">
-            {running || busy ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : run && ['moderated', 'partial'].includes(run.status) ? (
-              <ShieldAlert className="size-5 text-amber-600" />
-            ) : run && run.status === 'failed' ? (
-              <X className="size-5 text-destructive/70" />
+            {runStepState(scene.run) === 'error' ? (
+              <ShieldAlert className="size-4 text-amber-600" />
             ) : (
-              <Images className="size-5" />
+              <Images className="size-4" />
             )}
           </span>
         )}
-        {run && (
-          <span className="absolute left-1.5 top-1.5">
-            <Badge
-              variant="outline"
-              className="h-5 rounded-md bg-background/85 px-1.5 font-mono text-[9px] uppercase backdrop-blur"
+        <span className="absolute bottom-1 right-1 rounded bg-background/85 px-1 font-mono text-[9px] backdrop-blur">
+          {scene.durationSec}s
+        </span>
+      </div>
+      <p className="truncate text-[11px] font-medium">{scene.title}</p>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <StepDot label="Still" state={steps.still} />
+        <StepDot label="Draft clip" state={videoEnabled ? steps.draft : 'idle'} />
+        <StepDot label="Enhanced" state={videoEnabled ? steps.enhance : 'idle'} />
+      </div>
+    </button>
+  );
+}
+
+function StepDot({ label, state }: { label: string; state: StepState }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<span className={cn('size-1.5 rounded-full', STEP_DOT_CLASS[state])} />}
+      />
+      <TooltipContent>
+        {label}: {state}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function ReelNode({
+  totalSeconds,
+  sceneCount,
+  selected,
+  onSelect,
+}: {
+  totalSeconds: number;
+  sceneCount: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const ref = useNodeScrollIntoView(selected);
+  return (
+    <button ref={ref} onClick={onSelect} className={nodeClass(selected)}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          Reel
+        </span>
+        <span className="grid size-5 place-items-center rounded bg-muted">
+          <Film className="size-3" />
+        </span>
+      </div>
+      <p className="text-[15px] font-medium leading-5">{totalSeconds}s</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">
+        {sceneCount} scene{sceneCount === 1 ? '' : 's'}
+      </p>
+      <p className="mt-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+        draft ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'draft'))}
+      </p>
+    </button>
+  );
+}
+
+// --- detail: idea ------------------------------------------------------------
+
+function IdeaDetail({
+  storyboard,
+  busy,
+  onSaveIdea,
+  onWriteSequence,
+}: {
+  storyboard: StoryboardDto;
+  busy: boolean;
+  onSaveIdea: (idea: string) => void;
+  onWriteSequence: (idea: string, sceneCount: number) => void;
+}) {
+  const [idea, setIdea] = useState(storyboard.idea ?? '');
+  const [sceneCount, setSceneCount] = useState('4');
+  const canWrite = idea.trim().length >= 10 && !busy;
+
+  return (
+    <Surface className="p-5">
+      <SystemLabel>Core idea</SystemLabel>
+      <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted-foreground">
+        One paragraph: who, where, what happens. The sequence of shots is written from this —
+        then every scene is yours to refine and render.
+      </p>
+      <Textarea
+        value={idea}
+        onChange={(event) => setIdea(event.target.value)}
+        onBlur={() => {
+          if (idea.trim() !== (storyboard.idea ?? '')) onSaveIdea(idea.trim());
+        }}
+        placeholder="A lighthouse keeper discovers the light attracts something from the deep. Night storm, one lantern, the sea answering back…"
+        className="mt-3 min-h-28 max-w-2xl resize-none bg-background text-sm leading-5"
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Select value={sceneCount} onValueChange={(next) => next && setSceneCount(next)}>
+          <SelectTrigger size="sm" className="h-8! w-28 text-[12px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SCENE_COUNT_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option} scenes
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button onClick={() => onWriteSequence(idea.trim(), Number(sceneCount))} disabled={!canWrite}>
+          {busy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+          {storyboard.scenes.length ? 'Rewrite sequence' : 'Write scene sequence'}
+        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          Shot list by Mistral — the same model family that reads prompts inside FLUX.2.
+        </span>
+      </div>
+    </Surface>
+  );
+}
+
+// --- detail: scene -----------------------------------------------------------
+
+type StageTab = 'still' | 'draft' | 'hd' | 'fhd';
+
+function SceneDetail({
+  scene,
+  sceneCount,
+  boardSeed,
+  videoEnabled,
+  busyStill,
+  busyVideo,
+  onPatch,
+  onRenderStill,
+  onDraftClip,
+  onEnhance,
+  onDelete,
+}: {
+  scene: SceneDto;
+  sceneCount: number;
+  boardSeed: number | null;
+  videoEnabled: boolean;
+  busyStill: boolean;
+  busyVideo: boolean;
+  onPatch: (patch: Record<string, unknown>) => void;
+  onRenderStill: () => void;
+  onDraftClip: () => void;
+  onEnhance: (tier: 'hd' | 'fhd') => void;
+  onDelete: () => void;
+}) {
+  const draft = latestClip(scene, ['draft']);
+  const hd = latestClip(scene, ['hd']);
+  const fhd = latestClip(scene, ['fhd']);
+  const defaultTab: StageTab = fhd ? 'fhd' : hd ? 'hd' : draft ? 'draft' : 'still';
+  const [tab, setTab] = useState<StageTab>(defaultTab);
+
+  const stillRunning = runStepState(scene.run) === 'active';
+  const draftRunning = clipStepState(draft) === 'active';
+  const enhanceRunning = clipStepState(hd) === 'active' || clipStepState(fhd) === 'active';
+  const hasStill = Boolean(scene.run?.assets[0]);
+  const hasFinishedDraft = draft?.run?.status === 'succeeded';
+  const effectiveSeed = scene.seed ?? boardSeed;
+
+  const tabs: Array<{ id: StageTab; label: string; present: boolean }> = [
+    { id: 'still', label: 'Still', present: Boolean(scene.run) },
+    { id: 'draft', label: 'Draft', present: Boolean(draft) },
+    { id: 'hd', label: 'HD', present: Boolean(hd) },
+    { id: 'fhd', label: 'FHD', present: Boolean(fhd) },
+  ];
+
+  return (
+    <Surface className="p-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div>
+          <div className="mb-2 flex items-center gap-1.5">
+            {tabs.map((entry) => (
+              <button
+                key={entry.id}
+                onClick={() => setTab(entry.id)}
+                className={cn(
+                  parameterChipClass,
+                  'h-7',
+                  tab === entry.id && 'border-foreground/35 bg-accent/35',
+                  !entry.present && 'opacity-50',
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+          <SceneStage
+            tab={tab}
+            scene={scene}
+            draft={draft}
+            hd={hd}
+            fhd={fhd}
+            effectiveSeed={effectiveSeed}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <SystemLabel>Scene {String(scene.sceneIndex + 1).padStart(2, '0')}</SystemLabel>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Delete scene"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      if (
+                        sceneCount === 1 ||
+                        window.confirm('Delete this scene and its renders?')
+                      ) {
+                        onDelete();
+                      }
+                    }}
+                  />
+                }
+              >
+                <Trash2 />
+              </TooltipTrigger>
+              <TooltipContent>Delete scene</TooltipContent>
+            </Tooltip>
+          </div>
+          <Input
+            key={`${scene.id}-title`}
+            defaultValue={scene.title}
+            onBlur={(event) => {
+              const value = event.target.value.trim();
+              if (value && value !== scene.title) onPatch({ title: value });
+            }}
+            className="mt-1 h-8 border-0 bg-transparent px-0 text-[15px] font-medium shadow-none focus-visible:ring-1"
+            aria-label="Scene title"
+          />
+          <Textarea
+            key={`${scene.id}-prompt`}
+            defaultValue={scene.prompt}
+            onBlur={(event) => {
+              if (event.target.value.trim() !== scene.prompt) {
+                onPatch({ prompt: event.target.value });
+              }
+            }}
+            placeholder="Describe this shot — subject, setting, camera, light, motion…"
+            className="mt-2 min-h-24 resize-none bg-background text-[13px] leading-5"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Select
+              value={String(scene.durationSec)}
+              onValueChange={(next) => next && onPatch({ durationSec: Number(next) })}
             >
-              {run.status}
-            </Badge>
-          </span>
+              <SelectTrigger size="sm" className="h-7! w-[74px] text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DURATION_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}s
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <SceneSeedControl seed={scene.seed} onPatch={onPatch} />
+          </div>
+
+          <SystemLabel className="mb-2 mt-4">Pipeline</SystemLabel>
+          <div className="space-y-2">
+            <StepRow
+              index={1}
+              label={hasStill ? 'Re-render still' : 'Render still'}
+              cost={`~${formatUsd(SCENE_STILL_ESTIMATE_USD)}`}
+              state={runStepState(scene.run)}
+              busy={busyStill || stillRunning}
+              disabled={busyStill || stillRunning || scene.prompt.trim().length < 3}
+              onRun={onRenderStill}
+              hint={
+                scene.prompt.trim().length < 3
+                  ? 'Write the shot prompt first.'
+                  : 'FLUX.2 [pro] frame with the board references and seed.'
+              }
+              error={scene.run?.errorMessage ?? null}
+            />
+            {videoEnabled ? (
+              <>
+                <StepRow
+                  index={2}
+                  label={hasFinishedDraft ? 'Re-draft clip' : 'Draft clip'}
+                  cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'draft'))}`}
+                  state={clipStepState(draft)}
+                  busy={busyVideo || draftRunning}
+                  disabled={!hasStill || busyVideo || draftRunning || enhanceRunning}
+                  onRun={onDraftClip}
+                  hint={
+                    hasStill
+                      ? 'FLUX 3 Video draft from the still — cheap preview with audio.'
+                      : 'Render the still first.'
+                  }
+                  error={draft?.run?.errorMessage ?? null}
+                />
+                <StepRow
+                  index={3}
+                  label="Enhance"
+                  state={clipStepState(fhd) === 'idle' ? clipStepState(hd) : clipStepState(fhd)}
+                  busy={busyVideo || enhanceRunning}
+                  disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
+                  hint={
+                    hasFinishedDraft
+                      ? 'Replays the exact draft — same seed and motion — at full quality.'
+                      : 'Finish a draft clip first.'
+                  }
+                  error={hd?.run?.errorMessage ?? fhd?.run?.errorMessage ?? null}
+                  actions={
+                    <>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => onEnhance('hd')}
+                        disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
+                      >
+                        HD ~{formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => onEnhance('fhd')}
+                        disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
+                      >
+                        FHD ~{formatUsd(estimateVideoCostUsd(scene.durationSec, 'fhd'))}
+                      </Button>
+                    </>
+                  }
+                />
+              </>
+            ) : (
+              <p className="rounded-md border border-dashed p-2.5 text-[10px] leading-relaxed text-muted-foreground">
+                Video steps are off on this deployment — set <code>VIDEO_ENABLED=true</code> to
+                unlock FLUX 3 Video draft → enhance.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </Surface>
+  );
+}
+
+function SceneStage({
+  tab,
+  scene,
+  draft,
+  hd,
+  fhd,
+  effectiveSeed,
+}: {
+  tab: StageTab;
+  scene: SceneDto;
+  draft: ClipDto | null;
+  hd: ClipDto | null;
+  fhd: ClipDto | null;
+  effectiveSeed: number | null;
+}) {
+  const clip = tab === 'draft' ? draft : tab === 'hd' ? hd : tab === 'fhd' ? fhd : null;
+  const stillAsset = scene.run?.assets[0];
+
+  let content: ReactNode;
+  let meta: string;
+  if (tab === 'still') {
+    if (stillAsset) {
+      content = (
+        <NextImage
+          src={stillAsset.url}
+          alt={scene.title}
+          width={1344}
+          height={768}
+          unoptimized
+          className="size-full object-cover"
+        />
+      );
+    } else if (runStepState(scene.run) === 'active') {
+      content = <StagePlaceholder icon="spinner" text="Rendering the still…" />;
+    } else if (scene.run && scene.run.status !== 'succeeded') {
+      content = <StagePlaceholder icon="alert" text={scene.run.errorMessage ?? 'Render failed.'} />;
+    } else {
+      content = <StagePlaceholder icon="image" text="No still yet — run step 1." />;
+    }
+    meta = `FLUX.2 [pro] · ${scene.run?.status ?? 'not rendered'} · seed ${
+      effectiveSeed == null ? 'random' : effectiveSeed
+    }${scene.run?.costCredits ? ` · ${formatCost(scene.run.costCredits)}` : ''}`;
+  } else {
+    const clipAsset = clip?.run?.assets[0];
+    if (clipAsset) {
+      content = (
+        <video controls preload="metadata" src={clipAsset.url} className="size-full bg-black">
+          <track kind="captions" label="Captions unavailable" />
+        </video>
+      );
+    } else if (clip && clipStepState(clip) === 'active') {
+      content = (
+        <StagePlaceholder icon="spinner" text={`Rendering the ${tab} clip — a few minutes…`} />
+      );
+    } else if (clip?.run && clip.run.status !== 'succeeded') {
+      content = <StagePlaceholder icon="alert" text={clip.run.errorMessage ?? 'Clip failed.'} />;
+    } else {
+      content = <StagePlaceholder icon="film" text={`No ${tab} clip yet.`} />;
+    }
+    meta = `FLUX 3 Video [${tab}] · ${clip?.run?.status ?? 'not rendered'}${
+      clip?.run?.costCredits ? ` · ${formatCost(clip.run.costCredits)}` : ''
+    }`;
+  }
+
+  return (
+    <div>
+      <div className="aspect-video overflow-hidden rounded-md border bg-muted">{content}</div>
+      <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {meta}
+      </p>
+    </div>
+  );
+}
+
+function StagePlaceholder({
+  icon,
+  text,
+}: {
+  icon: 'spinner' | 'alert' | 'image' | 'film';
+  text: string;
+}) {
+  return (
+    <span className="grid size-full place-items-center p-6">
+      <span className="flex max-w-sm flex-col items-center gap-2 text-center text-[11px] leading-relaxed text-muted-foreground">
+        {icon === 'spinner' && <Loader2 className="size-5 animate-spin" />}
+        {icon === 'alert' && <ShieldAlert className="size-5 text-amber-600" />}
+        {icon === 'image' && <Images className="size-5" />}
+        {icon === 'film' && <Film className="size-5" />}
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function StepRow({
+  index,
+  label,
+  cost,
+  state,
+  busy,
+  disabled,
+  onRun,
+  hint,
+  error,
+  actions,
+}: {
+  index: number;
+  label: string;
+  cost?: string;
+  state: StepState;
+  busy: boolean;
+  disabled: boolean;
+  onRun?: () => void;
+  hint: string;
+  error: string | null;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="rounded-md border bg-background p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-muted font-mono text-[10px]">
+          {index}
+        </span>
+        <span className={cn('size-1.5 shrink-0 rounded-full', STEP_DOT_CLASS[state])} />
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{label}</span>
+        {actions ?? (
+          <Button size="xs" variant="outline" onClick={onRun} disabled={disabled}>
+            {busy ? <Loader2 className="animate-spin" /> : <Play />}
+            {cost}
+          </Button>
         )}
       </div>
-      {run?.errorMessage && (
-        <p className="mx-3 mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
-          {run.errorMessage}
+      <p className="mt-1 pl-7 text-[10px] leading-relaxed text-muted-foreground">{hint}</p>
+      {error && state === 'error' && (
+        <p className="mt-1 rounded bg-amber-500/10 px-2 py-1 pl-2 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+          {error}
         </p>
       )}
-
-      {videoEnabled && latestClip && (
-        <div className="mx-3 mt-1.5">
-          {latestClipAsset ? (
-            <video
-              controls
-              preload="metadata"
-              src={latestClipAsset.url}
-              className="w-full rounded-md border bg-black"
-            >
-              <track kind="captions" label="Captions unavailable" />
-            </video>
-          ) : latestClip.run?.errorMessage ? (
-            <p className="rounded bg-destructive/10 px-2 py-1.5 text-[10px] leading-relaxed text-destructive">
-              {latestClip.run.errorMessage}
-            </p>
-          ) : (
-            <div className="flex items-center gap-2 rounded-md border border-dashed px-2 py-1.5 text-[10px] text-muted-foreground">
-              <Loader2 className="size-3 animate-spin" /> {latestClip.tier} clip rendering — long
-              job, a few minutes…
-            </div>
-          )}
-          <p className="mt-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-            clip · {latestClip.tier}
-            {latestClip.run ? ` · ${latestClip.run.status}` : ''}
-          </p>
-        </div>
-      )}
-
-      <Textarea
-        key={`${scene.id}-prompt`}
-        defaultValue={scene.prompt}
-        onBlur={(event) => {
-          if (event.target.value.trim() !== scene.prompt) onPatch({ prompt: event.target.value });
-        }}
-        placeholder="Describe this shot…"
-        className="mx-3 mt-2 min-h-16 flex-1 resize-none bg-background text-[12px] leading-4"
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-2 p-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Select
-            value={String(scene.durationSec)}
-            onValueChange={(next) => next && onPatch({ durationSec: Number(next) })}
-          >
-            <SelectTrigger size="sm" className="h-7! w-[74px] text-[11px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DURATION_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}s
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <SceneSeedControl seed={scene.seed} onPatch={onPatch} />
-          <span className="font-mono text-[10px] text-muted-foreground">
-            draft ~{formatUsd(draftCost)}
-          </span>
-        </div>
-        <Button size="xs" variant="outline" onClick={onGenerate} disabled={busy || running}>
-          {busy || running ? <Loader2 className="animate-spin" /> : <Play />}
-          {asset ? 'Re-render' : 'Render still'}
-        </Button>
-      </div>
-
-      {videoEnabled && asset && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2.5">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={onDraftClip}
-            disabled={videoBusy || clipRendering}
-          >
-            {videoBusy ? <Loader2 className="animate-spin" /> : <Clapperboard />}
-            Draft clip ~{formatUsd(draftCost)}
-          </Button>
-          {hasFinishedDraft && (
-            <>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => onEnhance('hd')}
-                disabled={videoBusy || clipRendering}
-              >
-                HD ~{formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}
-              </Button>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => onEnhance('fhd')}
-                disabled={videoBusy || clipRendering}
-              >
-                FHD ~{formatUsd(estimateVideoCostUsd(scene.durationSec, 'fhd'))}
-              </Button>
-            </>
-          )}
-        </div>
-      )}
-    </article>
+    </div>
   );
 }
 
@@ -957,11 +1687,11 @@ function SceneSeedControl({
             className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 font-mono text-[10px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
           >
             <Dices className="size-3" />
-            {seed == null ? 'board' : seed}
+            {seed == null ? 'board seed' : seed}
           </button>
         }
       />
-      <PopoverContent align="start" side="top" className="w-64 gap-2 p-3">
+      <PopoverContent align="start" side="bottom" className="w-64 gap-2 p-3">
         <p className="text-[12px] font-medium">Scene seed</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground">
           Overrides the board seed for this shot only — re-roll one bad frame without breaking the
@@ -998,6 +1728,123 @@ function SceneSeedControl({
   );
 }
 
+// --- detail: reel ------------------------------------------------------------
+
+function ReelDetail({
+  storyboard,
+  totalSeconds,
+  videoEnabled,
+  draftableCount,
+  assembling,
+  onAssemble,
+  onNotice,
+}: {
+  storyboard: StoryboardDto;
+  totalSeconds: number;
+  videoEnabled: boolean;
+  draftableCount: number;
+  assembling: boolean;
+  onAssemble: () => void;
+  onNotice: (text: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const exportBoard = async () => {
+    const payload = {
+      title: storyboard.title,
+      idea: storyboard.idea,
+      styleNote: storyboard.styleNote,
+      seed: storyboard.seed,
+      references: storyboard.references.map((reference) => reference.assetId),
+      scenes: storyboard.scenes.map((scene) => ({
+        title: scene.title,
+        prompt: scene.prompt,
+        durationSec: scene.durationSec,
+        seed: scene.seed,
+      })),
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1_500);
+    } catch {
+      onNotice('Clipboard is unavailable in this browser.');
+    }
+  };
+
+  return (
+    <Surface className="p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <SystemLabel>Reel</SystemLabel>
+          <p className="mt-1 text-[15px] font-medium">
+            {storyboard.scenes.length} scenes · {totalSeconds}s
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Draft everything cheap, watch the cut, enhance only the keepers.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void exportBoard()}>
+            {copied ? <Check /> : <Copy />} {copied ? 'Copied' : 'Export board JSON'}
+          </Button>
+          {videoEnabled && (
+            <Button size="sm" onClick={onAssemble} disabled={assembling || draftableCount === 0}>
+              {assembling ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+              Assemble draft reel{draftableCount > 0 ? ` (${draftableCount})` : ''}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {storyboard.scenes.length > 0 && (
+        <div className="mt-4 space-y-1.5">
+          {storyboard.scenes.map((scene) => {
+            const steps = sceneSteps(scene);
+            const bestClip = latestClip(scene, ['fhd', 'hd', 'draft']);
+            return (
+              <div
+                key={scene.id}
+                className="flex items-center gap-3 rounded-md border bg-background px-2.5 py-1.5"
+              >
+                <span className="w-16 shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
+                  Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[12px]">{scene.title}</span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {scene.durationSec}s
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <StepDot label="Still" state={steps.still} />
+                  <StepDot label="Draft clip" state={videoEnabled ? steps.draft : 'idle'} />
+                  <StepDot label="Enhanced" state={videoEnabled ? steps.enhance : 'idle'} />
+                </span>
+                <span className="w-14 text-right font-mono text-[10px] uppercase text-muted-foreground">
+                  {bestClip ? bestClip.tier : steps.still === 'done' ? 'still' : '—'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="rounded border px-1.5 py-0.5">
+          draft ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'draft'))}
+        </span>
+        <span className="rounded border px-1.5 py-0.5">
+          enhance HD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'hd'))}
+        </span>
+        <span className="rounded border px-1.5 py-0.5">
+          FHD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'fhd'))}
+        </span>
+        <span className="rounded border px-1.5 py-0.5">audio included</span>
+      </div>
+    </Surface>
+  );
+}
+
+// --- plan bar ----------------------------------------------------------------
+
 function VideoPlanBar({
   sceneCount,
   totalSeconds,
@@ -1014,8 +1861,8 @@ function VideoPlanBar({
   onAssemble: () => void;
 }) {
   return (
-    <div className="shrink-0 border-t bg-background px-6 py-3">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="shrink-0 border-t bg-background px-6 py-2.5">
+      <div className="mx-auto flex w-full max-w-[1240px] flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2">
           <Film className="size-3.5 text-muted-foreground" />
           <span className="text-[12px] font-medium">
@@ -1028,12 +1875,11 @@ function VideoPlanBar({
             {formatUsd(VIDEO_RATES_PER_SEC.draft)}/s
           </span>
           <span className="rounded border px-1.5 py-0.5">
-            enhance HD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'hd'))}
+            HD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'hd'))}
           </span>
           <span className="rounded border px-1.5 py-0.5">
             FHD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'fhd'))}
           </span>
-          <span className="rounded border px-1.5 py-0.5">audio included</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {videoEnabled ? (
@@ -1047,52 +1893,46 @@ function VideoPlanBar({
               Assemble draft reel{draftableCount > 0 ? ` (${draftableCount})` : ''}
             </Button>
           ) : (
-            <>
-              <Badge
-                variant="outline"
-                className="h-5 rounded-md font-mono text-[9px] tracking-wider"
-              >
-                CONCEPT
-              </Badge>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className="inline-flex">
-                      <Button size="sm" className="h-8 text-[12px]" disabled>
-                        <Clapperboard /> Assemble draft reel
-                      </Button>
-                    </span>
-                  }
-                />
-                <TooltipContent side="top" className="max-w-64">
-                  Stills render live through FLUX.2. Set VIDEO_ENABLED=true on the deployment to
-                  turn on the FLUX 3 Video draft → enhance pipeline.
-                </TooltipContent>
-              </Tooltip>
-            </>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="inline-flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="h-5 rounded-md font-mono text-[9px] tracking-wider"
+                    >
+                      CONCEPT
+                    </Badge>
+                    <Button size="sm" className="h-8 text-[12px]" disabled>
+                      <Clapperboard /> Assemble draft reel
+                    </Button>
+                  </span>
+                }
+              />
+              <TooltipContent side="top" className="max-w-64">
+                Stills render live through FLUX.2. Set VIDEO_ENABLED=true on the deployment to turn
+                on the FLUX 3 Video draft → enhance pipeline.
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
-      <p className="mx-auto mt-1.5 w-full max-w-[1200px] text-[10px] leading-relaxed text-muted-foreground">
-        Plan the reel at draft rate ({formatUsd(VIDEO_RATES_PER_SEC.draft)}/s), approve the cut,
-        then enhance only what you keep — each still costs ~{formatUsd(SCENE_STILL_ESTIMATE_USD)}{' '}
-        with a pinned reference.
-      </p>
     </div>
   );
 }
+
+// --- empty states ------------------------------------------------------------
 
 function EmptyBoard({ onCreate, creating }: { onCreate: () => void; creating: boolean }) {
   return (
     <Surface className="mx-auto mt-10 max-w-lg p-8 text-center">
       <Clapperboard className="mx-auto size-8 text-muted-foreground" />
       <h1 className="mt-3 text-[18px] font-semibold tracking-[-0.02em]">
-        Carry one subject through a whole sequence
+        One idea. A sequence of shots.
       </h1>
       <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
-        Pin a generated image as the reference, write a scene list, and render stills that keep the
-        subject consistent — then plan the video reel at draft economics before spending on
-        enhancement.
+        Describe the film in a paragraph — the shot list writes itself, scene by scene. Then walk
+        the sequence: refine each prompt, render the still, draft the clip, enhance the keepers.
       </p>
       <Button className="mt-4" onClick={onCreate} disabled={creating}>
         {creating ? <Loader2 className="animate-spin" /> : <Plus />} New storyboard
@@ -1106,12 +1946,12 @@ function SignedOutPreview({ signInPath }: { signInPath: string }) {
     <Surface className="mx-auto mt-10 max-w-lg p-8 text-center">
       <Clapperboard className="mx-auto size-8 text-muted-foreground" />
       <h1 className="mt-3 text-[18px] font-semibold tracking-[-0.02em]">
-        Scenes — reference-driven storyboards
+        Scenes — one idea, a sequence of shots
       </h1>
       <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
-        Generate a hero image in the Playground, pin it as a reference, and fan it out across
-        scenes: every still is a real FLUX.2 render with <code>input_image</code> continuity, and
-        the reel is priced at FLUX 3 Video draft → enhance rates before you commit.
+        Type the idea, get a sequential shot list, and walk it node by node: pinned references keep
+        the subject consistent through FLUX.2, and each finished still becomes a FLUX 3 Video draft
+        you enhance only when it earns it.
       </p>
       <a href={signInPath} className={buttonVariants({ className: 'mt-4' })}>
         Sign in to build
@@ -1119,6 +1959,8 @@ function SignedOutPreview({ signInPath }: { signInPath: string }) {
     </Surface>
   );
 }
+
+// --- reference picker --------------------------------------------------------
 
 function ReferencePickerDialog({
   onOpenChange,
@@ -1138,7 +1980,9 @@ function ReferencePickerDialog({
         const data = (await response.json()) as { runs: HistoryRun[] };
         setAssets(
           data.runs.flatMap((run) =>
-            run.assets.map((asset) => ({ id: asset.id, url: asset.url, prompt: run.prompt })),
+            run.assets
+              .filter((asset) => !asset.mimeType.startsWith('video/'))
+              .map((asset) => ({ id: asset.id, url: asset.url, prompt: run.prompt })),
           ),
         );
         setState('ready');
@@ -1152,8 +1996,8 @@ function ReferencePickerDialog({
         <DialogHeader>
           <DialogTitle>Pin a reference</DialogTitle>
           <DialogDescription>
-            Pick any output from your shared history. It will be sent as the FLUX.2 reference image
-            with every scene render.
+            Pick any output from your shared history. It will ride along as a FLUX.2 reference
+            image with every scene render.
           </DialogDescription>
         </DialogHeader>
         {state === 'loading' && (
@@ -1161,9 +2005,7 @@ function ReferencePickerDialog({
             <Loader2 className="size-3.5 animate-spin" /> Loading your outputs…
           </p>
         )}
-        {state === 'error' && (
-          <p className="text-[12px] text-destructive">Could not load history.</p>
-        )}
+        {state === 'error' && <p className="text-[12px] text-destructive">Could not load history.</p>}
         {state === 'ready' && assets.length === 0 && (
           <p className="rounded-md border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
             No stored outputs yet — generate an image in the Playground first, then pin it here as
@@ -1192,6 +2034,15 @@ function ReferencePickerDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+// --- helpers -----------------------------------------------------------------
+
+// costCredits stores BFL-reported credits; 1 credit = $0.01.
+function formatCost(credits: string | null) {
+  if (!credits) return '';
+  const value = Number(credits);
+  return Number.isFinite(value) ? `$${(value / 100).toFixed(2)}` : '';
 }
 
 function initials(name: string) {

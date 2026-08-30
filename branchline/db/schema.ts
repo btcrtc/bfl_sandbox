@@ -75,6 +75,8 @@ export const storyboards = sqliteTable(
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     createdBy: text('created_by').notNull(),
     title: text('title').notNull(),
+    // The one-paragraph core idea the scene sequence is written from.
+    idea: text('idea'),
     styleNote: text('style_note'),
     seed: integer('seed'),
     createdAt: integer('created_at').notNull(),

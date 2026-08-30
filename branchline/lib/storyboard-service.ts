@@ -35,6 +35,7 @@ export type SceneDto = {
 export type StoryboardDto = {
   id: string;
   title: string;
+  idea: string | null;
   styleNote: string | null;
   seed: number | null;
   references: Array<{ assetId: string; url: string }>;
@@ -97,6 +98,7 @@ export async function getStoryboard(
   return {
     id: row.id,
     title: row.title,
+    idea: row.idea,
     styleNote: row.styleNote,
     seed: row.seed,
     references: referenceRows.map((reference) => ({

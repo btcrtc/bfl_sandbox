@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardScenes, storyboards } from '@/db/schema';
+import { storyboards } from '@/db/schema';
 import { listStoryboards } from '@/lib/storyboard-service';
 
 export async function GET() {
@@ -13,12 +13,6 @@ export async function GET() {
   const workspaceId = await ensurePersonalWorkspace(user.userId, user.displayName);
   return NextResponse.json({ storyboards: await listStoryboards(workspaceId) });
 }
-
-const STARTER_SCENES = [
-  { title: 'Establishing', prompt: 'Wide establishing shot introducing the subject in its world.' },
-  { title: 'Detail', prompt: 'Close-up on the defining detail, shallow depth of field.' },
-  { title: 'Payoff', prompt: 'Hero shot, dramatic light, the subject at its most iconic.' },
-];
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
@@ -35,6 +29,8 @@ export async function POST(request: Request) {
   const now = Date.now();
   const storyboardId = crypto.randomUUID();
 
+  // Boards start empty: the sequence is written from the idea, not from
+  // canned starter scenes.
   await db.insert(storyboards).values({
     id: storyboardId,
     workspaceId,
@@ -43,18 +39,6 @@ export async function POST(request: Request) {
     createdAt: now,
     updatedAt: now,
   });
-  await db.insert(storyboardScenes).values(
-    STARTER_SCENES.map((scene, sceneIndex) => ({
-      id: crypto.randomUUID(),
-      storyboardId,
-      sceneIndex,
-      title: scene.title,
-      prompt: scene.prompt,
-      durationSec: 5,
-      createdAt: now,
-      updatedAt: now,
-    })),
-  );
 
   return NextResponse.json({ id: storyboardId }, { status: 201 });
 }

@@ -1,3 +1,110 @@
+# CURRENT ITERATION — Scenes sequence redesign (DONE — shipped to main)
+
+> Both halves landed: server (Mistral breakdown, idea column, breakdown route) and the
+> full client rewrite (board bar with chips, sequence strip with idea/scene/reel nodes,
+> drill-in detail panel with pipeline steps, arrow-key navigation, board JSON export).
+> Boards now start empty — the sequence is written from the idea. Remaining follow-ups
+> live in the roadmap: first live video validation, typed run channel, reel playback.
+
+**Why.** Product feedback: the current /scenes layout (left panel with references/style,
+right side a grid of scene tiles) reads as meaningless blocks. Scenes must become a tool
+for people who build video sequences: ONE core idea → a sequential chain of scene nodes
+(like the playground canvas, one node after another) → drill into a node to iterate
+(still → refine still → draft clip → enhance). Scene prompts are WRITTEN FROM the idea by
+an LLM.
+
+**Server — DONE (committed on this branch):**
+
+- `lib/llm.ts` — `breakdownIdea({idea, sceneCount, apiKey})`: Mistral
+  (`mistral-small-latest`, `response_format: json_object`, returns
+  `{style_note, scenes:[{title,prompt,duration_sec}]}`) with a deterministic beat-template
+  fallback when no key / on any error. Returns `{source: 'mistral'|'template', breakdown}`.
+  Mistral is the deliberate choice: FLUX.2's own text encoder is Mistral-Small.
+- `db`: `storyboards.idea TEXT` column (in CREATE TABLE + post-batch
+  `ALTER TABLE … ADD COLUMN` swallow-error migration in `db/ensure.ts`); exposed as
+  `StoryboardDto.idea` in `lib/storyboard-service.ts`.
+- `POST /api/storyboards/[id]/breakdown` — body `{idea: string(10–2000), sceneCount: 2–8}`:
+  saves idea, REPLACES all scenes (and their clips) with the generated sequence, fills
+  styleNote only if it was empty, returns `{source, storyboard}`. Client must confirm
+  before calling when any scene has renders.
+- `PATCH /api/storyboards/[id]` now also accepts `idea` (blur-save from the idea editor).
+- `env`: `MISTRAL_API_KEY` (optional).
+
+**Client — TO DO: full rewrite of `components/scenes-shell.tsx`** (everything else stays):
+
+Layout (kills the left aside entirely):
+
+```
+ProductHeader (unchanged: ThemeToggle + viewer)
+[rail | main column]
+main:
+  BoardBar (h-12, border-b, px-6): board Select + "New" · inline title Input ·
+    chips w/ popovers: References (n/3 → 3-slot rail + picker dialog), Seed, Style · refresh
+  scrollable content:
+    SEQUENCE STRIP (horizontal, overflow-x-auto):
+      [IDEA node] ─ [SCENE 01] ─ [SCENE 02] ─ … ─ [+ add] ─ [REEL node]
+      connectors = thin border lines; nodes w-44, selected = brand ring
+      SceneNode: mono "SCENE NN" + status dot, aspect-video thumb (still img /
+        clip video / status icon), truncated title, pipeline dots (still·draft·HD),
+        duration chip
+      IdeaNode: Lightbulb, idea excerpt or "Describe the film…"
+      ReelNode: Film, total seconds + draft/HD cost
+    DETAIL PANEL below the strip, driven by selection
+      Selection = {kind:'idea'} | {kind:'scene', id} | {kind:'reel'}; default 'idea' when
+      board has no scenes, else first scene; normalize when selected scene disappears.
+      IdeaDetail: big idea textarea (blur → PATCH idea), scene-count Select (2–8),
+        "Write scene sequence" (Sparkles) → POST breakdown (window.confirm if any scene
+        has run/clips), select first scene after; notice shows source (mistral/template).
+      SceneDetail (key={scene.id}): grid [stage | controls]
+        stage: tabs Still / Draft / HD / FHD (default = best available), <img>/<video>
+          with running/error placeholders; mono meta line under (status, seed, cost)
+        controls: Title input, Prompt textarea, Duration select + per-scene seed
+          (existing popover control) + Trash delete; pipeline action rows:
+          1. Render/Re-render still ~$0.05 (generateScene)
+          2. Draft clip ~$(dur×0.06) — needs still; videoEnabled-gated (draftClip)
+          3. Enhance HD/FHD ~$(dur×0.17/0.29) — needs finished draft (enhanceClip)
+          inline errors from run.errorMessage / clip.run.errorMessage
+      ReelDetail: read-only mini strip of thumbs + durations, totals, Assemble button
+        (same assembleReel), per-clip status list.
+  VideoPlanBar at the bottom — unchanged component/props.
+Dialogs: ReferencePickerDialog — unchanged.
+```
+
+Reuse the existing state/actions verbatim (they are all in the current file): loadList,
+loadStoryboard (stale-guard via activeIdRef), createStoryboard, patchStoryboard,
+patchScene (+reload), addScene, deleteScene, generateScene, draftClip, enhanceClip,
+assembleReel, markVideoBusy, polling effect (ids computed INSIDE the effect from
+storyboard — lint requirement), videoEnabled prop from `app/scenes/page.tsx`.
+
+New action:
+
+```ts
+writeSequence(idea, sceneCount): confirm-if-rendered → POST breakdown →
+  setStoryboard(data.storyboard); select first scene; notice by data.source
+```
+
+Icons (all verified in this lucide build): Lightbulb, Sparkles, ChevronRight, ArrowRight,
+Clapperboard, Film, Dices, ImagePlus, Images, Loader2, Play, Plus, RefreshCw, ShieldAlert,
+Trash2, X, Pencil, Type.
+
+Gotchas that already bit us (do not regress):
+- oxlint react-compiler: no sync setState in effects (wrap first loads in
+  `setTimeout(…, 0)`); no unmemoized helpers in useCallback deps; `<video>` needs
+  `<track kind="captions">` or `muted`; conditionally-mounted dialogs reset their own
+  state (mount fresh instead of `open` prop).
+- Select onValueChange gets `string | null` — guard.
+- NextImage on `/api/assets/*` needs `unoptimized`.
+- Verify: `cd branchline && npx tsc --noEmit && npm run lint && npm run build` — all
+  must be clean before commit. Push branch `claude/portfolio-job-application-51wh8j`,
+  then merge to `main` (owner approved pushing main).
+
+**Acceptance:** open /scenes → type an idea → Write scene sequence → chain of nodes
+appears left-to-right → click node 2 → edit prompt, Render still → thumb fills in the
+strip → Draft clip → player in the stage → HD. No grid of tiles anywhere; no dead
+controls; signed-out preview describes the idea→sequence flow.
+
+---
+
 # Task: Scenes — from carcass to flagship
 
 Owner: —

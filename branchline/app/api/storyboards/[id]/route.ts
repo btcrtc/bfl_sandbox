@@ -25,6 +25,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
 type PatchBody = {
   title?: unknown;
+  idea?: unknown;
   styleNote?: unknown;
   seed?: unknown;
   referenceAssetIds?: unknown;
@@ -47,6 +48,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   if (typeof body.title === 'string' && body.title.trim()) {
     patch.title = body.title.trim().slice(0, 120);
+  }
+  if (typeof body.idea === 'string') {
+    patch.idea = body.idea.trim().slice(0, 2_000) || null;
   }
   if (typeof body.styleNote === 'string') {
     patch.styleNote = body.styleNote.trim().slice(0, 600) || null;

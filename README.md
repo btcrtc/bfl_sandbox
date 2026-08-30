@@ -18,8 +18,9 @@ whole sequence and prices the resulting reel at video draft→enhance economics.
 | Run detail: outputs, EXIF-style receipt, seed reuse, copy as curl/JSON | **Live** |
 | Moderation UX: distinct `moderated` status, humane guidance, retry at safety +1 | **Live** |
 | Realtime: WebSocket history updates with 15s polling fallback | **Live** (per-socket D1 polling — see tradeoffs below) |
-| Scenes: pinned reference sent as FLUX.2 `input_image`, pinned seed, style note, scene stills | **Live** |
-| Scenes: assemble the reel via FLUX 3 Video draft → `draft_enhance` | **Concept** — cost model is real, the video API call is staged behind a flag |
+| Scenes: idea → sequential shot list (Mistral, with a keyless template fallback) | **Live** |
+| Scenes: node-by-node drill-in — refine prompt, render still, per-scene seed, up to 3 pinned references sent as FLUX.2 `input_image` 1–3 | **Live** |
+| Scenes: FLUX 3 Video draft clip per scene → `draft_enhance` to HD/FHD | **Built, flag-gated** — `VIDEO_ENABLED=true`; contract assembled from public docs, first live call is the real test |
 | Workflows / Assets / Runs pages, node editing on the canvas | **Concept** — labeled in-UI |
 
 ## Why these features
@@ -35,9 +36,11 @@ Built against documented friction in the current developer experience of image A
 - **No official SDK** → every run exposes its byte-exact request as copyable curl/JSON.
 - **Reproducibility** → seeds are first-class: visible, editable, derived per output
   (`seed + i`), reusable from any past run.
-- **Multi-reference + video direction** → Scenes turns FLUX.2's `input_image` continuity and
-  FLUX 3 Video's draft ($0.06/s) → enhance (HD $0.17/s, FHD $0.29/s) economics into a
-  planning surface: approve the cut at draft rate, spend on enhancement only for keepers.
+- **Multi-reference + video direction** → Scenes is a sequence tool, not a tile grid: one
+  idea becomes an ordered chain of shot nodes (written by Mistral — the same model family
+  that encodes prompts inside FLUX.2), each node drills into still → draft clip ($0.06/s)
+  → enhance (HD $0.17/s, FHD $0.29/s). Approve the cut at draft rate, spend on
+  enhancement only for keepers.
 
 ## Architecture
 
@@ -72,17 +75,24 @@ npm run typecheck  # tsc --noEmit
 npm run lint       # oxlint
 ```
 
-Set `BFL_API_KEY` to enable live generation; without it every run is saved as a shared
-draft so the whole UI stays walkable with zero spend.
+Environment variables:
+
+- `BFL_API_KEY` — enables live generation; without it every run is saved as a shared draft
+  so the whole UI stays walkable with zero spend.
+- `MISTRAL_API_KEY` — optional; powers the idea → shot-list breakdown in Scenes (falls
+  back to deterministic beat templates without it).
+- `VIDEO_ENABLED=true` — turns on the FLUX 3 Video draft → enhance pipeline in Scenes.
+- `DAILY_RUN_LIMIT` / `VIDEO_DAILY_LIMIT` — per-workspace 24h spend caps (default 40
+  stills / 10 clips).
 
 ## Roadmap (next, in order)
 
-1. **Typed run channel** — replace the coarse `history:changed` ping with per-run events
+1. **First live video validation** — exercise the flag-gated FLUX 3 Video contract with a
+   real key; the whole contract lives in `lib/bfl.ts`, so a mismatch is a local fix.
+2. **Typed run channel** — replace the coarse `history:changed` ping with per-run events
    (`job:status`, `job:asset`, `run:completed`) and delete client polling.
-2. **Video draft → enhance** — wire the FLUX 3 Video API behind the existing Scenes plan
-   bar once the contract is verified; server-side capture already fits minutes-long jobs.
-3. **Compare** — two branches race on the canvas, a winner is recorded, the graph exports
-   as code.
+3. **Reel playback & export** — sequential playback of finished clips in scene order and a
+   downloadable cut list.
 
 ## Repo layout
 
