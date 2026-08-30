@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -22,7 +23,20 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!userId || !email) return null;
+  if (!userId || !email) {
+    // Standalone demo deployments (no ChatGPT platform in front) sign every
+    // visitor into one shared demo workspace. Never set DEMO_MODE where the
+    // platform provides real identity headers.
+    if (env.DEMO_MODE === 'true') {
+      return {
+        userId: 'demo',
+        displayName: 'Demo studio',
+        email: 'demo@branchline.local',
+        fullName: 'Demo studio',
+      };
+    }
+    return null;
+  }
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
   const fullName =
