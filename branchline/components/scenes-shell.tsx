@@ -238,14 +238,17 @@ export function ScenesShell({
 
   // --- board actions --------------------------------------------------------
 
-  const createStoryboard = useCallback(async () => {
+  const createStoryboard = useCallback(async (kind: 'blank' | 'example' = 'blank') => {
     setCreating(true);
     try {
-      const response = await fetch('/api/storyboards', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      const response = await fetch(
+        kind === 'example' ? '/api/storyboards/example' : '/api/storyboards',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
       const data = (await response.json()) as { id?: string; error?: string };
       if (!response.ok || !data.id) throw new Error(data.error);
       await loadList();
@@ -673,6 +676,7 @@ export function ScenesShell({
                   setRawSelection({ kind: 'idea' });
                 }}
                 onCreate={() => void createStoryboard()}
+                onCreateExample={() => void createStoryboard('example')}
                 creating={creating}
                 onPatch={(patch) => void patchStoryboard(patch)}
                 onOpenPicker={() => setPickerOpen(true)}
@@ -748,7 +752,11 @@ export function ScenesShell({
                       <Loader2 className="size-4 animate-spin" /> Loading storyboards…
                     </p>
                   ) : (
-                    <EmptyBoard onCreate={() => void createStoryboard()} creating={creating} />
+                    <EmptyBoard
+                      onCreate={() => void createStoryboard()}
+                      onExample={() => void createStoryboard('example')}
+                      creating={creating}
+                    />
                   )
                 ) : (
                   <SignedOutPreview signInPath={signInPath} />
@@ -796,6 +804,7 @@ function BoardBar({
   boards,
   onSwitch,
   onCreate,
+  onCreateExample,
   creating,
   onPatch,
   onOpenPicker,
@@ -805,6 +814,7 @@ function BoardBar({
   boards: StoryboardListItem[];
   onSwitch: (id: string) => void;
   onCreate: () => void;
+  onCreateExample: () => void;
   creating: boolean;
   onPatch: (patch: Record<string, unknown>) => void;
   onOpenPicker: () => void;
@@ -840,6 +850,22 @@ function BoardBar({
           {creating ? <Loader2 className="animate-spin" /> : <Plus />}
         </TooltipTrigger>
         <TooltipContent>New storyboard</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Load example board"
+              onClick={onCreateExample}
+              disabled={creating}
+            />
+          }
+        >
+          <Sparkles />
+        </TooltipTrigger>
+        <TooltipContent>Load example board</TooltipContent>
       </Tooltip>
 
       <Input
@@ -1976,7 +2002,15 @@ function VideoPlanBar({
 
 // --- empty states ------------------------------------------------------------
 
-function EmptyBoard({ onCreate, creating }: { onCreate: () => void; creating: boolean }) {
+function EmptyBoard({
+  onCreate,
+  onExample,
+  creating,
+}: {
+  onCreate: () => void;
+  onExample: () => void;
+  creating: boolean;
+}) {
   return (
     <Surface className="mx-auto mt-10 max-w-lg p-8 text-center">
       <Clapperboard className="mx-auto size-8 text-muted-foreground" />
@@ -1987,9 +2021,14 @@ function EmptyBoard({ onCreate, creating }: { onCreate: () => void; creating: bo
         Describe the film in a paragraph — the shot list writes itself, scene by scene. Then walk
         the sequence: refine each prompt, render the still, draft the clip, enhance the keepers.
       </p>
-      <Button className="mt-4" onClick={onCreate} disabled={creating}>
-        {creating ? <Loader2 className="animate-spin" /> : <Plus />} New storyboard
-      </Button>
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <Button onClick={onCreate} disabled={creating}>
+          {creating ? <Loader2 className="animate-spin" /> : <Plus />} New storyboard
+        </Button>
+        <Button variant="outline" onClick={onExample} disabled={creating}>
+          <Sparkles /> Load example board
+        </Button>
+      </div>
     </Surface>
   );
 }
