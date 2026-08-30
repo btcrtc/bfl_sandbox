@@ -11,78 +11,11 @@ import {
   storyboardScenes,
   storyboardTakes,
 } from '@/db/schema';
+import { EXAMPLE_BOARD, EXAMPLE_STILL, type ExampleScene } from '@/lib/example-board';
 
 // A finished-looking board for first contact: the layout reads instantly
-// without spending a single credit. Stills are pre-rendered FLUX.2 [max]
-// frames bundled as static assets and registered per viewer at seed time;
-// when a bundle file is missing the scene simply seeds unrendered.
-const STILL_WIDTH = 1344;
-const STILL_HEIGHT = 768;
-const STILL_MODEL = 'FLUX.2 [max]';
-
-const EXAMPLE = {
-  title: 'The Valley Keeps Time',
-  idea:
-    'A Black Forest village keeps time by one great tower clock, driven since anyone can ' +
-    'remember by water from a mountain spring. At dawn the clock stops and the valley goes ' +
-    'unnaturally silent: the flume from the spring has run dry. The old clockmaker reads the ' +
-    'still gears and sends his apprentice up the water line — through storm-bent pines and fog ' +
-    'to the source, where a fallen tree has jammed the sluice. She heaves it free, the wheel ' +
-    'shudders back to life, and the bells return to the valley with the sunrise.',
-  styleNote:
-    'In the key of Scorsese: Hugo’s clockwork warmth — tungsten and brass against cobalt-blue ' +
-    'dawn, luminous halation, deep film blacks, slow confident push-ins — with the fog-drowned ' +
-    'forest register of Silence. 35mm grain.',
-  seed: 1968,
-  scenes: [
-    {
-      title: 'The stopped clock',
-      prompt:
-        'Blue-hour square of a Black Forest village: half-timbered houses around a great ' +
-        'astronomical tower clock frozen mid-swing, villagers in wool coats looking up, ' +
-        'unnaturally still fog sliding between the rooftops, amber lanterns burning against ' +
-        'cobalt dawn.',
-      durationSec: 6,
-      still: '/example/scene-01.jpg',
-    },
-    {
-      title: 'The verdict',
-      prompt:
-        'Inside the clockmaker’s workshop: an old master and his young apprentice open the tower ' +
-        'clock’s brass movement, motionless gears reflected in his round glasses, tools laid out ' +
-        'like surgery, one warm tungsten lamp against tall blue windows.',
-      durationSec: 5,
-      still: '/example/scene-02.jpg',
-    },
-    {
-      title: 'Up the water line',
-      prompt:
-        'The apprentice climbs beside a dry wooden water flume through storm-bent Black Forest ' +
-        'pines, lantern held high, rain streaking through the fog between the trunks, the empty ' +
-        'channel running uphill into darkness.',
-      durationSec: 6,
-      still: '/example/scene-03.jpg',
-    },
-    {
-      title: 'The sluice',
-      prompt:
-        'At the mountain spring a fallen pine jams the water-wheel sluice; the apprentice heaves ' +
-        'it free with a long iron bar, water bursting silver through the gate, the great wooden ' +
-        'wheel shuddering back into motion, spray catching her lantern light.',
-      durationSec: 6,
-      still: '/example/scene-04.jpg',
-    },
-    {
-      title: 'Time returns',
-      prompt:
-        'Sunrise tearing the fog open over the valley: the tower clock’s hands sweep back to ' +
-        'life and the bells ring, townsfolk gathering on the square below, the old clockmaker ' +
-        'with his apprentice beside him, warm light flooding the half-timbered facades.',
-      durationSec: 7,
-      still: '/example/scene-05.jpg',
-    },
-  ],
-};
+// without spending a single credit. Content lives in lib/example-board.ts;
+// frames come from the bundled statics, or their R2 re-rendered overrides.
 
 // Registers a bundled example still as a completed FLUX.2 [max] run for this
 // workspace. The asset row points straight at the static file
@@ -91,7 +24,7 @@ const EXAMPLE = {
 async function registerExampleStill(input: {
   workspaceId: string;
   userId: string;
-  scene: (typeof EXAMPLE.scenes)[number];
+  scene: ExampleScene;
   sceneIndex: number;
   now: number;
 }): Promise<string> {
@@ -100,8 +33,8 @@ async function registerExampleStill(input: {
   const generationId = crypto.randomUUID();
   const jobId = crypto.randomUUID();
   const r2Key = `static:${scene.still}`;
-  const prompt = `${scene.prompt} Style: ${EXAMPLE.styleNote}`;
-  const seed = EXAMPLE.seed + sceneIndex;
+  const prompt = `${scene.prompt} Style: ${EXAMPLE_BOARD.styleNote}`;
+  const seed = EXAMPLE_BOARD.seed + sceneIndex;
 
   await db.batch([
     db.insert(generations).values({
@@ -110,11 +43,11 @@ async function registerExampleStill(input: {
       createdBy: userId,
       status: 'succeeded',
       origin: 'example',
-      modelId: STILL_MODEL,
+      modelId: EXAMPLE_STILL.model,
       prompt,
       parametersJson: JSON.stringify({
-        width: STILL_WIDTH,
-        height: STILL_HEIGHT,
+        width: EXAMPLE_STILL.width,
+        height: EXAMPLE_STILL.height,
         seed,
         output_format: 'jpeg',
         prompt_upsampling: false,
@@ -138,8 +71,8 @@ async function registerExampleStill(input: {
       kind: 'image',
       r2Key,
       mimeType: 'image/jpeg',
-      width: STILL_WIDTH,
-      height: STILL_HEIGHT,
+      width: EXAMPLE_STILL.width,
+      height: EXAMPLE_STILL.height,
       createdAt: now,
     }),
   ]);
@@ -157,13 +90,13 @@ export async function POST() {
   const storyboardId = crypto.randomUUID();
 
   const generationIds: string[] = [];
-  for (const [sceneIndex, scene] of EXAMPLE.scenes.entries()) {
+  for (const [sceneIndex, scene] of EXAMPLE_BOARD.scenes.entries()) {
     generationIds.push(
       await registerExampleStill({ workspaceId, userId: user.userId, scene, sceneIndex, now }),
     );
   }
 
-  const sceneIds = EXAMPLE.scenes.map(() => crypto.randomUUID());
+  const sceneIds = EXAMPLE_BOARD.scenes.map(() => crypto.randomUUID());
   const takeRows = generationIds.map((generationId, sceneIndex) => ({
     id: crypto.randomUUID(),
     storyboardId,
@@ -176,22 +109,22 @@ export async function POST() {
       id: storyboardId,
       workspaceId,
       createdBy: user.userId,
-      title: EXAMPLE.title,
-      idea: EXAMPLE.idea,
-      styleNote: EXAMPLE.styleNote,
-      seed: EXAMPLE.seed,
+      title: EXAMPLE_BOARD.title,
+      idea: EXAMPLE_BOARD.idea,
+      styleNote: EXAMPLE_BOARD.styleNote,
+      seed: EXAMPLE_BOARD.seed,
       createdAt: now,
       updatedAt: now,
     }),
     db.insert(storyboardScenes).values(
-      EXAMPLE.scenes.map((scene, sceneIndex) => ({
+      EXAMPLE_BOARD.scenes.map((scene, sceneIndex) => ({
         id: sceneIds[sceneIndex],
         storyboardId,
         sceneIndex,
         title: scene.title,
         prompt: scene.prompt,
         durationSec: scene.durationSec,
-        seed: EXAMPLE.seed + sceneIndex,
+        seed: EXAMPLE_BOARD.seed + sceneIndex,
         generationId: generationIds[sceneIndex],
         createdAt: now,
         updatedAt: now,

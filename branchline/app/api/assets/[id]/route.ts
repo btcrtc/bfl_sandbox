@@ -23,9 +23,21 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (!asset) return NextResponse.json({ error: 'Asset not found.' }, { status: 404 });
 
   // Bundled example media lives as static files; the asset row just points
-  // there (no R2 copy), so hand the browser the static path.
+  // there. A re-rendered override in R2 (written by /api/example/render)
+  // wins over the bundled frame; otherwise hand the browser the static path.
   if (asset.r2Key.startsWith('static:')) {
-    return NextResponse.redirect(new URL(asset.r2Key.slice('static:'.length), request.url), 302);
+    const staticPath = asset.r2Key.slice('static:'.length);
+    const override = await env.FILES.get(`example-overrides${staticPath}`);
+    if (override) {
+      return new Response(override.body, {
+        headers: {
+          'content-type': override.httpMetadata?.contentType || asset.mimeType,
+          'cache-control': 'private, max-age=300',
+          etag: override.httpEtag,
+        },
+      });
+    }
+    return NextResponse.redirect(new URL(staticPath, request.url), 302);
   }
 
   const object = await env.FILES.get(asset.r2Key);

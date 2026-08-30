@@ -1,48 +1,25 @@
 name: Render example stills
 
-# Renders the five example-board frames with FLUX.2 [max] and commits them.
-# The key is passed per-dispatch and never stored in the repository.
+# Asks the deployed app to re-render its example frames with FLUX.2 [max].
+# The BFL key lives only in the deployment's environment (Railway variables) —
+# this workflow carries no secrets; the endpoint is cooldown-limited.
 on:
   workflow_dispatch:
-    inputs:
-      bfl_api_key:
-        description: BFL API key for this run (leave empty to use the BFL_API_KEY repo secret)
-        required: false
-        type: string
   push:
     paths:
       - '.github/render-request'
-
-permissions:
-  contents: write
 
 jobs:
   render:
     runs-on: ubuntu-latest
     steps:
-      - name: Mask key in logs
-        run: echo "::add-mask::${{ inputs.bfl_api_key || secrets.BFL_API_KEY }}"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Render stills with FLUX.2 [max]
-        env:
-          BFL_API_KEY: ${{ inputs.bfl_api_key || secrets.BFL_API_KEY }}
+      - name: Trigger the deployment's render endpoint
         run: |
-          if [ -z "$BFL_API_KEY" ]; then
-            echo "No key input and no BFL_API_KEY repo secret — nothing to render."
-            exit 0
-          fi
-          node branchline/scripts/render-example-stills.mjs
-      - name: Commit and push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add branchline/public/example
-          if git diff --cached --quiet; then
-            echo "no changes"
-            exit 0
-          fi
-          git commit -m "assets(scenes): Clockmakers of Light stills (FLUX.2 [max])"
-          git push
+          response=$(curl -sS -w '\n%{http_code}' -X POST \
+            "${RENDER_URL:-https://branchline-production.up.railway.app/api/example/render}" \
+            -H 'content-type: application/json' --max-time 420)
+          body=$(printf '%s' "$response" | sed '$d')
+          code=$(printf '%s' "$response" | tail -n1)
+          echo "HTTP $code"
+          echo "$body"
+          [ "$code" = "200" ]
