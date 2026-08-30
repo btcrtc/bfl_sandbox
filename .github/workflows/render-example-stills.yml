@@ -11,17 +11,45 @@ on:
     paths:
       - '.github/render-request'
 
+permissions:
+  contents: write
+
 jobs:
   render:
     runs-on: ubuntu-latest
+    env:
+      APP_URL: https://branchline-production.up.railway.app
     steps:
+      - uses: actions/checkout@v4
       - name: Trigger the deployment's render endpoint
+        id: render
+        continue-on-error: true
         run: |
           response=$(curl -sS -w '\n%{http_code}' -X POST \
-            "${RENDER_URL:-https://branchline-production.up.railway.app/api/example/render}" \
+            "$APP_URL/api/example/render" \
             -H 'content-type: application/json' --max-time 420)
           body=$(printf '%s' "$response" | sed '$d')
           code=$(printf '%s' "$response" | tail -n1)
           echo "HTTP $code"
           echo "$body"
           [ "$code" = "200" ]
+      # Even when the render was cooldown-blocked, sync the repo's bundled
+      # statics with whatever frames the deployment currently serves.
+      - name: Sync bundled statics with the deployment's frames
+        run: |
+          for i in 1 2 3 4 5; do
+            curl -fsSL --max-time 60 -o "branchline/public/example/scene-0$i.jpg" \
+              "$APP_URL/api/example/frames/$i"
+          done
+          ls -la branchline/public/example/
+      - name: Commit frames if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add branchline/public/example
+          if git diff --cached --quiet; then
+            echo "frames unchanged"
+            exit 0
+          fi
+          git commit -m "assets(scenes): sync example frames from the deployment"
+          git push
