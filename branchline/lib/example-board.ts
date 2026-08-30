@@ -18,63 +18,92 @@ export const EXAMPLE_BOARD = {
     'to the source, where a fallen tree has jammed the sluice. She heaves it free, the wheel ' +
     'shudders back to life, and the bells return to the valley with the sunrise.',
   styleNote:
-    'Hyper-realistic 35mm cinema still in Martin Scorsese’s register, shot like Rodrigo Prieto ' +
-    '(Killers of the Flower Moon, The Irishman): Kodak Vision3 500T grain, anamorphic lens at ' +
-    'T2.8, practical tungsten and kerosene light against cold overcast blue dawn, deep film ' +
-    'blacks, muted earth palette, real skin pores, weathered fabric and wet stone texture, ' +
-    'documentary period naturalism — a frame from a real film, never illustration or stylization.',
+    'Shot on Kodak Vision3 500T 35mm through Panavision C-Series anamorphic glass: fine grain ' +
+    'rising in the shadows, subtle gate weave, oval bokeh, halation blooming only around ' +
+    'practical light sources. ENR silver-retention grade — desaturated slate blue and raw umber, ' +
+    'protected warm skin tones, deep matte blacks, zero digital sharpness. Physically believable ' +
+    'light: soft specular roll-off on wet stone, subsurface scattering in skin, every source ' +
+    'motivated and diffused by volumetric fog. The register of Martin Scorsese photographed by ' +
+    'Rodrigo Prieto (Killers of the Flower Moon, The Irishman) — a production still from a real ' +
+    'film; never illustration, CGI gloss or stylization.',
   seed: 1968,
   scenes: [
     {
       title: 'The stopped clock',
       prompt:
-        'Dawn on the cobbled square of a Black Forest village, long-lens 75mm compression: a ' +
-        'plain stone-and-timber clock tower with its hands stopped at 6:12, a small crowd of ' +
-        'villagers in damp wool coats seen from behind at eye level looking up, wet cobblestones ' +
-        'mirroring one burning gas lantern, fog sliding between half-timbered facades, cold ' +
-        'overcast blue light.',
+        'Establishing wide at 6:12 a.m. Camera under a dripping first-floor eave across the ' +
+        'square, 35mm anamorphic at T4, deep focus, a rain-beaded wrought-iron lantern bracket ' +
+        'breaking the left foreground out of focus. The cobbled Black Forest square recedes on a ' +
+        'diagonal to a plain stone-and-timber clock tower on the upper-third line, hands frozen ' +
+        'at 6:12; a loose arc of twelve villagers stands with backs to camera, motionless, their ' +
+        'stillness the subject. Light: one 2800K gas lantern is the only warm point in a 6500K ' +
+        'pre-dawn overcast field, its reflection threading the wet basalt cobbles toward camera; ' +
+        'ground fog holds the tower at half contrast. Texture in the halftones: rain-dark loden ' +
+        'wool absorbing light, zinc gutters carrying specular runoff, moss in the mortar joints, ' +
+        'slate roofs going umber in shadow.',
       durationSec: 6,
       still: '/example/scene-01.jpg',
     },
     {
       title: 'The verdict',
       prompt:
-        'Inside a clockmaker’s workshop, 40mm at T2.8, shallow focus: an old master with cracked ' +
-        'weathered hands and his apprentice — a young woman in her twenties, dark hair tied ' +
-        'back, gray wool coat — lean over the tower clock’s opened brass movement on a ' +
-        'workbench, motionless gears, tools laid out on linen, one tungsten work lamp, cold blue ' +
-        'window light behind, dust drifting in the beam.',
+        'Interior two-shot at workbench height, camera shooting through the opened brass ' +
+        'movement, 50mm anamorphic at T2.3, focus plane locked on the old master’s eyes while ' +
+        'the front gear train dissolves into oval bokeh. Blocking: the master leans in from left ' +
+        'in profile, his apprentice — a young woman in her twenties, dark hair tied back in a ' +
+        'low knot, gray loden coat — mirrors him from the right, eyelines converging on the ' +
+        'stopped escapement between them. Light: a single 2900K tungsten work lamp low over the ' +
+        'bench keys at 4:1 against 6000K window fill, dust motes crossing the beam; brass ' +
+        'bounces warm uplight onto both faces like candlelight. Materials: oiled brass with ' +
+        'fingerprints and micro-scratches, hand-cut steel pinions, a waxed-linen tool roll, his ' +
+        'cracked knuckles, beads of melted fog still on her wool shoulders.',
       durationSec: 5,
       still: '/example/scene-02.jpg',
     },
     {
       title: 'Up the water line',
       prompt:
-        'Handheld 35mm frame on a rain-soaked Black Forest slope: the apprentice — a young woman ' +
-        'in her twenties, dark hair tied back, drenched gray wool coat — climbs uphill beside an ' +
-        'old dry wooden water flume, kerosene lantern flaring into the lens, mud on her boots, ' +
-        'breath visible, fog between towering pine trunks, documentary grit.',
+        'Handheld tracking shot climbing with her, camera half a step behind her shoulder ' +
+        'swinging to a three-quarter profile, 40mm anamorphic at T2.8, 180-degree shutter ' +
+        'leaving motion blur at the frame edges. The apprentice — a young woman in her twenties, ' +
+        'dark hair tied back in a low knot, drenched gray loden coat — climbs the muddy service ' +
+        'path; the dry wooden flume cuts the frame corner to corner, leading uphill into fog ' +
+        'between towering pine trunks. Light: her swinging 2200K kerosene lantern is the only ' +
+        'key, streaking a horizontal anamorphic flare and refracting in the raindrops on her ' +
+        'hood’s fibers; 6800K storm daylight rims the canopy far above. Texture: sodden loden ' +
+        'weave read in halftone, lanolin wool beading water, black mud pulling at boot welts, ' +
+        'wet bark glistening where the lantern passes.',
       durationSec: 6,
       still: '/example/scene-03.jpg',
     },
     {
       title: 'The sluice',
       prompt:
-        'At the mountain spring, fast shutter freezing the spray: the apprentice — a young woman ' +
-        'in her twenties, dark hair tied back, soaked gray wool coat — strains on an iron bar ' +
-        'levering a fallen pine off a wooden sluice gate, the first water bursting through onto ' +
-        'the old mill wheel, lantern light on her wet exhausted face, dusk-blue forest behind, ' +
-        'physical and gritty.',
+        'Low three-quarter angle from water level, 40mm anamorphic at T2.8, 45-degree shutter ' +
+        'freezing every droplet mid-air. Blocking: the apprentice — a young woman in her ' +
+        'twenties, dark hair tied back in a low knot, soaked gray loden coat gone almost black — ' +
+        'throws her full weight onto a two-meter hand-forged iron bar wedged under a fallen ' +
+        'pine, back arched, boots slipping on wet granite; the sluice gate bursts open ' +
+        'screen-right and water explodes onto the moss-black mill wheel. Light: a lantern hung ' +
+        'on the sluice post keys her strained face at 2200K; each frozen droplet refracts it ' +
+        'into amber caustics against the 6500K dusk, and the turning wheel throws off silver ' +
+        'specular arcs. Materials: rust-scaled iron, waterlogged pine bark, granite sparkling ' +
+        'where spray lands, her wet lashes catching the lantern.',
       durationSec: 6,
       still: '/example/scene-04.jpg',
     },
     {
       title: 'Time returns',
       prompt:
-        'The village square as first sunlight breaks the fog, 75mm: the old clockmaker and his ' +
-        'apprentice — a young woman in her twenties, dark hair tied back, gray wool coat — stand ' +
-        'among townsfolk looking up at the tower clock’s moving hands, warm light raking across ' +
-        'half-timbered walls and tired real faces, honest period detail, film grain.',
+        'Resolution shot: 75mm anamorphic from knee height behind the old master and the ' +
+        'apprentice — a young woman in her twenties, dark hair tied back in a low knot, gray ' +
+        'loden coat — two dark shoulders framing the clock tower between them as its minute hand ' +
+        'visibly steps forward; townsfolk turn to one another in soft-focus midground. Light: ' +
+        'first 5600K sunlight tears the fog at a 45-degree rake, carving visible volumetric ' +
+        'shafts, gilding the half-timber and splitting every face half warm, half shadow-blue; ' +
+        'one hard glint off the bell bronze in the belfry. Texture: steam beginning to lift off ' +
+        'the wet cobbles and off their wool shoulders, tired real faces with wet lashes, the ' +
+        'amber lantern from the opening now pale against the sun.',
       durationSec: 7,
       still: '/example/scene-05.jpg',
     },
