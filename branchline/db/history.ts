@@ -61,6 +61,29 @@ export async function listHistory(workspaceId: string, limit = 50): Promise<Hist
   return rows.map((row) => mapRun(row, assetRows, jobRows));
 }
 
+// Resolves a specific set of runs regardless of how deep they sit in history —
+// storyboards reference generations by id and must not lose them to a window.
+export async function listRunsByIds(
+  workspaceId: string,
+  generationIds: string[],
+): Promise<HistoryRun[]> {
+  if (!generationIds.length) return [];
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(generations)
+    .where(inArray(generations.id, generationIds));
+  const owned = rows.filter((row) => row.workspaceId === workspaceId);
+  if (!owned.length) return [];
+
+  const ids = owned.map((row) => row.id);
+  const [assetRows, jobRows] = await Promise.all([
+    db.select().from(generationAssets).where(inArray(generationAssets.generationId, ids)),
+    db.select().from(generationJobs).where(inArray(generationJobs.generationId, ids)),
+  ]);
+  return owned.map((row) => mapRun(row, assetRows, jobRows));
+}
+
 export async function getHistoryRun(workspaceId: string, generationId: string): Promise<HistoryRun | null> {
   const db = getDb();
   const [row] = await db

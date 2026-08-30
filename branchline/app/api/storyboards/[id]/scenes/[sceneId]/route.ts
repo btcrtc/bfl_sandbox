@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardScenes, storyboards } from '@/db/schema';
+import { storyboardClips, storyboardScenes, storyboards } from '@/db/schema';
 
 async function loadScene(workspaceId: string, storyboardId: string, sceneId: string) {
   const db = getDb();
@@ -82,6 +82,9 @@ export async function DELETE(
   if (!scene) return NextResponse.json({ error: 'Scene not found.' }, { status: 404 });
 
   const db = getDb();
-  await db.delete(storyboardScenes).where(eq(storyboardScenes.id, sceneId));
+  await db.batch([
+    db.delete(storyboardClips).where(eq(storyboardClips.sceneId, sceneId)),
+    db.delete(storyboardScenes).where(eq(storyboardScenes.id, sceneId)),
+  ]);
   return NextResponse.json({ ok: true });
 }

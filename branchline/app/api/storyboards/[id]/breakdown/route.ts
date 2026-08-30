@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
@@ -46,40 +46,36 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
 
   const now = Date.now();
-  const existingScenes = await db
-    .select({ id: storyboardScenes.id })
-    .from(storyboardScenes)
-    .where(eq(storyboardScenes.storyboardId, id));
-  if (existingScenes.length) {
-    await db.delete(storyboardClips).where(
-      inArray(
-        storyboardClips.sceneId,
-        existingScenes.map((scene) => scene.id),
-      ),
-    );
-    await db.delete(storyboardScenes).where(eq(storyboardScenes.storyboardId, id));
-  }
-  await db.insert(storyboardScenes).values(
-    breakdown.scenes.map((scene, sceneIndex) => ({
-      id: crypto.randomUUID(),
-      storyboardId: id,
-      sceneIndex,
-      title: scene.title,
-      prompt: scene.prompt,
-      durationSec: scene.durationSec,
-      createdAt: now,
-      updatedAt: now,
-    })),
-  );
-  await db
-    .update(storyboards)
-    .set({
-      idea,
-      // Keep a hand-written style note; only fill an empty one.
-      ...(storyboard.styleNote || !breakdown.styleNote ? {} : { styleNote: breakdown.styleNote }),
-      updatedAt: now,
-    })
-    .where(eq(storyboards.id, id));
+  // One atomic batch: a failure mid-way must not leave the board sceneless.
+  // Deleting clips by storyboard id also sweeps rows orphaned by past scene
+  // deletions.
+  await db.batch([
+    db.delete(storyboardClips).where(eq(storyboardClips.storyboardId, id)),
+    db.delete(storyboardScenes).where(eq(storyboardScenes.storyboardId, id)),
+    db.insert(storyboardScenes).values(
+      breakdown.scenes.map((scene, sceneIndex) => ({
+        id: crypto.randomUUID(),
+        storyboardId: id,
+        sceneIndex,
+        title: scene.title,
+        prompt: scene.prompt,
+        durationSec: scene.durationSec,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    ),
+    db
+      .update(storyboards)
+      .set({
+        idea,
+        // Keep a hand-written style note; only fill an empty one.
+        ...(storyboard.styleNote || !breakdown.styleNote
+          ? {}
+          : { styleNote: breakdown.styleNote }),
+        updatedAt: now,
+      })
+      .where(eq(storyboards.id, id)),
+  ]);
 
   return NextResponse.json({
     source,

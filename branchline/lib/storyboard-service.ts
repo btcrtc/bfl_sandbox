@@ -1,7 +1,7 @@
 import { asc, desc, eq } from 'drizzle-orm';
 
 import { getDb } from '@/db/index';
-import { listHistory, type HistoryRun } from '@/db/history';
+import { listRunsByIds, type HistoryRun } from '@/db/history';
 import {
   storyboardClips,
   storyboardReferences,
@@ -90,9 +90,13 @@ export async function getStoryboard(
       .orderBy(desc(storyboardClips.createdAt)),
   ]);
 
-  // Scene stills reuse the shared generation pipeline; resolve their runs from
-  // the same history source the playground uses.
-  const runs = await listHistory(workspaceId, 100);
+  // Scene stills and clips reuse the shared generation pipeline; resolve their
+  // runs by id so nothing ages out of a history window.
+  const referencedIds = [
+    ...sceneRows.flatMap((scene) => (scene.generationId ? [scene.generationId] : [])),
+    ...clipRows.map((clip) => clip.generationId),
+  ];
+  const runs = await listRunsByIds(workspaceId, [...new Set(referencedIds)]);
   const runsById = new Map(runs.map((run) => [run.id, run]));
 
   return {

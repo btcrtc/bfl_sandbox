@@ -88,6 +88,8 @@ function runStepState(run: HistoryRun | null): StepState {
   if (!run) return 'idle';
   if (['queued', 'running'].includes(run.status)) return 'active';
   if (run.status === 'succeeded') return 'done';
+  // Keyless preview runs are saved as 'draft' — a neutral state, not a failure.
+  if (run.status === 'draft') return 'idle';
   return 'error';
 }
 
@@ -245,7 +247,7 @@ export function ScenesShell({
   }, [loadList]);
 
   const patchStoryboard = useCallback(
-    async (patch: Record<string, unknown>) => {
+    async (patch: Record<string, unknown>, options?: { apply?: boolean }) => {
       if (!activeId) return;
       try {
         const response = await fetch(`/api/storyboards/${encodeURIComponent(activeId)}`, {
@@ -255,7 +257,9 @@ export function ScenesShell({
         });
         const data = (await response.json()) as { storyboard?: StoryboardDto; error?: string };
         if (!response.ok || !data.storyboard) throw new Error(data.error);
-        setStoryboard(data.storyboard);
+        // apply:false keeps local state as-is — used for blur-saves that can
+        // race a concurrent breakdown (a late response must not revert it).
+        if (options?.apply !== false) setStoryboard(data.storyboard);
         void loadList();
       } catch (error) {
         setNotice({
@@ -557,6 +561,8 @@ export function ScenesShell({
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
       if (target?.isContentEditable) return;
+      // Dialogs, popovers and open dropdowns own their arrow keys.
+      if (document.querySelector('[role="dialog"], [role="listbox"], [role="menu"]')) return;
       const order = selectionOrderRef.current;
       const current = selectionRef.current;
       const currentIndex = order.findIndex((entry) =>
@@ -665,7 +671,7 @@ export function ScenesShell({
                           key={storyboard.id}
                           storyboard={storyboard}
                           busy={breakingDown}
-                          onSaveIdea={(idea) => void patchStoryboard({ idea })}
+                          onSaveIdea={(idea) => void patchStoryboard({ idea }, { apply: false })}
                           onWriteSequence={(idea, count) => void writeSequence(idea, count)}
                         />
                       )}
@@ -673,7 +679,6 @@ export function ScenesShell({
                         <SceneDetail
                           key={selectedScene.id}
                           scene={selectedScene}
-                          sceneCount={scenes.length}
                           boardSeed={storyboard.seed}
                           videoEnabled={videoEnabled}
                           busyStill={generatingScenes.has(selectedScene.id)}
@@ -1258,7 +1263,7 @@ function IdeaDetail({
 }) {
   const [idea, setIdea] = useState(storyboard.idea ?? '');
   const [sceneCount, setSceneCount] = useState('4');
-  const canWrite = idea.trim().length >= 10 && !busy;
+  const canWrite = idea.trim().length >= 10 && idea.length <= 2_000 && !busy;
 
   return (
     <Surface className="p-5">
@@ -1267,15 +1272,21 @@ function IdeaDetail({
         One paragraph: who, where, what happens. The sequence of shots is written from this —
         then every scene is yours to refine and render.
       </p>
-      <Textarea
-        value={idea}
-        onChange={(event) => setIdea(event.target.value)}
-        onBlur={() => {
-          if (idea.trim() !== (storyboard.idea ?? '')) onSaveIdea(idea.trim());
-        }}
-        placeholder="A lighthouse keeper discovers the light attracts something from the deep. Night storm, one lantern, the sea answering back…"
-        className="mt-3 min-h-28 max-w-2xl resize-none bg-background text-sm leading-5"
-      />
+      <div className="relative mt-3 max-w-2xl">
+        <Textarea
+          value={idea}
+          maxLength={2_000}
+          onChange={(event) => setIdea(event.target.value)}
+          onBlur={() => {
+            if (idea.trim() !== (storyboard.idea ?? '')) onSaveIdea(idea.trim());
+          }}
+          placeholder="A lighthouse keeper discovers the light attracts something from the deep. Night storm, one lantern, the sea answering back…"
+          className="min-h-28 resize-none bg-background pb-7 text-sm leading-5"
+        />
+        <span className="absolute bottom-2 right-2 font-mono text-[9px] text-muted-foreground">
+          {idea.length.toLocaleString()} / 2,000
+        </span>
+      </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Select value={sceneCount} onValueChange={(next) => next && setSceneCount(next)}>
           <SelectTrigger size="sm" className="h-8! w-28 text-[12px]">
@@ -1307,7 +1318,6 @@ type StageTab = 'still' | 'draft' | 'hd' | 'fhd';
 
 function SceneDetail({
   scene,
-  sceneCount,
   boardSeed,
   videoEnabled,
   busyStill,
@@ -1319,7 +1329,6 @@ function SceneDetail({
   onDelete,
 }: {
   scene: SceneDto;
-  sceneCount: number;
   boardSeed: number | null;
   videoEnabled: boolean;
   busyStill: boolean;
@@ -1392,10 +1401,8 @@ function SceneDetail({
                     aria-label="Delete scene"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => {
-                      if (
-                        sceneCount === 1 ||
-                        window.confirm('Delete this scene and its renders?')
-                      ) {
+                      const hasWork = Boolean(scene.run || scene.clips.length);
+                      if (!hasWork || window.confirm('Delete this scene and its renders?')) {
                         onDelete();
                       }
                     }}
@@ -1562,6 +1569,13 @@ function SceneStage({
       );
     } else if (runStepState(scene.run) === 'active') {
       content = <StagePlaceholder icon="spinner" text="Rendering the still…" />;
+    } else if (scene.run?.status === 'draft') {
+      content = (
+        <StagePlaceholder
+          icon="image"
+          text="Saved as a shared draft — add BFL_API_KEY on the deployment to render live."
+        />
+      );
     } else if (scene.run && scene.run.status !== 'succeeded') {
       content = <StagePlaceholder icon="alert" text={scene.run.errorMessage ?? 'Render failed.'} />;
     } else {

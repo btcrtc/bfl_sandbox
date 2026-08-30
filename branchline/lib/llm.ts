@@ -17,6 +17,13 @@ export async function breakdownIdea(input: {
   if (input.apiKey) {
     try {
       const breakdown = await mistralBreakdown(input.apiKey, input.idea, sceneCount);
+      // The model can return fewer usable scenes than requested; pad from the
+      // beat template so the board always matches the asked-for count.
+      if (breakdown.scenes.length < sceneCount) {
+        breakdown.scenes.push(
+          ...templateBreakdown(input.idea, sceneCount).scenes.slice(breakdown.scenes.length),
+        );
+      }
       return { source: 'mistral', breakdown };
     } catch {
       // Fall through to the template — a storyboard beats an error message.
