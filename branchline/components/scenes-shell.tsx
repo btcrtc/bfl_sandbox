@@ -1646,7 +1646,7 @@ function SceneStage({
     } else {
       content = <StagePlaceholder icon="image" text="No still yet — run step 1." />;
     }
-    meta = `FLUX.2 [pro] · ${scene.run?.status ?? 'not rendered'} · seed ${
+    meta = `${scene.run?.modelId ?? 'FLUX.2 [pro]'} · ${scene.run?.status ?? 'not rendered'} · seed ${
       effectiveSeed == null ? 'random' : effectiveSeed
     }${scene.run?.costCredits ? ` · ${formatCost(scene.run.costCredits)}` : ''}`;
   } else {
