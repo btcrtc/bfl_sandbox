@@ -28,6 +28,7 @@ import {
   History,
   Image as ImageIcon,
   Loader2,
+  Palette,
   Play,
   Plus,
   RefreshCw,
@@ -1709,6 +1710,103 @@ function ApiPayloadDialog({
   );
 }
 
+// Saves one output as a Look: the run's prompt becomes the style note, the
+// frame becomes the reference image a Scenes board applies in one move.
+function SaveLookControl({
+  run,
+  assetId,
+  seed,
+}: {
+  run: HistoryRun;
+  assetId: string;
+  seed: number | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const save = async () => {
+    if (!name.trim() || state === 'saving') return;
+    setState('saving');
+    try {
+      const response = await fetch('/api/looks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          styleNote: run.prompt,
+          seed,
+          modelId: run.modelId,
+          assetId,
+        }),
+      });
+      if (!response.ok) throw new Error();
+      setState('saved');
+      window.setTimeout(() => setOpen(false), 900);
+    } catch {
+      setState('error');
+    }
+  };
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setName('');
+          setState('idle');
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <button type="button" className="flex items-center gap-1 hover:text-foreground">
+            <Palette className="size-3" /> Save as Look
+          </button>
+        }
+      />
+      <PopoverContent align="end" className="w-72 p-3">
+        <p className="text-[12px] font-medium">Save as Look</p>
+        <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+          Prompt, seed and this frame become a reusable style any Scenes board applies in one
+          click.
+        </p>
+        <Input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void save();
+          }}
+          placeholder="Look name — e.g. Cobalt dawn brass"
+          maxLength={60}
+          className="mt-2 h-8 text-[12px]"
+          aria-label="Look name"
+        />
+        <div className="mt-2 flex items-center justify-between">
+          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+            {run.modelId}
+            {seed != null && ` · seed ${seed}`}
+          </span>
+          <Button size="xs" onClick={() => void save()} disabled={!name.trim() || state === 'saving'}>
+            {state === 'saving' ? (
+              <Loader2 className="animate-spin" />
+            ) : state === 'saved' ? (
+              <Check />
+            ) : (
+              <Palette />
+            )}
+            {state === 'saved' ? 'Saved' : 'Save look'}
+          </Button>
+        </div>
+        {state === 'error' && (
+          <p className="mt-1.5 text-[10px] text-destructive">Could not save — try again.</p>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function RunDetailDialog({
   run,
   onOpenChange,
@@ -1756,6 +1854,15 @@ function RunDetailDialog({
                   </span>
                   {asset && (
                     <span className="flex items-center gap-2.5">
+                      {!asset.mimeType.startsWith('video/') && (
+                        <SaveLookControl
+                          run={run}
+                          assetId={asset.id}
+                          seed={
+                            payload.seed != null ? (payload.seed + outputIndex) % 2 ** 32 : null
+                          }
+                        />
+                      )}
                       {!asset.mimeType.startsWith('video/') && (
                         <Link
                           href={`/scenes?pin=${encodeURIComponent(asset.id)}`}

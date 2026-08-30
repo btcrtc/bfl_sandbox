@@ -85,6 +85,27 @@ export const storyboards = sqliteTable(
   (table) => [index('storyboards_workspace_idx').on(table.workspaceId, table.createdAt)],
 );
 
+// A saved look: the style essence crafted in the Playground — style prompt,
+// seed, model and the rendered frame that proves it. Scenes boards apply a
+// look in one move (style note + seed + that frame as reference).
+export const looks = sqliteTable(
+  'looks',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by').notNull(),
+    name: text('name').notNull(),
+    styleNote: text('style_note').notNull(),
+    seed: integer('seed'),
+    modelId: text('model_id').notNull(),
+    assetId: text('asset_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [index('looks_workspace_idx').on(table.workspaceId, table.createdAt)],
+);
+
 // Up to three pinned reference images per storyboard (subject / style /
 // palette), sent to FLUX.2 as input_image, input_image_2, input_image_3.
 export const storyboardReferences = sqliteTable(

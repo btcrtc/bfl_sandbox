@@ -14,6 +14,7 @@ import {
   Images,
   Lightbulb,
   Loader2,
+  Palette,
   Play,
   Plus,
   RefreshCw,
@@ -68,6 +69,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { HistoryRun } from '@/db/history';
 import type { ClipDto, SceneDto, StoryboardDto, TakeDto } from '@/lib/storyboard-service';
+import type { LookDto } from '@/app/api/looks/route';
 
 type StoryboardListItem = { id: string; title: string; createdAt: number; updatedAt: number };
 
@@ -938,6 +940,7 @@ function BoardBar({
             {density === 'compact' ? 'Comfortable strip' : 'Compact strip'}
           </TooltipContent>
         </Tooltip>
+        <LooksChip onPatch={onPatch} />
         <ReferencesChip storyboard={storyboard} onPatch={onPatch} onOpenPicker={onOpenPicker} />
         <BoardSeedChip seed={storyboard.seed} onPatch={onPatch} />
         <StyleChip styleNote={storyboard.styleNote} onPatch={onPatch} />
@@ -958,6 +961,98 @@ function BoardBar({
         </Tooltip>
       </div>
     </div>
+  );
+}
+
+// Applies a saved Look (crafted in the Playground) to this board in one move:
+// style note + seed + the look's frame as reference image 1.
+function LooksChip({ onPatch }: { onPatch: (patch: Record<string, unknown>) => void }) {
+  const [open, setOpen] = useState(false);
+  const [looks, setLooks] = useState<LookDto[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setFailed(false);
+          void fetch('/api/looks', { cache: 'no-store' })
+            .then(async (response) => {
+              if (!response.ok) throw new Error();
+              const data = (await response.json()) as { looks: LookDto[] };
+              setLooks(data.looks);
+            })
+            .catch(() => setFailed(true));
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <button type="button" className={cn(parameterChipClass, 'h-8')}>
+            <Palette className="size-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Looks</span>
+          </button>
+        }
+      />
+      <PopoverContent align="end" className="w-80 gap-2 p-3">
+        <p className="text-[12px] font-medium">Apply a look</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          A look fills the board&apos;s style note and seed and pins its frame as reference 1 —
+          crafted in the Playground via &ldquo;Save as Look&rdquo;.
+        </p>
+        {failed && <p className="text-[11px] text-destructive">Could not load looks.</p>}
+        {!failed && looks == null && (
+          <p className="flex items-center gap-2 py-2 text-[11px] text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" /> Loading…
+          </p>
+        )}
+        {looks != null && looks.length === 0 && (
+          <p className="rounded-md border border-dashed p-2.5 text-[11px] leading-4 text-muted-foreground">
+            No looks yet. Iterate a frame in the Playground until the style sings, then save it
+            as a Look from the run detail.
+          </p>
+        )}
+        {looks != null && looks.length > 0 && (
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {looks.map((look) => (
+              <button
+                key={look.id}
+                type="button"
+                onClick={() => {
+                  onPatch({
+                    styleNote: look.styleNote,
+                    seed: look.seed,
+                    referenceAssetIds: [look.assetId],
+                  });
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2.5 rounded-md border bg-background p-1.5 text-left outline-none transition-colors hover:border-foreground/30 focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                <span className="block aspect-video w-16 shrink-0 overflow-hidden rounded border bg-muted">
+                  <NextImage
+                    src={look.assetUrl}
+                    alt={look.name}
+                    width={128}
+                    height={72}
+                    unoptimized
+                    className="size-full object-cover"
+                  />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[12px] font-medium">{look.name}</span>
+                  <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {look.modelId}
+                    {look.seed != null && ` · seed ${look.seed}`}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
