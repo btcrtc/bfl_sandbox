@@ -6,9 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       bfl_api_key:
-        description: BFL API key used only for this run
-        required: true
+        description: BFL API key for this run (leave empty to use the BFL_API_KEY repo secret)
+        required: false
         type: string
+  push:
+    paths:
+      - '.github/render-request'
 
 permissions:
   contents: write
@@ -18,14 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Mask key in logs
-        run: echo "::add-mask::${{ inputs.bfl_api_key }}"
+        run: echo "::add-mask::${{ inputs.bfl_api_key || secrets.BFL_API_KEY }}"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Render stills with FLUX.2 [max]
         env:
-          BFL_API_KEY: ${{ inputs.bfl_api_key }}
+          BFL_API_KEY: ${{ inputs.bfl_api_key || secrets.BFL_API_KEY }}
         run: node branchline/scripts/render-example-stills.mjs
       - name: Commit and push
         run: |
