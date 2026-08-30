@@ -6,6 +6,7 @@ import {
   storyboardClips,
   storyboardReferences,
   storyboardScenes,
+  storyboardSubtitles,
   storyboards,
   storyboardTakes,
 } from '@/db/schema';
@@ -28,6 +29,16 @@ export type TakeDto = {
   run: HistoryRun | null;
 };
 
+export type SubtitleDto = {
+  id: string;
+  clipId: string | null;
+  startMs: number;
+  endMs: number;
+  text: string;
+  speaker: string | null;
+  language: string;
+};
+
 export type SceneDto = {
   id: string;
   sceneIndex: number;
@@ -39,6 +50,7 @@ export type SceneDto = {
   run: HistoryRun | null;
   takes: TakeDto[];
   clips: ClipDto[];
+  subtitles: SubtitleDto[];
 };
 
 export type StoryboardDto = {
@@ -110,7 +122,7 @@ export async function getStoryboard(
     .limit(1);
   if (!row || row.workspaceId !== workspaceId) return null;
 
-  const [sceneRows, referenceRows, clipRows, takeRows] = await Promise.all([
+  const [sceneRows, referenceRows, clipRows, takeRows, subtitleRows] = await Promise.all([
     db
       .select()
       .from(storyboardScenes)
@@ -131,6 +143,11 @@ export async function getStoryboard(
       .from(storyboardTakes)
       .where(eq(storyboardTakes.storyboardId, storyboardId))
       .orderBy(asc(storyboardTakes.createdAt)),
+    db
+      .select()
+      .from(storyboardSubtitles)
+      .where(eq(storyboardSubtitles.storyboardId, storyboardId))
+      .orderBy(asc(storyboardSubtitles.startMs)),
   ]);
 
   // Scene stills, takes and clips reuse the shared generation pipeline;
@@ -174,6 +191,17 @@ export async function getStoryboard(
           sourceClipId: clip.sourceClipId,
           createdAt: clip.createdAt,
           run: runsById.get(clip.generationId) ?? null,
+        })),
+      subtitles: subtitleRows
+        .filter((cue) => cue.sceneId === scene.id)
+        .map((cue) => ({
+          id: cue.id,
+          clipId: cue.clipId,
+          startMs: cue.startMs,
+          endMs: cue.endMs,
+          text: cue.text,
+          speaker: cue.speaker,
+          language: cue.language,
         })),
     })),
   };

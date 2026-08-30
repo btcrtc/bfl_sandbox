@@ -4,7 +4,13 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardClips, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
+import {
+  storyboardClips,
+  storyboardScenes,
+  storyboardSubtitles,
+  storyboards,
+  storyboardTakes,
+} from '@/db/schema';
 
 async function loadScene(workspaceId: string, storyboardId: string, sceneId: string) {
   const db = getDb();
@@ -104,6 +110,7 @@ export async function DELETE(
   const db = getDb();
   await db.batch([
     db.delete(storyboardClips).where(eq(storyboardClips.sceneId, sceneId)),
+    db.delete(storyboardSubtitles).where(eq(storyboardSubtitles.sceneId, sceneId)),
     db.delete(storyboardTakes).where(eq(storyboardTakes.sceneId, sceneId)),
     db.delete(storyboardScenes).where(eq(storyboardScenes.id, sceneId)),
   ]);

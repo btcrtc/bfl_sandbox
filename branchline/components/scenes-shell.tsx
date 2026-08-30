@@ -4,6 +4,7 @@ import NextImage from 'next/image';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Check,
+  Captions,
   ChevronRight,
   Clapperboard,
   Copy,
@@ -68,7 +69,13 @@ import {
 } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
 import type { HistoryRun } from '@/db/history';
-import type { ClipDto, SceneDto, StoryboardDto, TakeDto } from '@/lib/storyboard-service';
+import type {
+  ClipDto,
+  SceneDto,
+  StoryboardDto,
+  SubtitleDto,
+  TakeDto,
+} from '@/lib/storyboard-service';
 import type { LookDto } from '@/app/api/looks/route';
 
 type StoryboardListItem = { id: string; title: string; createdAt: number; updatedAt: number };
@@ -551,6 +558,31 @@ export function ScenesShell({
     [activeId, loadStoryboard, markVideoBusy],
   );
 
+  const saveSubtitles = useCallback(
+    async (
+      sceneId: string,
+      clipId: string | null,
+      cues: Array<Omit<SubtitleDto, 'id' | 'clipId'>>,
+    ) => {
+      if (!activeId) return;
+      const response = await fetch(
+        `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}/subtitles`,
+        {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ clipId, cues }),
+        },
+      );
+      const data = (await response.json()) as { storyboard?: StoryboardDto; error?: string };
+      if (!response.ok || !data.storyboard) {
+        throw new Error(data.error || 'Could not save subtitles.');
+      }
+      setStoryboard(data.storyboard);
+      setNotice({ tone: 'info', text: 'Subtitle timing saved to the shared storyboard.' });
+    },
+    [activeId],
+  );
+
   useEffect(() => {
     if (!storyboard || !pendingPinRef.current) return;
     const assetId = pendingPinRef.current;
@@ -788,7 +820,11 @@ export function ScenesShell({
                           assembling={assembling}
                           onAssemble={() => void assembleReel()}
                           onNotice={(text) => setNotice({ tone: 'info', text })}
-                          onSelectScene={(id) => setRawSelection({ kind: 'scene', id })}
+                          busyScenes={videoBusyScenes}
+                          onDraftClip={(sceneId) => void draftClip(sceneId)}
+                          onEnhance={(sceneId, tier) => void enhanceClip(sceneId, tier)}
+                          onSaveSubtitles={saveSubtitles}
+                          onOpenScene={(id) => setRawSelection({ kind: 'scene', id })}
                           onTrim={(sceneId, durationSec) =>
                             void patchScene(sceneId, { durationSec })
                           }
@@ -2329,17 +2365,20 @@ function clampDuration(value: number) {
 }
 
 // One scene on the timeline: width encodes duration, the right edge is a drag
-// handle that trims it (arrow keys work too), the body jumps back to the
-// scene's notes.
+// handle that trims it (arrow keys work too), and the body selects the clip
+// inside the reel editor. Opening the source scene is an explicit action in
+// the active-video panel, so selecting a sub-video never throws the editor away.
 function TimelineBlock({
   scene,
   playing,
+  selected,
   onSelect,
   onTrim,
 }: {
   scene: SceneDto;
   playing: boolean;
-  onSelect: () => void;
+  selected: boolean;
+  onSelect: (clipId: string | null) => void;
   onTrim: (durationSec: number) => void;
 }) {
   const [dragDur, setDragDur] = useState<number | null>(null);
@@ -2354,15 +2393,16 @@ function TimelineBlock({
     <div
       className={cn(
         'relative h-20 shrink-0 overflow-hidden rounded-md border bg-muted transition-all',
-        playing && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+        selected && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+        playing && 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-[var(--brand)]',
       )}
       style={{ width: durationSec * TIMELINE_PX_PER_SEC }}
     >
       <button
         type="button"
-        onClick={onSelect}
+        onClick={() => onSelect(clip?.id ?? null)}
         className="absolute inset-0 z-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        aria-label={`Scene ${String(scene.sceneIndex + 1).padStart(2, '0')}: ${scene.title}`}
+        aria-label={`Select ${clip ? `${clip.tier} video` : 'still'} for scene ${String(scene.sceneIndex + 1).padStart(2, '0')}: ${scene.title}`}
       />
       <div className="pointer-events-none relative z-[1] size-full">
         {clipAsset ? (
@@ -2441,6 +2481,194 @@ function TimelineBlock({
   );
 }
 
+type EditableSubtitle = Omit<SubtitleDto, 'id' | 'clipId'> & { id?: string };
+
+function SubtitleEditor({
+  scene,
+  clipId,
+  onSave,
+}: {
+  scene: SceneDto;
+  clipId: string | null;
+  onSave: (
+    sceneId: string,
+    clipId: string | null,
+    cues: Array<Omit<SubtitleDto, 'id' | 'clipId'>>,
+  ) => Promise<void>;
+}) {
+  const scoped = scene.subtitles.filter((cue) => cue.clipId === clipId);
+  const inherited = clipId ? scene.subtitles.filter((cue) => cue.clipId === null) : [];
+  const source = scoped.length ? scoped : inherited;
+  const [cues, setCues] = useState<EditableSubtitle[]>(() =>
+    source.map(({ id, startMs, endMs, text, speaker, language }) => ({
+      ...(scoped.length ? { id } : {}),
+      startMs,
+      endMs,
+      text,
+      speaker,
+      language,
+    })),
+  );
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const exact = scene.subtitles.filter((cue) => cue.clipId === clipId);
+    const fallback = clipId ? scene.subtitles.filter((cue) => cue.clipId === null) : [];
+    const next = exact.length ? exact : fallback;
+    const timeout = window.setTimeout(
+      () =>
+        setCues(
+          next.map(({ id, startMs, endMs, text, speaker, language }) => ({
+            ...(exact.length ? { id } : {}),
+            startMs,
+            endMs,
+            text,
+            speaker,
+            language,
+          })),
+        ),
+      0,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [clipId, scene.id, scene.subtitles]);
+
+  const addCue = () => {
+    const previousEnd = cues.at(-1)?.endMs ?? 0;
+    const startMs = Math.min(previousEnd + (previousEnd ? 100 : 400), scene.durationSec * 1_000 - 500);
+    setCues((current) => [
+      ...current,
+      {
+        startMs: Math.max(0, startMs),
+        endMs: Math.min(scene.durationSec * 1_000, Math.max(startMs + 500, startMs + 2_000)),
+        text: '',
+        speaker: null,
+        language: 'de',
+      },
+    ]);
+  };
+
+  const commit = async () => {
+    setSaving(true);
+    try {
+      await onSave(
+        scene.id,
+        clipId,
+        cues
+          .filter((cue) => cue.text.trim())
+          .map(({ startMs, endMs, text, speaker, language }) => ({
+            startMs: Math.max(0, Math.round(startMs)),
+            endMs: Math.min(scene.durationSec * 1_000, Math.round(endMs)),
+            text: text.trim(),
+            speaker: speaker?.trim() || null,
+            language: language || 'de',
+          })),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <Captions className="size-3.5" />
+          <SystemLabel>Subtitles</SystemLabel>
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground">
+            {clipId ? 'clip override' : 'scene master'}
+          </span>
+        </div>
+        <Button variant="ghost" size="xs" onClick={addCue}>
+          <Plus /> Cue
+        </Button>
+      </div>
+      <div className="mt-2 max-h-52 space-y-2 overflow-y-auto pr-1">
+        {cues.length === 0 && (
+          <button
+            type="button"
+            onClick={addCue}
+            className="w-full rounded-md border border-dashed px-2 py-3 text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            Add the first timed cue
+          </button>
+        )}
+        {cues.map((cue, index) => (
+          <div key={cue.id ?? `new-${index}`} className="rounded-md border bg-muted/30 p-2">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Input
+                aria-label="Subtitle start time in seconds"
+                value={(cue.startMs / 1_000).toFixed(1)}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  if (!Number.isFinite(value)) return;
+                  setCues((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, startMs: value * 1_000 } : item,
+                    ),
+                  );
+                }}
+                className="h-7 w-14 px-1.5 font-mono text-[10px]"
+              />
+              <span className="text-[9px] text-muted-foreground">→</span>
+              <Input
+                aria-label="Subtitle end time in seconds"
+                value={(cue.endMs / 1_000).toFixed(1)}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  if (!Number.isFinite(value)) return;
+                  setCues((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, endMs: value * 1_000 } : item,
+                    ),
+                  );
+                }}
+                className="h-7 w-14 px-1.5 font-mono text-[10px]"
+              />
+              <Input
+                aria-label="Speaker"
+                value={cue.speaker ?? ''}
+                onChange={(event) =>
+                  setCues((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, speaker: event.target.value } : item,
+                    ),
+                  )
+                }
+                placeholder="Speaker"
+                className="h-7 min-w-0 flex-1 px-1.5 text-[10px]"
+              />
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Remove subtitle cue"
+                onClick={() => setCues((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+            <Textarea
+              value={cue.text}
+              onChange={(event) =>
+                setCues((current) =>
+                  current.map((item, itemIndex) =>
+                    itemIndex === index ? { ...item, text: event.target.value } : item,
+                  ),
+                )
+              }
+              rows={2}
+              maxLength={240}
+              className="min-h-14 resize-none bg-background px-2 py-1.5 text-[11px] leading-4"
+            />
+          </div>
+        ))}
+      </div>
+      <Button className="mt-2 w-full" size="sm" onClick={() => void commit()} disabled={saving}>
+        {saving ? <Loader2 className="animate-spin" /> : <Check />} Save subtitle track
+      </Button>
+    </div>
+  );
+}
+
 function ReelDetail({
   storyboard,
   totalSeconds,
@@ -2449,7 +2677,11 @@ function ReelDetail({
   assembling,
   onAssemble,
   onNotice,
-  onSelectScene,
+  busyScenes,
+  onDraftClip,
+  onEnhance,
+  onSaveSubtitles,
+  onOpenScene,
   onTrim,
 }: {
   storyboard: StoryboardDto;
@@ -2459,10 +2691,51 @@ function ReelDetail({
   assembling: boolean;
   onAssemble: () => void;
   onNotice: (text: string) => void;
-  onSelectScene: (id: string) => void;
+  busyScenes: Set<string>;
+  onDraftClip: (sceneId: string) => void;
+  onEnhance: (sceneId: string, tier: 'hd' | 'fhd') => void;
+  onSaveSubtitles: (
+    sceneId: string,
+    clipId: string | null,
+    cues: Array<Omit<SubtitleDto, 'id' | 'clipId'>>,
+  ) => Promise<void>;
+  onOpenScene: (id: string) => void;
   onTrim: (sceneId: string, durationSec: number) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const initialScene = storyboard.scenes[0] ?? null;
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(initialScene?.id ?? null);
+  const [activeClipId, setActiveClipId] = useState<string | null>(
+    initialScene ? latestClip(initialScene, ['fhd', 'hd', 'draft'])?.id ?? null : null,
+  );
+
+  const activeScene =
+    storyboard.scenes.find((scene) => scene.id === activeSceneId) ?? storyboard.scenes[0] ?? null;
+  const activeClip =
+    activeScene && activeClipId
+      ? (activeScene.clips.find((clip) => clip.id === activeClipId) ?? null)
+      : null;
+
+  useEffect(() => {
+    if (!activeScene) {
+      const timeout = window.setTimeout(() => {
+        setActiveSceneId(storyboard.scenes[0]?.id ?? null);
+        setActiveClipId(
+          storyboard.scenes[0]
+            ? latestClip(storyboard.scenes[0], ['fhd', 'hd', 'draft'])?.id ?? null
+            : null,
+        );
+      }, 0);
+      return () => window.clearTimeout(timeout);
+    }
+    if (activeClipId && !activeScene.clips.some((clip) => clip.id === activeClipId)) {
+      const timeout = window.setTimeout(
+        () => setActiveClipId(latestClip(activeScene, ['fhd', 'hd', 'draft'])?.id ?? null),
+        0,
+      );
+      return () => window.clearTimeout(timeout);
+    }
+  }, [activeClipId, activeScene, storyboard.scenes]);
 
   // Animatic: play the cut in real time — scenes with a finished clip play
   // the video, the rest hold their still for the scene duration. The edit
@@ -2515,7 +2788,35 @@ function ReelDetail({
           ]
         : [];
     });
-  const previewItem = playingItem ?? buildPlaylist()[0] ?? null;
+  const activeStill = activeScene?.run?.assets[0];
+  const activeClipAsset =
+    activeClip?.run?.status === 'succeeded' ? activeClip.run.assets[0] : undefined;
+  const selectedPreview =
+    activeScene && (activeStill || activeClipAsset)
+      ? {
+          id: activeScene.id,
+          url: activeStill?.url ?? '',
+          clipUrl: activeClipAsset?.url ?? null,
+          title: activeScene.title,
+          sceneIndex: activeScene.sceneIndex,
+          durationSec: activeScene.durationSec,
+        }
+      : null;
+  const previewItem = playingItem ?? selectedPreview ?? buildPlaylist()[0] ?? null;
+  const previewScene = previewItem
+    ? (storyboard.scenes.find((scene) => scene.id === previewItem.id) ?? null)
+    : null;
+  const previewClipId = playingItem
+    ? previewScene
+      ? latestClip(previewScene, ['fhd', 'hd', 'draft'])?.id ?? null
+      : null
+    : activeClip?.id ?? null;
+  const previewSubtitles = previewScene
+    ? (() => {
+        const exact = previewScene.subtitles.filter((cue) => cue.clipId === previewClipId);
+        return exact.length ? exact : previewScene.subtitles.filter((cue) => cue.clipId === null);
+      })()
+    : [];
 
   const startAnimatic = () => {
     const items = buildPlaylist();
@@ -2558,6 +2859,7 @@ function ReelDetail({
         prompt: scene.prompt,
         durationSec: scene.durationSec,
         seed: scene.seed,
+        subtitles: scene.subtitles,
       })),
     };
     try {
@@ -2602,7 +2904,8 @@ function ReelDetail({
       </div>
 
       {previewItem && (
-        <div className="relative mt-4 aspect-video w-full max-w-4xl overflow-hidden rounded-lg border bg-muted">
+        <div className="mt-4 grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-muted">
           {playingItem ? (
             playingItem.clipUrl ? (
               <video
@@ -2655,6 +2958,14 @@ function ReelDetail({
                 <Play className="ml-0.5 size-6" />
               </span>
             </button>
+          )}
+          {previewSubtitles[0] && (
+            <div className="pointer-events-none absolute inset-x-[12%] bottom-14 z-20 text-center">
+              <span className="inline rounded bg-black/72 px-2 py-1 text-[13px] leading-6 text-white shadow-lg [box-decoration-break:clone]">
+                {previewSubtitles[0].speaker ? `${previewSubtitles[0].speaker}: ` : ''}
+                {previewSubtitles[0].text}
+              </span>
+            </div>
           )}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/95 to-transparent p-2.5 pt-8">
             <div className="flex items-center gap-2">
@@ -2716,6 +3027,101 @@ function ReelDetail({
             </div>
           </div>
         </div>
+        {activeScene && (
+          <aside className="rounded-lg border bg-background p-3 shadow-xs xl:max-h-[min(570px,calc(100svh-250px))] xl:overflow-y-auto">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <SystemLabel>Active video</SystemLabel>
+                <p className="mt-1 truncate text-[13px] font-medium">
+                  {String(activeScene.sceneIndex + 1).padStart(2, '0')} · {activeScene.title}
+                </p>
+                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {activeClip ? `${activeClip.tier} clip` : 'source still'} · {activeScene.durationSec}s
+                </p>
+              </div>
+              <span className="size-2 shrink-0 rounded-full bg-[var(--brand)] shadow-[0_0_0_4px_var(--brand-soft)]" />
+            </div>
+
+            <div className="mt-3">
+              <SystemLabel>Versions</SystemLabel>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveClipId(null)}
+                  className={cn(
+                    'rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                    !activeClip && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+                  )}
+                >
+                  <span className="block font-mono text-[9px] uppercase tracking-wider">Still</span>
+                  <span className="block truncate text-[10px] text-muted-foreground">Master frame</span>
+                </button>
+                {activeScene.clips.map((clip) => (
+                  <button
+                    key={clip.id}
+                    type="button"
+                    onClick={() => setActiveClipId(clip.id)}
+                    className={cn(
+                      'rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                      activeClip?.id === clip.id && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+                    )}
+                  >
+                    <span className="block font-mono text-[9px] uppercase tracking-wider">
+                      {clip.tier}
+                    </span>
+                    <span className="block truncate text-[10px] text-muted-foreground">
+                      {clip.run?.status ?? 'rendering'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => onOpenScene(activeScene.id)}>
+                Open source scene
+              </Button>
+              {videoEnabled && !activeScene.clips.some((clip) => clip.tier === 'draft') && (
+                <Button
+                  size="sm"
+                  onClick={() => onDraftClip(activeScene.id)}
+                  disabled={busyScenes.has(activeScene.id) || !activeStill}
+                >
+                  {busyScenes.has(activeScene.id) ? <Loader2 className="animate-spin" /> : <Play />}
+                  Draft video
+                </Button>
+              )}
+              {videoEnabled && activeScene.clips.some((clip) => clip.tier === 'draft') && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEnhance(activeScene.id, 'hd')}
+                    disabled={busyScenes.has(activeScene.id)}
+                  >
+                    Enhance HD
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEnhance(activeScene.id, 'fhd')}
+                    disabled={busyScenes.has(activeScene.id)}
+                  >
+                    Enhance FHD
+                  </Button>
+                </>
+              )}
+            </div>
+
+            <SubtitleEditor
+              key={`${activeScene.id}:${activeClip?.id ?? 'master'}`}
+              scene={activeScene}
+              clipId={activeClip?.id ?? null}
+              onSave={onSaveSubtitles}
+            />
+          </aside>
+        )}
+        </div>
       )}
 
       {storyboard.scenes.length > 0 && (
@@ -2752,47 +3158,21 @@ function ReelDetail({
                   key={scene.id}
                   scene={scene}
                   playing={playingItem?.id === scene.id}
-                  onSelect={() => onSelectScene(scene.id)}
+                  selected={activeScene?.id === scene.id}
+                  onSelect={(clipId) => {
+                    setActiveSceneId(scene.id);
+                    setActiveClipId(clipId);
+                    stopAnimatic();
+                  }}
                   onTrim={(durationSec) => onTrim(scene.id, durationSec)}
                 />
               ))}
             </div>
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Drag a block&apos;s right edge to trim its duration · click a block to open the scene ·
-            click a segment in the player bar to play from there.
+            Drag the right edge to trim · click a block to select its active clip and keep editing ·
+            use Open source scene only when you want to leave the reel.
           </p>
-        </div>
-      )}
-
-      {storyboard.scenes.length > 0 && (
-        <div className="mt-4 space-y-1.5">
-          {storyboard.scenes.map((scene) => {
-            const steps = sceneSteps(scene);
-            const bestClip = latestClip(scene, ['fhd', 'hd', 'draft']);
-            return (
-              <div
-                key={scene.id}
-                className="flex items-center gap-3 rounded-md border bg-background px-2.5 py-1.5"
-              >
-                <span className="w-16 shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
-                  Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[12px]">{scene.title}</span>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {scene.durationSec}s
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <StepDot label="Still" state={steps.still} />
-                  <StepDot label="Draft clip" state={videoEnabled ? steps.draft : 'idle'} />
-                  <StepDot label="Enhanced" state={videoEnabled ? steps.enhance : 'idle'} />
-                </span>
-                <span className="w-14 text-right font-mono text-[10px] uppercase text-muted-foreground">
-                  {bestClip ? bestClip.tier : steps.still === 'done' ? 'still' : '—'}
-                </span>
-              </div>
-            );
-          })}
         </div>
       )}
 

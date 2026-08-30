@@ -9,6 +9,7 @@ import {
   generations,
   storyboards,
   storyboardScenes,
+  storyboardSubtitles,
   storyboardTakes,
 } from '@/db/schema';
 import { EXAMPLE_BOARD, EXAMPLE_STILL, type ExampleScene } from '@/lib/example-board';
@@ -49,7 +50,7 @@ async function registerExampleStill(input: {
         width: EXAMPLE_STILL.width,
         height: EXAMPLE_STILL.height,
         seed,
-        output_format: 'jpeg',
+        output_format: 'webp',
         prompt_upsampling: false,
       }),
       outputCount: 1,
@@ -70,7 +71,7 @@ async function registerExampleStill(input: {
       jobId,
       kind: 'image',
       r2Key,
-      mimeType: 'image/jpeg',
+      mimeType: 'image/webp',
       width: EXAMPLE_STILL.width,
       height: EXAMPLE_STILL.height,
       createdAt: now,
@@ -104,6 +105,38 @@ export async function POST() {
     generationId,
     createdAt: now,
   }));
+  const sceneRows = EXAMPLE_BOARD.scenes.map((scene, sceneIndex) => ({
+    id: sceneIds[sceneIndex],
+    storyboardId,
+    sceneIndex,
+    title: scene.title,
+    prompt: scene.prompt,
+    durationSec: scene.durationSec,
+    seed: EXAMPLE_BOARD.seed + sceneIndex,
+    generationId: generationIds[sceneIndex],
+    createdAt: now,
+    updatedAt: now,
+  }));
+  const subtitleRows = EXAMPLE_BOARD.scenes.map((scene, sceneIndex) => ({
+    id: crypto.randomUUID(),
+    storyboardId,
+    sceneId: sceneIds[sceneIndex],
+    clipId: null,
+    startMs: 400,
+    endMs: Math.min(scene.durationSec * 1_000 - 250, 3_800),
+    text: scene.subtitle.text,
+    speaker: scene.subtitle.speaker,
+    language: 'de',
+    createdAt: now,
+    updatedAt: now,
+  }));
+  // D1 caps bound variables per SQL statement. Ten cinematic frames exceed
+  // that cap when emitted as one multi-row insert, so keep each statement
+  // deliberately small while retaining a single batched round trip.
+  const chunks = <T,>(rows: T[], size: number) =>
+    Array.from({ length: Math.ceil(rows.length / size) }, (_, index) =>
+      rows.slice(index * size, index * size + size),
+    );
   await db.batch([
     db.insert(storyboards).values({
       id: storyboardId,
@@ -116,21 +149,9 @@ export async function POST() {
       createdAt: now,
       updatedAt: now,
     }),
-    db.insert(storyboardScenes).values(
-      EXAMPLE_BOARD.scenes.map((scene, sceneIndex) => ({
-        id: sceneIds[sceneIndex],
-        storyboardId,
-        sceneIndex,
-        title: scene.title,
-        prompt: scene.prompt,
-        durationSec: scene.durationSec,
-        seed: EXAMPLE_BOARD.seed + sceneIndex,
-        generationId: generationIds[sceneIndex],
-        createdAt: now,
-        updatedAt: now,
-      })),
-    ),
-    ...(takeRows.length ? [db.insert(storyboardTakes).values(takeRows)] : []),
+    ...chunks(sceneRows, 4).map((rows) => db.insert(storyboardScenes).values(rows)),
+    ...chunks(takeRows, 8).map((rows) => db.insert(storyboardTakes).values(rows)),
+    ...chunks(subtitleRows, 4).map((rows) => db.insert(storyboardSubtitles).values(rows)),
   ]);
 
   return NextResponse.json({ id: storyboardId }, { status: 201 });

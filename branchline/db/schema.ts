@@ -142,6 +142,29 @@ export const storyboardClips = sqliteTable(
   (table) => [index('storyboard_clips_scene_idx').on(table.sceneId, table.createdAt)],
 );
 
+// Timed dialogue/caption cues are first-class edit data. A cue can follow the
+// scene's active cut (clip_id = null), or be authored for one concrete clip
+// version when draft/HD/FHD timing differs.
+export const storyboardSubtitles = sqliteTable(
+  'storyboard_subtitles',
+  {
+    id: text('id').primaryKey(),
+    storyboardId: text('storyboard_id')
+      .notNull()
+      .references(() => storyboards.id, { onDelete: 'cascade' }),
+    sceneId: text('scene_id').notNull(),
+    clipId: text('clip_id'),
+    startMs: integer('start_ms').notNull().default(0),
+    endMs: integer('end_ms').notNull(),
+    text: text('text').notNull(),
+    speaker: text('speaker'),
+    language: text('language').notNull().default('en'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('storyboard_subtitles_scene_idx').on(table.sceneId, table.startMs)],
+);
+
 // Every rendered still for a scene is kept as a take; the scene's
 // generation_id points at the active one, so re-renders branch instead of
 // overwriting.

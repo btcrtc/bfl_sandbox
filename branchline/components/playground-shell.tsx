@@ -14,18 +14,19 @@ import {
 import {
   ArrowRight,
   Box,
+  Camera,
   Check,
   ChevronDown,
   CircleX,
   Clapperboard,
   Cloud,
   Code2,
-  Command,
   Copy,
   Dices,
   Download,
   Ellipsis,
   History,
+  GitBranch,
   Image as ImageIcon,
   Loader2,
   Palette,
@@ -146,9 +147,9 @@ const nodes: Array<{
   icon: typeof WandSparkles;
   position: string;
 }> = [
-  { id: 'prompt', eyebrow: 'INPUT', icon: WandSparkles, position: 'left-[3%] top-[32%]' },
-  { id: 'model', eyebrow: 'MODEL', icon: Box, position: 'left-[38%] top-[46%]' },
-  { id: 'generate', eyebrow: 'ACTION', icon: Play, position: 'right-[3%] top-[32%]' },
+  { id: 'prompt', eyebrow: 'STORY BEAT', icon: WandSparkles, position: 'left-[3%] top-[10%]' },
+  { id: 'model', eyebrow: 'VISUAL GRAMMAR', icon: Box, position: 'left-[39.5%] top-[10%]' },
+  { id: 'generate', eyebrow: 'MASTER FRAME', icon: Play, position: 'right-[3%] top-[10%]' },
 ];
 
 const inspectorCopy: Record<NodeId, { label: string; title: string; description: string }> = {
@@ -180,6 +181,13 @@ type RunPayload = {
   promptUpsampling: boolean;
   seed: number | null;
   guidance: number | null;
+};
+
+type BranchRequest = {
+  parentRunId: string;
+  parentAssetId: string;
+  variationType: 'object' | 'camera';
+  variationLabel: string;
 };
 
 function randomSeed() {
@@ -237,6 +245,79 @@ function buildCurl(payload: RunPayload) {
     `  -H "x-key: $BFL_API_KEY" \\`,
     `  -d '${JSON.stringify(buildBflBody(payload), null, 2).replaceAll("'", "'\\''")}'`,
   ].join('\n');
+}
+
+function FrameBranchCard({
+  eyebrow,
+  label,
+  note,
+  image,
+  run,
+  icon: Icon,
+  actionLabel,
+  disabled,
+  onAction,
+  onOpen,
+}: {
+  eyebrow: string;
+  label: string;
+  note: string;
+  image: string;
+  run: HistoryRun | null;
+  icon: typeof Camera;
+  actionLabel: string;
+  disabled?: boolean;
+  onAction: () => void;
+  onOpen?: () => void;
+}) {
+  const asset = run?.assets[0];
+  const inFlight = run && ['queued', 'running'].includes(run.status);
+  return (
+    <article
+      className={cn(
+        'group overflow-hidden rounded-lg border bg-background shadow-xs transition-colors',
+        run && 'border-foreground/25',
+      )}
+    >
+      <button
+        type="button"
+        onClick={run && onOpen ? onOpen : onAction}
+        className="relative block aspect-[2.13/1] w-full overflow-hidden bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+      >
+        <NextImage
+          src={asset?.url ?? image}
+          alt=""
+          fill
+          unoptimized
+          className={cn('object-cover transition-transform duration-300 group-hover:scale-[1.02]', !asset && 'opacity-65')}
+        />
+        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-5 font-mono text-[8px] uppercase tracking-wider text-white/90">
+          {run ? (inFlight ? run.status : 'generated branch') : 'planned branch'}
+        </span>
+      </button>
+      <div className="p-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+            {eyebrow}
+          </span>
+          <Icon className="size-3 text-muted-foreground" />
+        </div>
+        <p className="mt-0.5 truncate text-[11px] font-medium">{label}</p>
+        <p className="mt-0.5 line-clamp-2 text-[9px] leading-3.5 text-muted-foreground">{note}</p>
+        {!run && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="mt-1.5 w-full justify-start px-1.5"
+            onClick={onAction}
+            disabled={disabled}
+          >
+            <Plus /> {actionLabel}
+          </Button>
+        )}
+      </div>
+    </article>
+  );
 }
 
 const fallbackHistory: HistoryRun[] = [
@@ -300,6 +381,7 @@ export function PlaygroundShell({
   const [apiPayloadOpen, setApiPayloadOpen] = useState(false);
   const [lastRunAt, setLastRunAt] = useState<number | null>(null);
   const [highlightRunId, setHighlightRunId] = useState<string | null>(null);
+  const [branchingRunId, setBranchingRunId] = useState<string | null>(null);
 
   const dimensions = aspectOptions.find((option) => option.value === aspect) ?? aspectOptions[1];
   const selected = inspectorCopy[selectedNode];
@@ -455,7 +537,7 @@ export function PlaygroundShell({
   );
 
   const runWorkflow = useCallback(
-    async (payload?: RunPayload) => {
+    async (payload?: RunPayload, branch?: BranchRequest) => {
       if (isRunning) return;
       const body = payload ?? buildPayload();
       if (body.prompt.trim().length < 3) return;
@@ -465,19 +547,30 @@ export function PlaygroundShell({
         const response = await fetch('/api/generations', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ ...body, ...branch }),
         });
         const data = (await response.json()) as { id?: string; mode?: string; error?: string };
         if (!response.ok || !data.id) throw new Error(data.error || 'Could not create the run.');
         setLastRunAt(Date.now());
+        if (!branch) setBranchingRunId(data.id);
         setHistoryOpen(true);
         setHighlightRunId(data.id);
         window.setTimeout(() => setHighlightRunId((current) => (current === data.id ? null : current)), 6_000);
         await refreshHistory();
         setRunMessage(
           data.mode === 'preview'
-            ? { tone: 'info', text: 'Shared draft saved. Add BFL_API_KEY to enable live output.' }
-            : { tone: 'info', text: 'Live generation started. Results stream into the history panel.' },
+            ? {
+                tone: 'info',
+                text: branch
+                  ? 'Variation branch saved. Add BFL_API_KEY to render it live.'
+                  : 'Shared master frame saved. Add BFL_API_KEY to enable live output.',
+              }
+            : {
+                tone: 'info',
+                text: branch
+                  ? 'Variation is rendering from its parent frame.'
+                  : 'Live master frame started. Results stream into the history panel.',
+              },
         );
         if (data.mode === 'live') pollRunRef.current(data.id);
       } catch (error) {
@@ -525,6 +618,44 @@ export function PlaygroundShell({
       void runWorkflow(payload);
     },
     [applyRunToInspector, runWorkflow],
+  );
+
+  const createFrameVariation = useCallback(
+    (
+      parent: HistoryRun | null,
+      variationType: 'object' | 'camera',
+      variationLabel: string,
+      direction: string,
+    ) => {
+      const parentAsset = parent?.assets[0];
+      if (!parent || !parentAsset) {
+        setRunMessage({
+          tone: 'info',
+          text: 'Render the parent frame first — each branch keeps its visual continuity.',
+        });
+        return;
+      }
+      const payload = payloadFromRun(parent);
+      payload.outputs = 1;
+      payload.seed = randomSeed();
+      payload.prompt = [
+        parent.prompt,
+        '',
+        `Director branch — ${variationLabel}: ${direction}`,
+        variationType === 'object'
+          ? 'Preserve the camera, lens, light direction, palette and geography. Change only the staged subject or production-design element described above.'
+          : 'Preserve the subjects, wardrobe, production design, lighting continuity and story beat. Change only the camera position, lens and blocking described above.',
+      ].join('\n');
+      setPrompt(payload.prompt);
+      setSeed(payload.seed);
+      void runWorkflow(payload, {
+        parentRunId: parent.id,
+        parentAssetId: parentAsset.id,
+        variationType,
+        variationLabel,
+      });
+    },
+    [runWorkflow],
   );
 
   const copyToClipboard = useCallback(async (text: string, note: string) => {
@@ -584,6 +715,28 @@ export function PlaygroundShell({
     [model, dimensions, outputs],
   );
   const anyRunActive = historyItems.some((item) => ['queued', 'running'].includes(item.status));
+  const branchRoot =
+    (branchingRunId ? historyItems.find((item) => item.id === branchingRunId) : null) ??
+    historyItems.find(
+      (item) =>
+        item.assets.length > 0 &&
+        ['live', 'preview'].includes(item.origin) &&
+        typeof item.parameters.parentRunId !== 'string',
+    ) ??
+    null;
+  const objectBranches = branchRoot
+    ? historyItems.filter(
+        (item) =>
+          item.parameters.parentRunId === branchRoot.id && item.parameters.variationType === 'object',
+      )
+    : [];
+  const cameraBranches = (parent: HistoryRun | null) =>
+    parent
+      ? historyItems.filter(
+          (item) =>
+            item.parameters.parentRunId === parent.id && item.parameters.variationType === 'camera',
+        )
+      : [];
   const detailRun = detailRunId
     ? (historyItems.find((item) => item.id === detailRunId) ?? null)
     : null;
@@ -608,6 +761,55 @@ export function PlaygroundShell({
             : 'Ready to run',
     },
   };
+
+  const objectPlans = [
+    {
+      label: 'Witness at the threshold',
+      note: 'Seed the silent visitor and clock cabinet into the snowy yard; keep the warm doorway as the axis.',
+      image: '/scenes/ads-art/scene-04.webp',
+      direction:
+        'Introduce a tall, still visitor carrying a cabinet of clocks at the forest edge. Place the figure on the cold side of the warm doorway axis.',
+      cameras: [
+        {
+          label: 'Low doorway · 40 mm',
+          note: 'Near-ground three-quarter view; warm spill leads directly to the visitor.',
+          image: '/scenes/ads-art/scene-04.webp',
+          direction:
+            'Move to a low three-quarter camera just inside the doorway, 40 mm lens, warm foreground threshold leading to the visitor in the blue snow.',
+        },
+        {
+          label: 'Lateral winter wide · 65 mm',
+          note: 'Compress the yard and tree line; make the distance between men feel dangerous.',
+          image: '/scenes/ads-art/scene-09.webp',
+          direction:
+            'Use a lateral 65 mm wide composition from across the yard, compressing the visitor, doorway and black tree line into one tense plane.',
+        },
+      ],
+    },
+    {
+      label: 'Clockmaker at work',
+      note: 'Seed the maker, candle and loose mechanisms; preserve the nocturnal workshop grammar.',
+      image: '/scenes/ads-art/scene-02.webp',
+      direction:
+        'Introduce the elderly clockmaker at a scarred bench with one candle, watch parts and pale wood curls. Keep him absorbed rather than posing.',
+      cameras: [
+        {
+          label: 'Overhead mechanism · 35 mm',
+          note: 'Hands, tools and movement become blocking; the maker stays just outside frame.',
+          image: '/scenes/ads-art/scene-03.webp',
+          direction:
+            'Shift to a strict overhead 35 mm insert: both weathered hands bracket the mechanism in a hard island of tungsten light.',
+        },
+        {
+          label: 'Candle profile · 85 mm',
+          note: 'A patient portrait: eye, flame and mechanism occupy three distinct depth planes.',
+          image: '/scenes/ads-art/scene-05.webp',
+          direction:
+            'Move to an intimate 85 mm side profile at bench height, with the candle, the maker’s eye and the mechanism on three separated focus planes.',
+        },
+      ],
+    },
+  ] as const;
 
   return (
     <TooltipProvider delay={350}>
@@ -980,7 +1182,7 @@ export function PlaygroundShell({
                 variant="outline"
                 className="bg-background/90 font-mono text-[10px] backdrop-blur"
               >
-                STUDIO WORKFLOW
+                DIRECTOR&apos;S FRAME LAB
               </Badge>
               <span className="text-[11px] text-muted-foreground">
                 {lastRunAt ? `Last run ${formatAge(lastRunAt)}` : 'Draft — not run yet'}
@@ -1050,27 +1252,133 @@ export function PlaygroundShell({
             })}
             </div>
 
-            <div className="absolute bottom-4 left-4 z-10 flex items-center rounded-md border bg-background/90 p-1 shadow-xs backdrop-blur">
-              <IconTooltip label="Node editing — planned (see roadmap)">
-                <Button variant="ghost" size="icon-xs" aria-label="Add node (planned)" disabled>
-                  <Plus />
-                </Button>
-              </IconTooltip>
-              <IconTooltip label="Fit workflow — planned (see roadmap)">
-                <Button variant="ghost" size="icon-xs" aria-label="Fit workflow (planned)" disabled>
-                  <Command />
-                </Button>
-              </IconTooltip>
-              <IconTooltip label="View API payload">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="View API payload"
-                  onClick={() => setApiPayloadOpen(true)}
-                >
-                  <Code2 />
-                </Button>
-              </IconTooltip>
+            <div className="absolute inset-x-4 bottom-4 top-[34%] z-10 overflow-auto rounded-xl border bg-background/88 p-3 shadow-[var(--floating-shadow)] backdrop-blur-md">
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2.5">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <GitBranch className="size-3.5" />
+                    <SystemLabel>Static frame branches</SystemLabel>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Hold the story beat. Stage two object passes, then cover each pass with two camera decisions.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button variant="outline" size="xs" onClick={() => setApiPayloadOpen(true)}>
+                    <Code2 /> API payload
+                  </Button>
+                  {branchRoot && (
+                    <Button variant="outline" size="xs" onClick={() => setDetailRunId(branchRoot.id)}>
+                      Open master
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 grid min-w-[820px] grid-cols-[0.8fr_1.15fr_1.65fr] items-stretch gap-3">
+                <div className="flex flex-col">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">1</span>
+                    <SystemLabel>Master frame</SystemLabel>
+                  </div>
+                  <div className="my-auto">
+                    <FrameBranchCard
+                      eyebrow="Story intent"
+                      label={branchRoot ? branchRoot.prompt.slice(0, 52) : 'Establish the visual grammar'}
+                      note="One frame fixes geography, light direction, palette and emotional temperature for every child."
+                      image="/scenes/ads-art/scene-01.webp"
+                      run={branchRoot}
+                      icon={WandSparkles}
+                      actionLabel="Run master frame"
+                      onAction={() => void runWorkflow()}
+                      onOpen={() => branchRoot && setDetailRunId(branchRoot.id)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col border-l pl-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">2</span>
+                    <SystemLabel>Object staging</SystemLabel>
+                  </div>
+                  <div className="grid flex-1 grid-rows-2 gap-2">
+                    {objectPlans.map((plan, objectIndex) => {
+                      const run =
+                        objectBranches.find(
+                          (item) => item.parameters.variationLabel === plan.label,
+                        ) ?? objectBranches[objectIndex] ?? null;
+                      return (
+                        <FrameBranchCard
+                          key={plan.label}
+                          eyebrow={`Object pass ${String(objectIndex + 1).padStart(2, '0')}`}
+                          label={plan.label}
+                          note={plan.note}
+                          image={plan.image}
+                          run={run}
+                          icon={SquareStack}
+                          actionLabel="Seed object pass"
+                          disabled={!branchRoot?.assets[0] || isRunning}
+                          onAction={() =>
+                            createFrameVariation(branchRoot, 'object', plan.label, plan.direction)
+                          }
+                          onOpen={() => run && setDetailRunId(run.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex flex-col border-l pl-3">
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">3</span>
+                    <SystemLabel>Camera coverage</SystemLabel>
+                  </div>
+                  <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-2">
+                    {objectPlans.flatMap((plan, objectIndex) => {
+                      const parent =
+                        objectBranches.find(
+                          (item) => item.parameters.variationLabel === plan.label,
+                        ) ?? objectBranches[objectIndex] ?? null;
+                      const children = cameraBranches(parent);
+                      return plan.cameras.map((cameraPlan, cameraIndex) => {
+                        const run =
+                          children.find(
+                            (item) => item.parameters.variationLabel === cameraPlan.label,
+                          ) ?? children[cameraIndex] ?? null;
+                        return (
+                          <FrameBranchCard
+                            key={`${plan.label}:${cameraPlan.label}`}
+                            eyebrow={`From object pass ${objectIndex + 1}`}
+                            label={cameraPlan.label}
+                            note={cameraPlan.note}
+                            image={cameraPlan.image}
+                            run={run}
+                            icon={Camera}
+                            actionLabel="Try camera"
+                            disabled={!parent?.assets[0] || isRunning}
+                            onAction={() =>
+                              createFrameVariation(
+                                parent,
+                                'camera',
+                                cameraPlan.label,
+                                cameraPlan.direction,
+                              )
+                            }
+                            onOpen={() => run && setDetailRunId(run.id)}
+                          />
+                        );
+                      });
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-2 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
+                <span>Lock story beat</span>
+                <span>Preserve continuity</span>
+                <span>Vary one decision at a time</span>
+                <span>Share the chosen branch with production</span>
+              </div>
             </div>
           </section>
 
