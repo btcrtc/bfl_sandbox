@@ -21,6 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const body = ((await request.json().catch(() => null)) ?? {}) as {
     title?: unknown;
     prompt?: unknown;
+    videoPrompt?: unknown;
   };
   const [lastScene] = await db
     .select({ sceneIndex: storyboardScenes.sceneIndex })
@@ -42,6 +43,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         : `Scene ${sceneIndex + 1}`,
     prompt:
       typeof body.prompt === 'string' && body.prompt.trim() ? body.prompt.trim().slice(0, 2_000) : '',
+    videoPrompt:
+      typeof body.videoPrompt === 'string' && body.videoPrompt.trim()
+        ? body.videoPrompt.trim().slice(0, 2_000)
+        : null,
     durationSec: 5,
     createdAt: now,
     updatedAt: now,

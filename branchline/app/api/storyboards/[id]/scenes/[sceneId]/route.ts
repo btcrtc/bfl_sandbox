@@ -43,6 +43,7 @@ export async function PATCH(
   const body = ((await request.json().catch(() => null)) ?? {}) as {
     title?: unknown;
     prompt?: unknown;
+    videoPrompt?: unknown;
     durationSec?: unknown;
     seed?: unknown;
     activeGenerationId?: unknown;
@@ -71,6 +72,10 @@ export async function PATCH(
     patch.title = body.title.trim().slice(0, 80);
   }
   if (typeof body.prompt === 'string') patch.prompt = body.prompt.trim().slice(0, 2_000);
+  if (body.videoPrompt === null) patch.videoPrompt = null;
+  if (typeof body.videoPrompt === 'string') {
+    patch.videoPrompt = body.videoPrompt.trim().slice(0, 2_000) || null;
+  }
   if (body.durationSec != null) {
     const durationSec = Number(body.durationSec);
     // FLUX 3 Video clips are 5–20 seconds.

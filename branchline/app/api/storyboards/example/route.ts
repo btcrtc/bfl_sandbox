@@ -111,6 +111,7 @@ export async function POST() {
     sceneIndex,
     title: scene.title,
     prompt: scene.prompt,
+    videoPrompt: scene.videoPrompt,
     durationSec: scene.durationSec,
     seed: EXAMPLE_BOARD.seed + sceneIndex,
     generationId: generationIds[sceneIndex],

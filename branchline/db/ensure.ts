@@ -51,7 +51,7 @@ export function ensureDatabase() {
       'CREATE INDEX IF NOT EXISTS storyboard_references_storyboard_idx ON storyboard_references(storyboard_id, ref_index)',
     ),
     env.DB.prepare(
-      'CREATE TABLE IF NOT EXISTS storyboard_scenes (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, scene_index INTEGER NOT NULL, title TEXT NOT NULL, prompt TEXT NOT NULL, duration_sec INTEGER NOT NULL DEFAULT 5, seed INTEGER, generation_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS storyboard_scenes (id TEXT PRIMARY KEY NOT NULL, storyboard_id TEXT NOT NULL REFERENCES storyboards(id) ON DELETE CASCADE, scene_index INTEGER NOT NULL, title TEXT NOT NULL, video_prompt TEXT, prompt TEXT NOT NULL, duration_sec INTEGER NOT NULL DEFAULT 5, seed INTEGER, generation_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
     ),
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS storyboard_scenes_storyboard_idx ON storyboard_scenes(storyboard_id, scene_index)',
@@ -86,6 +86,11 @@ export function ensureDatabase() {
       // existed; the error on re-run ("duplicate column") is expected.
       try {
         await env.DB.prepare('ALTER TABLE storyboards ADD COLUMN idea TEXT').run();
+      } catch {
+        // Column already present.
+      }
+      try {
+        await env.DB.prepare('ALTER TABLE storyboard_scenes ADD COLUMN video_prompt TEXT').run();
       } catch {
         // Column already present.
       }

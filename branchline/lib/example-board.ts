@@ -27,6 +27,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Extreme wide aerial over a Black Forest valley drowned in low fog before dawn. One tiny ' +
         'workshop burns amber beside a dark road; the rest of the forest remains almost black.',
+      videoPrompt:
+        'Single continuous six-second shot from the supplied start frame. Begin almost locked, then make an imperceptibly slow aerial push toward the isolated amber workshop. Low fog streams left to right between the ridges, treetops move slightly in a cold wind, and the workshop light breathes once. Preserve the valley geography and the tiny scale of the building; no new objects and no cut. Sound: distant wind through firs and a nearly inaudible clock pulse.',
       durationSec: 6,
       still: '/scenes/ads-art/scene-01.webp',
       subtitle: {
@@ -39,6 +41,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Medium profile of an elderly clockmaker at a scarred bench by candlelight, disassembled ' +
         'watch parts surrounding his hands, the room falling away into cool darkness.',
+      videoPrompt:
+        'Single continuous six-second shot. Make a restrained lateral dolly to the right while the clockmaker selects one brass gear, seats it in the movement and turns the screwdriver once. The candle flutters and a narrow rack focus travels from his eye to his fingertips. Keep his profile, hands, tools and bench geometry stable; no cut and no added action. Sound: soft tool contact, cloth movement and one tentative tick.',
       durationSec: 6,
       still: '/scenes/ads-art/scene-02.webp',
       subtitle: {
@@ -51,6 +55,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Top-down close shot of a clock movement under one hard pool of tungsten light. Weathered ' +
         'hands frame the mechanism; tools and pale curls of wood mark the work already done.',
+      videoPrompt:
+        'Five-second locked overhead shot. The left hand steadies the movement while the right hand tightens a single screw; the balance wheel begins to oscillate and the gear train engages in a controlled sequence. Dust motes cross the tungsten pool and the focus breathes once, but the camera does not travel. Preserve every tool and finger. Sound: precise metal clicks resolving into an even mechanical heartbeat.',
       durationSec: 5,
       still: '/scenes/ads-art/scene-03.webp',
       subtitle: { speaker: null, text: 'Wir bauten der Dunkelheit ein Herz.' },
@@ -60,6 +66,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Night exterior in snow. The workshop door throws a warm rectangle across the yard while a ' +
         'tall dark figure carrying a cabinet of clocks waits at the edge of the blue forest.',
+      videoPrompt:
+        'Single six-second slow push across the snow toward the waiting figure. Snow falls diagonally; the figure takes one measured step toward the workshop and the clocks in the carried cabinet sway by a few millimetres. The door opens slightly so its warm rectangle lengthens across the ground. Maintain the figure facing screen-right toward the workshop and keep the forest line fixed. Sound: winter wind, leather straps and several unsynchronised ticks.',
       durationSec: 6,
       still: '/scenes/ads-art/scene-04.webp',
       subtitle: {
@@ -72,6 +80,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Hero macro of an open brass astronomical watch beside a candle, its dark face holding a ' +
         'field of stars. A row of ordinary clocks disappears softly into the background.',
+      videoPrompt:
+        'Five-second macro shot with a minute forward creep. The balance wheel pulses, the celestial disc turns only a few degrees and the candle reflection glides across the brass rim as the flame flickers. Keep the background clocks soft and stationary and preserve all engravings; no morphing or new parts. Sound: intimate escapement ticks with a faint glass resonance.',
       durationSec: 5,
       still: '/scenes/ads-art/scene-05.webp',
       subtitle: {
@@ -84,6 +94,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'The clockmaker opens the workshop door to cold dawn. Behind him, a large illuminated ' +
         'cabinet of tiny frames and mechanisms glows like an archive made physical.',
+      videoPrompt:
+        'Single continuous six-second reverse dolly, moving backward just ahead of the opening door. The clockmaker pulls it fully open and steps aside as cold blue mist enters around his coat. Behind him, the archive cabinet wakes row by row from bottom to top without changing shape. Preserve the doorway axis and carry the warm-inside, cold-outside contrast from the previous shot. Sound: timber creak, a low relay hum and hundreds of quiet ticks joining together.',
       durationSec: 6,
       still: '/scenes/ads-art/scene-06.webp',
       subtitle: {
@@ -96,6 +108,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Isolated product portrait of the brass memory machine against black: a grid of miniature ' +
         'landscapes, materials and fragments replacing a conventional clock face.',
+      videoPrompt:
+        'Five-second hero reveal against black. Execute a controlled ten-degree clockwise orbit for subtle parallax while the miniature frames awaken from left to right with restrained internal movement and the exposed brass gears synchronise. The machine must remain rigid and identical to the start frame: no extra components, no liquid deformation and no cut. Sound: layered clockwork settling into one low, confident rhythm.',
       durationSec: 5,
       still: '/scenes/ads-art/scene-07.webp',
       subtitle: {
@@ -108,6 +122,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'A glowing amber heart-like volume floats above a boardroom table. The forest is visible ' +
         'through the windows; dark server racks line the opposite wall.',
+      videoPrompt:
+        'Single six-second semicircular dolly around the table. The amber volume slowly rotates and expands once like a breath, sending a warm reflection across the tabletop; server indicators answer in a restrained ripple and the forest reflection shifts on the glass. Keep the room empty and all architecture fixed. Sound: sub-bass electrical resonance, distant cooling fans and one deep pulse.',
       durationSec: 6,
       still: '/scenes/ads-art/scene-08.webp',
       subtitle: {
@@ -120,6 +136,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Very wide night aerial of a modern workshop cantilevered over a forested ridge. Its warm ' +
         'interior is a single watchful rectangle in the immense blue-black valley.',
+      videoPrompt:
+        'Six-second very wide aerial creep forward, using the same valley geography established in scene one. Fog crosses the ridge in slow layers and the warm interior light pulses almost imperceptibly. A tiny silhouette inside turns toward the window and becomes still. Preserve the building silhouette, scale and horizon; no camera roll and no cut. Sound: remote wind, a buried electrical hum and the clock pulse now slightly louder.',
       durationSec: 6,
       still: '/scenes/ads-art/scene-09.webp',
       subtitle: { speaker: null, text: 'Jetzt sieht es uns an.' },
@@ -129,6 +147,8 @@ export const EXAMPLE_BOARD = {
       prompt:
         'Hold on the same remote workshop and valley after the revelation. Fog drifts between the ' +
         'ridges while the lit room remains still, letting the audience decide what is watching.',
+      videoPrompt:
+        'Seven-second locked aftermath with only an imperceptible pullback. Fog climbs between the foreground ridges and gradually veils the workshop. The interior light dims until two small warm points remain aligned in the window; hold them motionless for two seconds, then let one point blink mechanically. Keep the effect ambiguous and preserve the exact building and landscape—nothing emerges. Sound: the ticking stops, silence holds, then one quiet intake of air.',
       durationSec: 7,
       still: '/scenes/ads-art/scene-10.webp',
       subtitle: { speaker: null, text: '[Das neue Werk erwacht.]' },

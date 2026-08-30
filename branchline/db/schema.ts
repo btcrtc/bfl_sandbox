@@ -191,6 +191,9 @@ export const storyboardScenes = sqliteTable(
       .references(() => storyboards.id, { onDelete: 'cascade' }),
     sceneIndex: integer('scene_index').notNull(),
     title: text('title').notNull(),
+    // Motion-only direction for image-to-video. The still prompt describes
+    // what is already in frame; this describes what changes over time.
+    videoPrompt: text('video_prompt'),
     prompt: text('prompt').notNull(),
     durationSec: integer('duration_sec').notNull().default(5),
     // Per-scene override; falls back to the storyboard seed when null.

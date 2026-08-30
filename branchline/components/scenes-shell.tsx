@@ -1890,6 +1890,22 @@ function SceneDetail({
             placeholder="Describe this shot — subject, setting, camera, light, motion…"
             className="mt-2 min-h-24 resize-none bg-background text-[13px] leading-5"
           />
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <SystemLabel>Image → video direction</SystemLabel>
+            <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
+              motion only
+            </span>
+          </div>
+          <Textarea
+            key={`${scene.id}-video-prompt`}
+            defaultValue={scene.videoPrompt ?? ''}
+            onBlur={(event) => {
+              const value = event.target.value.trim();
+              if (value !== (scene.videoPrompt ?? '')) onPatch({ videoPrompt: value || null });
+            }}
+            placeholder="Describe only what changes: subject action, camera move, environmental motion, timing and sound."
+            className="mt-2 min-h-28 resize-none border-primary/20 bg-primary/[0.025] text-[13px] leading-5"
+          />
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Select
               value={String(scene.durationSec)}
@@ -3075,6 +3091,14 @@ function ReelDetail({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.025] p-2.5">
+              <SystemLabel>Image → video prompt</SystemLabel>
+              <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+                {activeScene.videoPrompt ||
+                  'No separate motion direction yet. Drafting will fall back to the still prompt.'}
+              </p>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-1.5">

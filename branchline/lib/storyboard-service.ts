@@ -44,6 +44,7 @@ export type SceneDto = {
   sceneIndex: number;
   title: string;
   prompt: string;
+  videoPrompt: string | null;
   durationSec: number;
   seed: number | null;
   generationId: string | null;
@@ -177,6 +178,7 @@ export async function getStoryboard(
       sceneIndex: scene.sceneIndex,
       title: scene.title,
       prompt: scene.prompt,
+      videoPrompt: scene.videoPrompt,
       durationSec: scene.durationSec,
       seed: scene.seed,
       generationId: scene.generationId,
