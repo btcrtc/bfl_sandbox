@@ -1345,66 +1345,92 @@ function TakeBranches({
   onSelect: (generationId: string) => void;
   onNew: () => void;
 }) {
+  // Real canvas edges, same language as the playground graph: one bezier per
+  // branch fanning from the node's bottom-center to each take tile.
+  const TILE_W = 64;
+  const TILE_GAP = 6;
+  const EDGE_H = 26;
+  const itemCount = takes.length + 1;
+  const rowWidth = itemCount * TILE_W + (itemCount - 1) * TILE_GAP;
+  const startX = rowWidth / 2;
+  const bend = EDGE_H * 0.62;
+  const edgePath = (index: number) => {
+    const endX = index * (TILE_W + TILE_GAP) + TILE_W / 2;
+    return `M ${startX} 0 C ${startX} ${bend}, ${endX} ${EDGE_H - bend}, ${endX} ${EDGE_H}`;
+  };
+
   return (
     <div className="absolute left-1/2 top-full z-10 flex -translate-x-1/2 flex-col items-center">
-      <span className="h-2.5 w-px bg-[var(--brand)]/60" aria-hidden />
-      <div className="relative flex items-start gap-1.5 px-4">
-        <span className="absolute left-8 right-8 top-0 h-px bg-border" aria-hidden />
+      <svg
+        width={rowWidth}
+        height={EDGE_H}
+        viewBox={`0 0 ${rowWidth} ${EDGE_H}`}
+        className="shrink-0"
+        aria-hidden
+      >
+        {takes.map((take, index) => (
+          <path
+            key={take.id}
+            d={edgePath(index)}
+            className={cn(
+              'graph-edge',
+              take.generationId === activeGenerationId && 'graph-edge-active',
+            )}
+          />
+        ))}
+        <path d={edgePath(takes.length)} className="graph-edge" strokeDasharray="3 3" />
+      </svg>
+      <div className="flex items-start" style={{ gap: TILE_GAP }}>
         {takes.map((take, index) => {
           const asset = take.run?.assets[0];
           const active = take.generationId === activeGenerationId;
           return (
-            <span key={take.id} className="flex flex-col items-center">
-              <span className={cn('h-2.5 w-px', active ? 'bg-[var(--brand)]/60' : 'bg-border')} aria-hidden />
-              <button
-                type="button"
-                onClick={() => !active && onSelect(take.generationId)}
-                className={cn(
-                  'relative aspect-video w-16 shrink-0 overflow-hidden rounded border bg-muted shadow-sm outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
-                  active
-                    ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
-                    : 'hover:-translate-y-0.5 hover:border-foreground/30',
-                )}
-                aria-label={`Take ${index + 1}${active ? ' (active)' : ''}`}
-                aria-pressed={active}
-              >
-                {asset ? (
-                  <NextImage
-                    src={asset.url}
-                    alt={`Take ${index + 1}`}
-                    width={128}
-                    height={72}
-                    unoptimized
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="grid size-full place-items-center text-muted-foreground">
-                    {take.run && ['queued', 'running'].includes(take.run.status) ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <ShieldAlert className="size-3" />
-                    )}
-                  </span>
-                )}
-                <span className="absolute bottom-0 left-0 rounded-tr bg-background/85 px-0.5 font-mono text-[8px] backdrop-blur">
-                  T{index + 1}
+            <button
+              key={take.id}
+              type="button"
+              onClick={() => !active && onSelect(take.generationId)}
+              className={cn(
+                'relative aspect-video w-16 shrink-0 overflow-hidden rounded border bg-muted shadow-sm outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
+                active
+                  ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
+                  : 'hover:-translate-y-0.5 hover:border-foreground/30',
+              )}
+              aria-label={`Take ${index + 1}${active ? ' (active)' : ''}`}
+              aria-pressed={active}
+            >
+              {asset ? (
+                <NextImage
+                  src={asset.url}
+                  alt={`Take ${index + 1}`}
+                  width={128}
+                  height={72}
+                  unoptimized
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span className="grid size-full place-items-center text-muted-foreground">
+                  {take.run && ['queued', 'running'].includes(take.run.status) ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ShieldAlert className="size-3" />
+                  )}
                 </span>
-              </button>
-            </span>
+              )}
+              <span className="absolute bottom-0 left-0 rounded-tr bg-background/85 px-0.5 font-mono text-[8px] backdrop-blur">
+                T{index + 1}
+              </span>
+            </button>
           );
         })}
-        <span className="flex flex-col items-center">
-          <span className="h-2.5 w-px bg-border" aria-hidden />
-          <button
-            type="button"
-            onClick={onNew}
-            disabled={busy}
-            className="grid aspect-video w-16 shrink-0 place-items-center rounded border border-dashed bg-background/60 text-muted-foreground shadow-sm outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
-            aria-label="Render a new take"
-          >
-            {busy ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3.5" />}
-          </button>
-        </span>
+        <button
+          type="button"
+          onClick={onNew}
+          disabled={busy}
+          className="grid aspect-video w-16 shrink-0 place-items-center rounded border border-dashed bg-background/60 text-muted-foreground shadow-sm outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+          aria-label="Render a new take"
+        >
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3.5" />}
+        </button>
       </div>
     </div>
   );
@@ -2500,6 +2526,21 @@ function ReelDetail({
     setPlayPos(0);
     setPlaylist(items);
   };
+
+  // Jump the cut to a specific scene (scrub-bar segments).
+  const jumpTo = (sceneId: string) => {
+    const items = buildPlaylist();
+    const index = items.findIndex((item) => item.id === sceneId);
+    if (index < 0) {
+      onNotice('Render this scene first — nothing to play there yet.');
+      return;
+    }
+    setPlaylist(items);
+    setPlayPos(index);
+  };
+  const currentSceneIndex = playingItem
+    ? storyboard.scenes.findIndex((scene) => scene.id === playingItem.id)
+    : -1;
   const stopAnimatic = () => {
     setPlaylist(null);
     setPlayPos(0);
@@ -2546,7 +2587,7 @@ function ReelDetail({
             size="sm"
             onClick={playingItem ? stopAnimatic : startAnimatic}
           >
-            {playingItem ? <Square /> : <Play />} {playingItem ? 'Stop' : 'Play animatic'}
+            {playingItem ? <Square /> : <Play />} {playingItem ? 'Stop' : 'Play cut'}
           </Button>
           <Button variant="outline" size="sm" onClick={() => void exportBoard()}>
             {copied ? <Check /> : <Copy />} {copied ? 'Copied' : 'Export board JSON'}
@@ -2561,7 +2602,7 @@ function ReelDetail({
       </div>
 
       {previewItem && (
-        <div className="relative mt-4 aspect-video max-w-2xl overflow-hidden rounded-lg border bg-muted">
+        <div className="relative mt-4 aspect-video w-full max-w-4xl overflow-hidden rounded-lg border bg-muted">
           {playingItem ? (
             playingItem.clipUrl ? (
               <video
@@ -2615,47 +2656,111 @@ function ReelDetail({
               </span>
             </button>
           )}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-2 pt-6">
-            {playingItem ? (
-              <>
-                <p className="font-mono text-[10px] uppercase tracking-wider">
-                  Scene {String(playingItem.sceneIndex + 1).padStart(2, '0')} · {playingItem.title}{' '}
-                  · {playingItem.durationSec}s{playingItem.clipUrl ? ' · clip' : ' · still'}
-                </p>
-                <div className="mt-1 h-0.5 overflow-hidden rounded bg-border">
-                  <div
-                    key={`${playingItem.id}-progress`}
-                    className="reel-progress h-full bg-[var(--brand)]"
-                    style={{ animationDuration: `${playingItem.durationSec}s` }}
-                  />
-                </div>
-              </>
-            ) : (
-              <p className="font-mono text-[10px] uppercase tracking-wider">
-                Cut ready · {storyboard.scenes.length} scenes · {totalSeconds}s — clips play where
-                rendered, stills hold elsewhere
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/95 to-transparent p-2.5 pt-8">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={playingItem ? stopAnimatic : startAnimatic}
+                className="pointer-events-auto grid size-6 shrink-0 place-items-center rounded bg-background/75 backdrop-blur transition-colors hover:bg-background/95 focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-label={playingItem ? 'Stop playback' : 'Play the cut'}
+              >
+                {playingItem ? (
+                  <Square className="size-3" />
+                ) : (
+                  <Play className="ml-px size-3" />
+                )}
+              </button>
+              <p className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-wider">
+                {playingItem
+                  ? `${String(playingItem.sceneIndex + 1).padStart(2, '0')}/${String(storyboard.scenes.length).padStart(2, '0')} · ${playingItem.title} · ${playingItem.durationSec}s${playingItem.clipUrl ? ' · clip' : ' · still'}`
+                  : `Cut ready · ${storyboard.scenes.length} scenes · ${totalSeconds}s — clips play where rendered, stills hold`}
               </p>
-            )}
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {totalSeconds}s
+              </span>
+            </div>
+            <div className="pointer-events-auto mt-1.5 flex h-1.5 w-full gap-px overflow-hidden rounded">
+              {storyboard.scenes.map((scene, sceneIndex) => {
+                const segmentState =
+                  currentSceneIndex < 0
+                    ? 'idle'
+                    : sceneIndex < currentSceneIndex
+                      ? 'done'
+                      : sceneIndex === currentSceneIndex
+                        ? 'current'
+                        : 'pending';
+                return (
+                  <button
+                    key={scene.id}
+                    type="button"
+                    onClick={() => jumpTo(scene.id)}
+                    style={{ width: `${(scene.durationSec / Math.max(totalSeconds, 1)) * 100}%` }}
+                    className={cn(
+                      'relative h-full overflow-hidden outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring',
+                      segmentState === 'done'
+                        ? 'bg-[var(--brand)]'
+                        : 'bg-foreground/20 hover:bg-foreground/40',
+                    )}
+                    aria-label={`Play from scene ${sceneIndex + 1}: ${scene.title}`}
+                  >
+                    {segmentState === 'current' && playingItem && (
+                      <span
+                        key={playingItem.id}
+                        className="reel-progress absolute inset-y-0 left-0 bg-[var(--brand)]"
+                        style={{ animationDuration: `${playingItem.durationSec}s` }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
       {storyboard.scenes.length > 0 && (
-        <div className="mt-4">
-          <SystemLabel>Timeline</SystemLabel>
-          <div className="mt-1.5 flex items-stretch gap-1 overflow-x-auto pb-1">
-            {storyboard.scenes.map((scene) => (
-              <TimelineBlock
-                key={scene.id}
-                scene={scene}
-                playing={playingItem?.id === scene.id}
-                onSelect={() => onSelectScene(scene.id)}
-                onTrim={(durationSec) => onTrim(scene.id, durationSec)}
-              />
-            ))}
+        <div className="mt-3">
+          <SystemLabel>Track</SystemLabel>
+          <div className="mt-1.5 overflow-x-auto pb-1">
+            <div
+              className="relative mb-0.5 h-4"
+              style={{
+                width:
+                  totalSeconds * TIMELINE_PX_PER_SEC + (storyboard.scenes.length - 1) * 4,
+              }}
+              aria-hidden
+            >
+              {Array.from(
+                { length: Math.floor(totalSeconds / 5) + 1 },
+                (_, tickIndex) => tickIndex * 5,
+              ).map((second) => (
+                <span
+                  key={second}
+                  className="absolute top-0 flex flex-col items-start gap-0.5"
+                  style={{ left: second * TIMELINE_PX_PER_SEC }}
+                >
+                  <span className="h-1.5 w-px bg-border" />
+                  <span className="font-mono text-[8px] leading-none text-muted-foreground">
+                    {second}s
+                  </span>
+                </span>
+              ))}
+            </div>
+            <div className="flex min-w-max items-stretch gap-1">
+              {storyboard.scenes.map((scene) => (
+                <TimelineBlock
+                  key={scene.id}
+                  scene={scene}
+                  playing={playingItem?.id === scene.id}
+                  onSelect={() => onSelectScene(scene.id)}
+                  onTrim={(durationSec) => onTrim(scene.id, durationSec)}
+                />
+              ))}
+            </div>
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Drag a block&apos;s right edge to trim its duration · click a block to open the scene.
+            Drag a block&apos;s right edge to trim its duration · click a block to open the scene ·
+            click a segment in the player bar to play from there.
           </p>
         </div>
       )}
