@@ -143,6 +143,24 @@ export function ScenesShell({
     activeIdRef.current = activeId;
   }, [activeId]);
 
+  // Arriving from the Playground with ?pin=<assetId>: hold the id until a
+  // board is active, then pin it as a reference exactly once.
+  const pendingPinRef = useRef<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pin = params.get('pin');
+    if (pin) {
+      pendingPinRef.current = pin;
+      params.delete('pin');
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${query ? `?${query}` : ''}`,
+      );
+    }
+  }, []);
+
   // --- data loading ---------------------------------------------------------
 
   const loadList = useCallback(async () => {
@@ -494,6 +512,27 @@ export function ScenesShell({
     },
     [activeId, loadStoryboard, markVideoBusy],
   );
+
+  useEffect(() => {
+    if (!storyboard || !pendingPinRef.current) return;
+    const assetId = pendingPinRef.current;
+    pendingPinRef.current = null;
+    if (storyboard.references.some((reference) => reference.assetId === assetId)) return;
+    const slotsFull = storyboard.references.length >= 3;
+    const existingIds = storyboard.references.map((reference) => reference.assetId);
+    const timeout = window.setTimeout(() => {
+      if (slotsFull) {
+        setNotice({
+          tone: 'error',
+          text: 'All three reference slots are taken — remove one to pin the new image.',
+        });
+        return;
+      }
+      void patchStoryboard({ referenceAssetIds: [...existingIds, assetId] });
+      setNotice({ tone: 'info', text: 'Reference pinned from the Playground.' });
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [storyboard, patchStoryboard]);
 
   const draftableScenes = (storyboard?.scenes ?? []).filter(
     (scene) =>

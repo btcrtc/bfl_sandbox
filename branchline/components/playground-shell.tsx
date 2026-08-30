@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import NextImage from 'next/image';
 import {
   useCallback,
@@ -16,6 +17,7 @@ import {
   Check,
   ChevronDown,
   CircleX,
+  Clapperboard,
   Cloud,
   Code2,
   Command,
@@ -1747,19 +1749,29 @@ function RunDetailDialog({
             return (
               <div key={outputIndex} className="space-y-1">
                 <OutputCell run={run} outputIndex={outputIndex} className="min-h-32 w-full" />
-                <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+                <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
                   <span>
                     #{outputIndex + 1}
                     {payload.seed != null && ` · seed ${(payload.seed + outputIndex) % 2 ** 32}`}
                   </span>
                   {asset && (
-                    <a
-                      href={asset.url}
-                      download={`branchline-${run.id.slice(0, 8)}-${outputIndex + 1}`}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
-                      <Download className="size-3" /> Download
-                    </a>
+                    <span className="flex items-center gap-2.5">
+                      {!asset.mimeType.startsWith('video/') && (
+                        <Link
+                          href={`/scenes?pin=${encodeURIComponent(asset.id)}`}
+                          className="flex items-center gap-1 hover:text-foreground"
+                        >
+                          <Clapperboard className="size-3" /> Pin to Scenes
+                        </Link>
+                      )}
+                      <a
+                        href={asset.url}
+                        download={`branchline-${run.id.slice(0, 8)}-${outputIndex + 1}`}
+                        className="flex items-center gap-1 hover:text-foreground"
+                      >
+                        <Download className="size-3" /> Download
+                      </a>
+                    </span>
                   )}
                 </div>
               </div>
