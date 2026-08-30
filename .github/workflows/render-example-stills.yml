@@ -29,7 +29,12 @@ jobs:
       - name: Render stills with FLUX.2 [max]
         env:
           BFL_API_KEY: ${{ inputs.bfl_api_key || secrets.BFL_API_KEY }}
-        run: node branchline/scripts/render-example-stills.mjs
+        run: |
+          if [ -z "$BFL_API_KEY" ]; then
+            echo "No key input and no BFL_API_KEY repo secret — nothing to render."
+            exit 0
+          fi
+          node branchline/scripts/render-example-stills.mjs
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"

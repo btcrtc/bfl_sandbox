@@ -1,4 +1,50 @@
-# CURRENT ITERATION — Scenes sequence redesign (DONE — shipped to main)
+# CURRENT ITERATION — takes, compact strip, reel timeline (DONE — shipped to main)
+
+> Shipped in one pass on top of the sequence redesign:
+>
+> - **Takes** — re-rendering a scene still branches instead of overwriting. New
+>   `storyboard_takes` table (runtime DDL in `db/ensure.ts`); the generate route inserts a
+>   take per render and backfills the pre-takes still lazily; `PATCH scene
+>   {activeGenerationId}` switches the active take (validated against the scene's takes);
+>   breakdown/scene-delete batches sweep takes. UI: takes thumbnails under the Still stage,
+>   `N takes` badge on strip nodes, step 1 relabels to "Render new take".
+> - **Compact strip** — board-bar toggle (Shrink/Expand icons, persisted in
+>   `localStorage: branchline-scenes-density`) switches nodes to thumbnail-first w-28 cards
+>   so 6+ scene boards fit without horizontal scrolling.
+> - **Reel timeline + animatic** — in the Reel node: scene blocks sized by duration
+>   (22px/s), right-edge drag handle trims 5–20s (arrow keys too; PATCHes durationSec),
+>   clicking a block jumps back to that scene's notes. "Play animatic" plays the cut from
+>   stills in real time (per-scene progress sweep, `reel-progress` keyframes in
+>   globals.css) — the cheapest possible preview of the edit before any video credit.
+> - **Example scenario v3 — "The Valley Keeps Time"**: one concrete plot with a conflict
+>   (the spring-driven tower clock stops; the apprentice climbs the flume through the storm
+>   forest and frees the jammed sluice; time returns at sunrise). Forest-heavy, no direct
+>   lab analogy, style note commits to Scorsese explicitly (Hugo's clockwork warmth +
+>   Silence's fog register). Stills render via the `Render example stills` workflow
+>   (dispatch with key input, or `BFL_API_KEY` repo secret + touching
+>   `.github/render-request`).
+
+# NEXT — Playground tab → Lookdev (decision written, not started)
+
+The first tab today is a generic single-model run canvas; after Scenes it reads redundant.
+Direction: evolve it into **Lookdev** — the place where a LOOK is crafted before a board
+uses it. Film-workflow framing, real utility, keeps all existing receipts/canvas work:
+
+1. **Looks library.** New `looks` table (name, styleNote, referenceAssetIds up to 3, seed,
+   model, params). "Save as Look" action in the run-detail dialog captures the current
+   recipe. Looks list lives in the rail (replaces mock-y bits of the old tab framing).
+2. **Scenes attach a Look.** Style chip on the board bar gets "Apply look" (fills
+   styleNote + references + seed in one move). The board stores which look it came from.
+3. **Scene ⇄ Lookdev roundtrip.** "Open in Lookdev" from a scene seeds the canvas with the
+   scene's prompt+style+refs; "Send back as take" registers the chosen frame as a new take
+   for that scene (POST reusing storyboard_takes).
+
+Sequencing note: 1 is standalone; 2 depends on 1; 3 depends on takes (shipped). Naming in
+UI: rename nav item "Playground" → "Lookdev" only when 1+2 land, not before.
+
+---
+
+# PREVIOUS ITERATION — Scenes sequence redesign (DONE — shipped to main)
 
 > Both halves landed: server (Mistral breakdown, idea column, breakdown route) and the
 > full client rewrite (board bar with chips, sequence strip with idea/scene/reel nodes,

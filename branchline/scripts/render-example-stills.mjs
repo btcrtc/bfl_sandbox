@@ -1,4 +1,4 @@
-// Renders the five "Clockmakers of Light" example stills with FLUX.2 [max]
+// Renders the five "The Valley Keeps Time" example stills with FLUX.2 [max]
 // and saves them into public/example/ — the example-board seed registers them
 // as completed runs. Reproducible: fixed seeds, prompts identical to the seed
 // route. Run from branchline/: `node scripts/render-example-stills.mjs`
@@ -23,16 +23,16 @@ async function resolveKey() {
 }
 
 const STYLE =
-  'Scorsese key in the register of Hugo: slow confident push-ins, warm tungsten and brass ' +
-  'against cobalt-blue dawn, glowing halation, deep film blacks, 35mm Kodak grain, carved ' +
-  'wood and clockwork textures.';
+  'In the key of Scorsese: Hugo’s clockwork warmth — tungsten and brass against cobalt-blue ' +
+  'dawn, luminous halation, deep film blacks, slow confident push-ins — with the fog-drowned ' +
+  'forest register of Silence. 35mm grain.';
 
 const SCENES = [
-  'Wide establishing shot of Freiburg old town at blue-hour dawn: the gothic cathedral’s openwork spire rising from morning fog spilling down from Black Forest pine hills, wet cobblestone lanes with narrow water runnels catching first light, dark red-tile roofs, one workshop window glowing warm amber.',
-  'Interior of a former Black Forest clockmaker’s atelier turned digital image studio: carved wooden gears and antique regulator clocks on the wall beside modern color-grading monitors, a young engineer leaning into the glow adjusting a frame, brass desk lamps, steam rising from an espresso cup, cold dawn light through tall workshop windows.',
-  'Close over-the-shoulder shot: a reference monitor showing a frame of misty pine forest being refined, an engineer’s fingers on a precision dial, her face reflected in the screen glass, two colleagues watching in concentrated silence, monitor glow carving warm light out of the workshop shadow.',
-  'Golden hour on a ridge path at the forest edge above the city: three friends with bicycles hold up a tablet comparing their rendered frame with the real fog-filled Black Forest valley below, low sun flaring through pine trunks, the image and the landscape in quiet agreement.',
-  'Night on the cathedral square: a film projected onto a large outdoor screen beside the gothic minster showing a glowing forest dawn, a warm crowd of townspeople watching upturned, the small studio team standing together at the back, their faces lit by their own projected light.',
+  'Blue-hour square of a Black Forest village: half-timbered houses around a great astronomical tower clock frozen mid-swing, villagers in wool coats looking up, unnaturally still fog sliding between the rooftops, amber lanterns burning against cobalt dawn.',
+  'Inside the clockmaker’s workshop: an old master and his young apprentice open the tower clock’s brass movement, motionless gears reflected in his round glasses, tools laid out like surgery, one warm tungsten lamp against tall blue windows.',
+  'The apprentice climbs beside a dry wooden water flume through storm-bent Black Forest pines, lantern held high, rain streaking through the fog between the trunks, the empty channel running uphill into darkness.',
+  'At the mountain spring a fallen pine jams the water-wheel sluice; the apprentice heaves it free with a long iron bar, water bursting silver through the gate, the great wooden wheel shuddering back into motion, spray catching her lantern light.',
+  'Sunrise tearing the fog open over the valley: the tower clock’s hands sweep back to life and the bells ring, townsfolk gathering on the square below, the old clockmaker with his apprentice beside him, warm light flooding the half-timbered facades.',
 ];
 
 const KEY = await resolveKey();
