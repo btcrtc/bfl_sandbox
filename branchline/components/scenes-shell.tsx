@@ -2149,6 +2149,8 @@ function TimelineBlock({
   const dragDurRef = useRef<number | null>(null);
   const durationSec = dragDur ?? scene.durationSec;
   const asset = scene.run?.assets[0];
+  const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
+  const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
 
   return (
     <div
@@ -2165,15 +2167,35 @@ function TimelineBlock({
         aria-label={`Scene ${String(scene.sceneIndex + 1).padStart(2, '0')}: ${scene.title}`}
       />
       <div className="pointer-events-none relative z-[1] size-full">
-        {asset && (
-          <NextImage
-            src={asset.url}
-            alt=""
-            width={320}
-            height={180}
-            unoptimized
+        {clipAsset ? (
+          <video
+            src={clipAsset.url}
+            muted
+            playsInline
+            preload="metadata"
             className="absolute inset-0 size-full object-cover opacity-80"
           />
+        ) : (
+          asset && (
+            <NextImage
+              src={asset.url}
+              alt=""
+              width={320}
+              height={180}
+              unoptimized
+              className="absolute inset-0 size-full object-cover opacity-80"
+            />
+          )
+        )}
+        {clip && (
+          <span
+            className={cn(
+              'absolute right-1 top-1 rounded bg-background/85 px-1 font-mono text-[8px] uppercase tracking-wider backdrop-blur',
+              !clipAsset && 'text-muted-foreground',
+            )}
+          >
+            {clipAsset ? clip.tier : `${clip.tier}…`}
+          </span>
         )}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-1 pt-3">
           <p className="truncate font-mono text-[9px] uppercase tracking-wider">
@@ -2244,11 +2266,13 @@ function ReelDetail({
 }) {
   const [copied, setCopied] = useState(false);
 
-  // Animatic: play the cut as stills, each held for its scene duration —
-  // a real-time preview of the reel before a single video credit is spent.
+  // Animatic: play the cut in real time — scenes with a finished clip play
+  // the video, the rest hold their still for the scene duration. The edit
+  // reads end-to-end at whatever stage the renders are in.
   const [playlist, setPlaylist] = useState<Array<{
     id: string;
     url: string;
+    clipUrl: string | null;
     title: string;
     sceneIndex: number;
     durationSec: number;
@@ -2265,9 +2289,12 @@ function ReelDetail({
       }, 0);
       return () => window.clearTimeout(timeout);
     }
+    const item = playlist[playPos];
+    // Stills advance on a timer; clips advance on 'ended' with this as a
+    // generous stall fallback.
     const timeout = window.setTimeout(
       () => setPlayPos((position) => position + 1),
-      playlist[playPos].durationSec * 1_000,
+      (item.durationSec + (item.clipUrl ? 20 : 0)) * 1_000,
     );
     return () => window.clearTimeout(timeout);
   }, [playlist, playPos]);
@@ -2275,11 +2302,14 @@ function ReelDetail({
   const startAnimatic = () => {
     const items = storyboard.scenes.flatMap((scene) => {
       const asset = scene.run?.assets[0];
-      return asset
+      const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
+      const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
+      return asset || clipAsset
         ? [
             {
               id: scene.id,
-              url: asset.url,
+              url: asset?.url ?? '',
+              clipUrl: clipAsset?.url ?? null,
               title: scene.title,
               sceneIndex: scene.sceneIndex,
               durationSec: scene.durationSec,
@@ -2356,19 +2386,32 @@ function ReelDetail({
 
       {playingItem && (
         <div className="relative mt-4 aspect-video max-w-2xl overflow-hidden rounded-lg border bg-muted">
-          <NextImage
-            key={playingItem.id}
-            src={playingItem.url}
-            alt={playingItem.title}
-            width={1344}
-            height={768}
-            unoptimized
-            className="size-full object-cover"
-          />
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-2 pt-6">
+          {playingItem.clipUrl ? (
+            <video
+              key={playingItem.id}
+              src={playingItem.clipUrl}
+              autoPlay
+              muted
+              playsInline
+              onEnded={() => setPlayPos((position) => position + 1)}
+              onError={() => setPlayPos((position) => position + 1)}
+              className="size-full bg-black object-cover"
+            />
+          ) : (
+            <NextImage
+              key={playingItem.id}
+              src={playingItem.url}
+              alt={playingItem.title}
+              width={1344}
+              height={768}
+              unoptimized
+              className="size-full object-cover"
+            />
+          )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-2 pt-6">
             <p className="font-mono text-[10px] uppercase tracking-wider">
               Scene {String(playingItem.sceneIndex + 1).padStart(2, '0')} · {playingItem.title} ·{' '}
-              {playingItem.durationSec}s
+              {playingItem.durationSec}s{playingItem.clipUrl ? ' · clip' : ' · still'}
             </p>
             <div className="mt-1 h-0.5 overflow-hidden rounded bg-border">
               <div
