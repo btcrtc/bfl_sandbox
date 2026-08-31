@@ -41,7 +41,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var t=localStorage.getItem('branchline-theme');var d=t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}",
+              "try{var t=localStorage.getItem('branchline-theme');document.documentElement.classList.toggle('dark',t==='dark');}catch(e){}",
           }}
         />
         {children}

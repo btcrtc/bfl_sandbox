@@ -582,7 +582,7 @@ function FrameRecipeNode({
   return (
     <article
       className={cn(
-        'relative overflow-visible rounded-xl border bg-background shadow-[var(--floating-shadow)] transition-all',
+        'relative overflow-visible rounded-lg border bg-background shadow-[var(--floating-shadow)] transition-all',
         selected
           ? 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
           : 'hover:-translate-y-0.5 hover:border-foreground/25',
@@ -1381,7 +1381,7 @@ export function PlaygroundShell({
           end={
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <div className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex">
+              <div className="hidden items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground sm:flex">
                 <Cloud
                   className={cn(
                     'size-3.5',
@@ -1390,7 +1390,7 @@ export function PlaygroundShell({
                       : 'text-[var(--success)]',
                   )}
                 />
-                <span>
+                <span className="max-xl:hidden">
                   {!viewer
                     ? 'Local preview'
                     : realtimeState === 'live'
@@ -1991,11 +1991,11 @@ export function PlaygroundShell({
                   </div>
                 </div>
 
-                <div className="relative h-[860px] overflow-hidden rounded-2xl border bg-background/42 shadow-inner backdrop-blur-[2px]">
+                <div className="relative h-[860px] overflow-hidden rounded-lg border bg-background/42 shadow-inner backdrop-blur-[2px]">
                   {frameCanvasState === 'empty' ? (
                     <div className="absolute inset-0 grid place-items-center">
-                      <div className="w-[360px] rounded-2xl border border-dashed bg-background/80 p-8 text-center shadow-sm backdrop-blur-sm">
-                        <span className="mx-auto grid size-12 place-items-center rounded-xl bg-muted text-muted-foreground">
+                      <div className="w-[360px] rounded-lg border border-dashed bg-background/80 p-8 text-center shadow-sm backdrop-blur-sm">
+                        <span className="mx-auto grid size-12 place-items-center rounded-md bg-muted text-muted-foreground">
                           <ImageIcon className="size-5" />
                         </span>
                         <p className="mt-4 text-[14px] font-medium">
@@ -2070,7 +2070,7 @@ export function PlaygroundShell({
                       {showBaseNode && (
                         <article
                           className={cn(
-                            'absolute top-[240px] w-[310px] overflow-visible rounded-xl border bg-background shadow-[var(--floating-shadow)] transition-all hover:-translate-y-0.5',
+                            'absolute top-[240px] w-[310px] overflow-visible rounded-lg border bg-background shadow-[var(--floating-shadow)] transition-all hover:-translate-y-0.5',
                             frameCanvasState === 'base'
                               ? 'left-[525px]'
                               : frameCanvasState === 'one-branch'
@@ -2240,7 +2240,7 @@ export function PlaygroundShell({
                           <button
                             type="button"
                             onClick={() => selectRecipeNode('cooke-light')}
-                            className="absolute left-[1210px] top-[148px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+                            className="absolute left-[1210px] top-[148px] grid size-12 place-items-center rounded-md border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
                             aria-label="Continue Cooke branch"
                           >
                             <Plus className="size-4" />
@@ -2313,7 +2313,7 @@ export function PlaygroundShell({
                           <button
                             type="button"
                             onClick={() => selectRecipeNode('zeiss-light')}
-                            className="absolute left-[1210px] top-[588px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+                            className="absolute left-[1210px] top-[588px] grid size-12 place-items-center rounded-md border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
                             aria-label="Continue Zeiss branch"
                           >
                             <Plus className="size-4" />
@@ -2711,7 +2711,7 @@ export function PlaygroundShell({
               })}
             </div>
 
-            <div className="absolute inset-x-4 bottom-4 top-[32%] z-10 overflow-auto rounded-xl border bg-background/92 p-3 shadow-[var(--floating-shadow)] backdrop-blur-md">
+            <div className="absolute inset-x-4 bottom-4 top-[32%] z-10 overflow-auto rounded-lg border bg-background/92 p-3 shadow-[var(--floating-shadow)] backdrop-blur-md">
               <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2.5">
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -3177,7 +3177,7 @@ function LinkedTakeCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        'group relative w-[238px] overflow-hidden rounded-xl border bg-background text-left shadow-[var(--floating-shadow)] outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
+        'group relative w-[238px] overflow-hidden rounded-lg border bg-background text-left shadow-[var(--floating-shadow)] outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
         active ? 'border-[var(--brand)]' : 'hover:border-foreground/30',
         selected && 'ring-2 ring-foreground/20',
         active && selected && 'ring-[var(--brand-soft)]',
@@ -3756,7 +3756,7 @@ function LinkedSceneFrameStack({
               )}
               {loadState === 'error' && (
                 <div className="absolute inset-0 grid place-items-center px-6">
-                  <div className="max-w-sm rounded-xl border bg-background/90 p-6 text-center shadow-sm">
+                  <div className="max-w-sm rounded-lg border bg-background/90 p-6 text-center shadow-sm">
                     <ShieldAlert className="mx-auto size-5 text-destructive" />
                     <p className="mt-2 text-[12px] font-medium">
                       Frame Stack is unavailable
@@ -3781,7 +3781,7 @@ function LinkedSceneFrameStack({
               )}
               {loadState === 'ready' && scene && roots.length === 0 && (
                 <div className="absolute inset-0 grid place-items-center px-6">
-                  <div className="w-[380px] rounded-2xl border border-dashed bg-background/90 p-8 text-center shadow-sm">
+                  <div className="w-[380px] rounded-lg border border-dashed bg-background/90 p-8 text-center shadow-sm">
                     <ImageIcon className="mx-auto size-6 text-muted-foreground" />
                     <p className="mt-3 text-[13px] font-medium">
                       This scene has no frame yet
@@ -4280,7 +4280,7 @@ function HistoryPanel({
   return (
     <aside
       className={cn(
-        'flex min-h-0 flex-col border-l bg-background max-2xl:absolute max-2xl:bottom-0 max-2xl:right-0 max-2xl:top-[var(--app-header-height)] max-2xl:z-30 max-2xl:w-[var(--app-history-width)] max-2xl:shadow-2xl',
+        'flex min-h-0 flex-col border-l bg-background max-2xl:absolute max-2xl:bottom-0 max-2xl:right-0 max-2xl:top-[var(--app-header-height)] max-2xl:z-30 max-2xl:w-[var(--app-history-width)] max-2xl:shadow-[var(--floating-shadow)]',
         open ? 'max-2xl:flex' : 'max-2xl:hidden',
         '2xl:flex',
       )}

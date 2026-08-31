@@ -11,7 +11,8 @@ Branchline uses a dense working-surface system distilled from the rendered BFL d
 - Body: 13/20 px. Compact support text: 11/16 px. Controls: 11–14 px.
 - Headings: 24/32 px for workspace pages; 28/42 px for focused creation prompts.
 - Controls: 28 px compact and 36 px primary. Control radius is 6 px.
-- Surfaces: 8 px radius, 1 px neutral border, restrained 1 px shadow. Floating cards may use the shared 24/60/-32 shadow.
+- Surfaces: 8 px radius, 1 px neutral border, restrained 1 px shadow. Floating cards use the shared 12/30 shadow and must still read as part of the canvas.
+- Theme: light is the studio default regardless of OS preference. Dark is an explicit user choice and persists locally.
 
 ## Color roles
 
@@ -34,6 +35,24 @@ Color is structural. Mint marks selection and context; dark green is reserved fo
 5. Use tooltips for icon-only controls and visible labels for all consequential actions.
 6. Selects and menus align to their trigger edge and open 5 px below it. Select value lists never overlap their trigger; near the viewport edge they remain below and become scrollable.
 7. Do not invent one-off font sizes or radii. Extend the scale in this document first.
+8. Never expose disabled roadmap controls. A visible action must work now, explain a current state, or be removed.
+9. Keep one editing context per surface. Page actions operate on the page, node actions on the selected node, and reel actions on the reel.
+10. Loading, empty, error and signed-out states preserve the same hierarchy as populated content and always explain the next valid action.
+
+## Product shell
+
+- The header owns identity, workspace context, one page-level search or breadcrumb, sync/theme status and identity.
+- The rail is navigation only. Active destinations use mint fill; icon-only destinations expose tooltips and semantic links.
+- Workspace pages use a 24/32 heading and one primary action. If no real primary action exists, the header stays quiet.
+- Canvas screens may pin contextual controls, but those controls must identify the selected node and the decision they will create.
+
+## State model
+
+- **Loading:** use structural skeletons in the final layout; do not replace a whole page with a spinner.
+- **Empty:** name what is empty, explain how data arrives, and offer one valid next step.
+- **Error:** preserve the user’s context, state that data is safe when true, and give a retry path.
+- **Signed out:** explain the workspace boundary before asking the visitor to authenticate.
+- **Selected:** use border, mint context and concise status copy; do not rely on color alone.
 
 ## Implementation
 

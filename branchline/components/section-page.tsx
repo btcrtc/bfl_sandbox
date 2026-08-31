@@ -2,18 +2,30 @@
 
 import NextImage from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  useEffect,
+  useMemo,
+  useState,
+  type ElementType,
+  type ReactNode,
+} from 'react';
+import {
+  ArrowRight,
   Box,
+  Check,
   CheckCircle2,
+  Clipboard,
   Cloud,
+  Database,
+  ImagePlus,
   Layers3,
   ListFilter,
   Loader2,
   Play,
-  Plus,
+  Radio,
   Search,
-  Users,
+  ShieldCheck,
+  SlidersHorizontal,
   WandSparkles,
   Zap,
 } from 'lucide-react';
@@ -51,30 +63,44 @@ export type WorkspaceSection = 'assets' | 'runs' | 'components' | 'settings';
 
 const sectionMeta: Record<
   WorkspaceSection,
-  { title: string; description: string; action: string }
+  { eyebrow: string; title: string; description: string }
 > = {
   assets: {
+    eyebrow: 'Workspace library',
     title: 'Assets',
     description: 'Generated outputs and uploaded references, stored centrally.',
-    action: 'Upload assets',
   },
   runs: {
+    eyebrow: 'Generation activity',
     title: 'Runs',
     description: 'Live and historical executions across every workflow.',
-    action: 'Run workflow',
   },
   components: {
+    eyebrow: 'Product foundations',
     title: 'Design system',
     description:
       'Tokens, controls and composition rules used across Branchline.',
-    action: 'Export tokens',
   },
   settings: {
+    eyebrow: 'Studio configuration',
     title: 'Settings',
     description: 'Workspace identity, generation defaults and API behavior.',
-    action: 'Save changes',
   },
 };
+
+const DESIGN_TOKENS = {
+  color: {
+    foreground: 'hsl(147 43% 7%)',
+    accent: 'hsl(150 27% 88%)',
+    railActive: 'hsl(151 21% 81%)',
+    surface: 'hsl(0 0% 98%)',
+    border: 'hsl(0 0% 90%)',
+    muted: 'hsl(0 0% 50%)',
+  },
+  radius: { control: 6, surface: 8 },
+  size: { header: 48, rail: 48, controlSm: 28, controlMd: 36 },
+  spacing: [4, 6, 8, 12, 16, 20, 24],
+} as const;
 
 export function SectionPage({
   section,
@@ -92,15 +118,23 @@ export function SectionPage({
       <main className="h-svh overflow-hidden bg-background text-foreground">
         <ProductHeader
           center={
-            <div className="relative w-full">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search this workspace…"
-                className="h-9 border-0 bg-muted/60 pl-8 text-[13px] shadow-none"
-              />
-            </div>
+            section === 'settings' ? (
+              <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                <SlidersHorizontal className="size-3.5" />
+                <span>Workspace settings</span>
+              </div>
+            ) : (
+              <div className="relative w-full">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={`Search ${meta.title.toLowerCase()}…`}
+                  aria-label={`Search ${meta.title.toLowerCase()}`}
+                  className="h-9 border-0 bg-muted/60 pl-8 text-[13px] shadow-none"
+                />
+              </div>
+            )
           }
           end={
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -138,11 +172,17 @@ export function SectionPage({
           <section className="min-w-0 overflow-y-auto bg-playground-surface">
             <div className="mx-auto w-full max-w-[1360px] px-6 py-5">
               <PageHeading
+                eyebrow={meta.eyebrow}
                 title={meta.title}
                 description={meta.description}
-                action={<SectionAction section={section} action={meta.action} />}
+                action={<SectionAction section={section} />}
               />
-              <SectionContent section={section} query={query} signedIn={Boolean(viewer)} />
+              <SectionContent
+                section={section}
+                query={query}
+                viewer={viewer}
+                signInPath={signInPath}
+              />
             </div>
           </section>
         </div>
@@ -151,51 +191,61 @@ export function SectionPage({
   );
 }
 
-function SectionAction({ section, action }: { section: WorkspaceSection; action: string }) {
-  // Runs is the only section whose primary action has a real destination today;
-  // the rest stay visibly planned instead of silently dead.
-  if (section === 'runs') {
+function SectionAction({ section }: { section: WorkspaceSection }) {
+  const [copied, setCopied] = useState(false);
+  if (section === 'assets' || section === 'runs') {
+    const assets = section === 'assets';
     return (
       <Link
         href="/playground"
         className={buttonVariants({
           size: 'sm',
-          className: 'bg-foreground px-3 text-background hover:bg-foreground/85 hover:text-background',
+          className:
+            'bg-foreground px-3 text-background hover:bg-foreground/85 hover:text-background',
         })}
       >
-        <Play /> {action}
+        {assets ? <ImagePlus /> : <Play />}
+        {assets ? 'Generate asset' : 'Run workflow'}
       </Link>
     );
   }
+  if (section !== 'components') return null;
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className="inline-flex">
-            <Button size="sm" variant="outline" disabled>
-              <Plus /> {action}
-            </Button>
-          </span>
-        }
-      />
-      <TooltipContent>Planned — see the roadmap in the README.</TooltipContent>
-    </Tooltip>
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => {
+        void navigator.clipboard.writeText(
+          JSON.stringify(DESIGN_TOKENS, null, 2),
+        );
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1800);
+      }}
+    >
+      {copied ? <Check /> : <Clipboard />}
+      {copied ? 'Tokens copied' : 'Copy tokens'}
+    </Button>
   );
 }
 
 function SectionContent({
   section,
   query,
-  signedIn,
+  viewer,
+  signInPath,
 }: {
   section: WorkspaceSection;
   query: string;
-  signedIn: boolean;
+  viewer: { displayName: string; email: string } | null;
+  signInPath: string;
 }) {
-  if (section === 'assets') return <Assets query={query} signedIn={signedIn} />;
-  if (section === 'runs') return <Runs query={query} signedIn={signedIn} />;
+  const signedIn = Boolean(viewer);
+  if (section === 'assets')
+    return <Assets query={query} signedIn={signedIn} signInPath={signInPath} />;
+  if (section === 'runs')
+    return <Runs query={query} signedIn={signedIn} signInPath={signInPath} />;
   if (section === 'components') return <Components query={query} />;
-  return <Settings />;
+  return <Settings viewer={viewer} />;
 }
 
 // Shared history loader for the Runs and Assets sections.
@@ -229,7 +279,81 @@ function useLiveRuns(signedIn: boolean) {
   return { runs, state };
 }
 
-function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
+function EmptyState({
+  icon: Icon,
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  icon: ElementType;
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="grid min-h-64 place-items-center rounded-lg border border-dashed border-[var(--border-strong)] bg-background/55 p-8 text-center">
+      <div className="max-w-sm">
+        <span className="mx-auto grid size-10 place-items-center rounded-lg border bg-background text-muted-foreground shadow-[var(--surface-shadow)]">
+          <Icon className="size-4" />
+        </span>
+        <SystemLabel className="mt-4">{eyebrow}</SystemLabel>
+        <h2 className="mt-1.5 text-[15px] font-semibold tracking-[-0.015em]">
+          {title}
+        </h2>
+        <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+          {description}
+        </p>
+        {action && <div className="mt-4 flex justify-center">{action}</div>}
+      </div>
+    </div>
+  );
+}
+
+function AssetSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      {Array.from({ length: 6 }, (_, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-lg border bg-background"
+          aria-hidden="true"
+        >
+          <div className="aspect-square animate-pulse bg-muted" />
+          <div className="space-y-1.5 p-2">
+            <div className="h-2.5 w-3/4 animate-pulse rounded-sm bg-muted" />
+            <div className="h-2 w-1/2 animate-pulse rounded-sm bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RunSkeleton() {
+  return (
+    <div
+      className={cn(runsGridClass, 'min-w-[820px] items-center px-3 py-2')}
+      aria-label="Loading run history"
+    >
+      <div className="aspect-video w-16 animate-pulse rounded bg-muted" />
+      {Array.from({ length: 7 }, (_, index) => (
+        <div key={index} className="h-2.5 animate-pulse rounded-sm bg-muted" />
+      ))}
+    </div>
+  );
+}
+
+function Assets({
+  query,
+  signedIn,
+  signInPath,
+}: {
+  query: string;
+  signedIn: boolean;
+  signInPath: string;
+}) {
   const [kind, setKind] = useState('all');
   const { runs, state } = useLiveRuns(signedIn);
 
@@ -271,25 +395,62 @@ function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
         <Badge variant="outline" className="rounded-md font-mono text-[9px]">
           {assets.length} ITEMS
         </Badge>
-        {state === 'loading' && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+        {state === 'loading' && (
+          <span className="font-mono text-[9px] uppercase text-muted-foreground">
+            Syncing library…
+          </span>
+        )}
       </div>
       {!signedIn && (
-        <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
-          Sign in to see the workspace&apos;s generated assets.
-        </p>
+        <EmptyState
+          icon={ShieldCheck}
+          eyebrow="Private workspace"
+          title="Sign in to open the shared library"
+          description="Generated frames, references and video drafts stay isolated inside your workspace."
+          action={
+            <a href={signInPath} className={buttonVariants({ size: 'sm' })}>
+              Sign in <ArrowRight />
+            </a>
+          }
+        />
       )}
-      {signedIn && state !== 'loading' && assets.length === 0 && (
-        <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
-          Nothing stored yet — render stills in Scenes or generate in the Playground and every
-          output lands here automatically.
-        </p>
+      {signedIn && state === 'loading' && <AssetSkeleton />}
+      {signedIn && state === 'error' && (
+        <EmptyState
+          icon={Cloud}
+          eyebrow="Sync unavailable"
+          title="The asset library could not be loaded"
+          description="Your files are safe. Refresh the page when the workspace connection is available again."
+        />
+      )}
+      {signedIn && state === 'ready' && assets.length === 0 && (
+        <EmptyState
+          icon={ImagePlus}
+          eyebrow="0 assets"
+          title="Start with a frame"
+          description="Generate in the Playground or render a still in Scenes; each output is indexed here automatically."
+          action={
+            <Link href="/playground" className={buttonVariants({ size: 'sm' })}>
+              Open Playground <ArrowRight />
+            </Link>
+          }
+        />
       )}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {assets.map((asset) => (
-          <article key={asset.id} className={cn(surfaceClass, 'group overflow-hidden')}>
+          <article
+            key={asset.id}
+            className={cn(surfaceClass, 'group overflow-hidden')}
+          >
             <div className="aspect-square overflow-hidden bg-muted">
               {asset.video ? (
-                <video src={asset.src} muted playsInline preload="metadata" className="size-full object-cover" />
+                <video
+                  src={asset.src}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="size-full object-cover"
+                />
               ) : (
                 <NextImage
                   src={asset.src}
@@ -303,7 +464,10 @@ function Assets({ query, signedIn }: { query: string; signedIn: boolean }) {
               )}
             </div>
             <div className="p-2">
-              <p className="truncate text-[11px] font-medium" title={asset.name}>
+              <p
+                className="truncate text-[11px] font-medium"
+                title={asset.name}
+              >
                 {asset.name}
               </p>
               <p className="mt-0.5 truncate font-mono text-[9px] uppercase text-muted-foreground">
@@ -328,17 +492,35 @@ function runStatusDotClass(status: string) {
   return 'bg-[var(--success)]';
 }
 
-function Runs({ query, signedIn }: { query: string; signedIn: boolean }) {
+function Runs({
+  query,
+  signedIn,
+  signInPath,
+}: {
+  query: string;
+  signedIn: boolean;
+  signInPath: string;
+}) {
   const { runs, state } = useLiveRuns(signedIn);
   const rows = (runs ?? []).filter((run) =>
-    `${run.prompt} ${run.modelId} ${run.status}`.toLowerCase().includes(query.toLowerCase()),
+    `${run.prompt} ${run.modelId} ${run.status}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
   );
 
   if (!signedIn) {
     return (
-      <p className="rounded-lg border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
-        Sign in to see the workspace&apos;s run history.
-      </p>
+      <EmptyState
+        icon={ShieldCheck}
+        eyebrow="Private workspace"
+        title="Sign in to inspect generation activity"
+        description="Run status, cost and outputs are scoped to the active workspace."
+        action={
+          <a href={signInPath} className={buttonVariants({ size: 'sm' })}>
+            Sign in <ArrowRight />
+          </a>
+        }
+      />
     );
   }
 
@@ -351,75 +533,105 @@ function Runs({ query, signedIn }: { query: string; signedIn: boolean }) {
           </span>
         )}
       </div>
-      <div className={cn(surfaceClass, 'overflow-x-auto')}>
-        <div
-          className={cn(
-            runsGridClass,
-            'min-w-[820px] border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground',
-          )}
-        >
-          <span>Output</span>
-          <span>Run</span>
-          <span>Prompt</span>
-          <span>Model</span>
-          <span>Status</span>
-          <span>Images</span>
-          <span>Cost</span>
-          <span>Created</span>
-        </div>
-        {rows.map((run) => {
-          const thumb = run.assets[0];
-          return (
-            <div
-              key={run.id}
-              className={cn(
-                runsGridClass,
-                'min-w-[820px] items-center border-b px-3 py-2 text-[11px] last:border-0',
-              )}
-            >
-              <span className="block aspect-video w-16 overflow-hidden rounded border bg-muted">
-                {thumb ? (
-                  thumb.mimeType.startsWith('video/') ? (
-                    <video
-                      src={thumb.url}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <NextImage
-                      src={thumb.url}
-                      alt=""
-                      width={128}
-                      height={72}
-                      unoptimized
-                      className="size-full object-cover"
-                    />
-                  )
-                ) : null}
-              </span>
-              <span className="font-mono">#{run.id.slice(0, 6)}</span>
-              <span className="truncate font-medium" title={run.prompt}>
-                {run.prompt}
-              </span>
-              <span>{run.modelId}</span>
-              <span className="flex items-center gap-1.5 capitalize">
-                <span className={cn('size-1.5 rounded-full', runStatusDotClass(run.status))} />
-                {run.status}
-              </span>
-              <span>{run.outputCount}</span>
-              <span>{formatCost(run.costCredits)}</span>
-              <span className="text-muted-foreground">{formatAge(run.createdAt)}</span>
+      {state === 'error' ? (
+        <EmptyState
+          icon={Cloud}
+          eyebrow="Sync unavailable"
+          title="Run history could not be loaded"
+          description="Refresh when the realtime service is available again."
+        />
+      ) : (
+        <div className={cn(surfaceClass, 'overflow-x-auto')}>
+          <div
+            className={cn(
+              runsGridClass,
+              'min-w-[820px] border-b bg-muted/45 px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground',
+            )}
+          >
+            <span>Output</span>
+            <span>Run</span>
+            <span>Prompt</span>
+            <span>Model</span>
+            <span>Status</span>
+            <span>Images</span>
+            <span>Cost</span>
+            <span>Created</span>
+          </div>
+          {rows.map((run) => {
+            const thumb = run.assets[0];
+            return (
+              <div
+                key={run.id}
+                className={cn(
+                  runsGridClass,
+                  'min-w-[820px] items-center border-b px-3 py-2 text-[11px] last:border-0',
+                )}
+              >
+                <span className="block aspect-video w-16 overflow-hidden rounded border bg-muted">
+                  {thumb ? (
+                    thumb.mimeType.startsWith('video/') ? (
+                      <video
+                        src={thumb.url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <NextImage
+                        src={thumb.url}
+                        alt=""
+                        width={128}
+                        height={72}
+                        unoptimized
+                        className="size-full object-cover"
+                      />
+                    )
+                  ) : null}
+                </span>
+                <span className="font-mono">#{run.id.slice(0, 6)}</span>
+                <span className="truncate font-medium" title={run.prompt}>
+                  {run.prompt}
+                </span>
+                <span>{run.modelId}</span>
+                <span className="flex items-center gap-1.5 capitalize">
+                  <span
+                    className={cn(
+                      'size-1.5 rounded-full',
+                      runStatusDotClass(run.status),
+                    )}
+                  />
+                  {run.status}
+                </span>
+                <span>{run.outputCount}</span>
+                <span>{formatCost(run.costCredits)}</span>
+                <span className="text-muted-foreground">
+                  {formatAge(run.createdAt)}
+                </span>
+              </div>
+            );
+          })}
+          {state === 'loading' && <RunSkeleton />}
+          {state === 'ready' && rows.length === 0 && (
+            <div className="p-3">
+              <EmptyState
+                icon={Play}
+                eyebrow="0 runs"
+                title="Nothing has run yet"
+                description="Start a workflow and its status, spend and outputs will appear here."
+                action={
+                  <Link
+                    href="/playground"
+                    className={buttonVariants({ size: 'sm' })}
+                  >
+                    Run a workflow <ArrowRight />
+                  </Link>
+                }
+              />
             </div>
-          );
-        })}
-        {state === 'ready' && rows.length === 0 && (
-          <p className="px-3 py-4 text-[12px] text-muted-foreground">
-            No runs yet — render a still in Scenes or generate in the Playground.
-          </p>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -428,12 +640,12 @@ function Components({ query }: { query: string }) {
   const matches = (value: string) =>
     value.toLowerCase().includes(query.trim().toLowerCase());
   const colors = [
-    ['Foreground', 'bg-foreground', '147 · 43% · 7%'],
-    ['Accent', 'bg-accent', '150 · 27% · 88%'],
-    ['Rail active', 'bg-sidebar-accent', '151 · 21% · 81%'],
-    ['Surface', 'bg-playground-surface', '0 · 0% · 98%'],
-    ['Border', 'bg-border', '0 · 0% · 90%'],
-    ['Muted copy', 'bg-muted-foreground', '0 · 0% · 50%'],
+    ['Foreground', 'bg-foreground', '--foreground'],
+    ['Accent', 'bg-accent', '--accent'],
+    ['Rail active', 'bg-sidebar-accent', '--sidebar-accent'],
+    ['Surface', 'bg-playground-surface', '--playground-surface'],
+    ['Border', 'bg-border', '--border'],
+    ['Muted copy', 'bg-muted-foreground', '--muted-foreground'],
   ].filter((color) => matches(color.join(' ')));
   const componentItems = [
     [
@@ -620,84 +832,92 @@ function TypeSpec({
   );
 }
 
-function Settings() {
+function Settings({
+  viewer,
+}: {
+  viewer: { displayName: string; email: string } | null;
+}) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className={cn(surfaceClass, 'h-fit p-2')}>
-        {[
-          'General',
-          'Generation defaults',
-          'Members',
-          'API & realtime',
-          'Storage',
-        ].map((item, index) => (
-          <button
-            key={item}
-            disabled={index !== 0}
-            className={cn(
-              'flex h-8 w-full items-center justify-between rounded-md px-2.5 text-left text-[12px]',
-              index === 0
-                ? 'bg-sidebar-accent font-medium'
-                : 'cursor-default text-muted-foreground',
-            )}
-          >
-            {item}
-            {index !== 0 && (
-              <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">
-                soon
-              </span>
-            )}
-          </button>
-        ))}
-      </aside>
-      <div className="space-y-3">
-        <SettingsCard
-          title="Workspace identity"
-          description="Shown across workflows, runs and shared history"
-        >
-          <label
-            htmlFor="workspace-name"
-            className="grid gap-1.5 text-[12px] font-medium"
-          >
-            Workspace name
-            <Input
-              id="workspace-name"
-              defaultValue="Studio"
-              className="h-9 text-[13px]"
-            />
-          </label>
-        </SettingsCard>
-        <SettingsCard
-          title="Server behavior"
-          description="These subsystems are always on for the prototype — shown as status, not switches"
-        >
-          <SettingStatus
-            label="Shared server history"
-            description="Generations sync across signed-in browsers via D1"
-          />
-          <SettingStatus
-            label="WebSocket updates"
-            description="Run state and asset changes push in realtime"
-          />
-          <SettingStatus
-            label="Polling fallback"
-            description="Refreshes every 15 seconds if the socket disconnects"
-          />
-        </SettingsCard>
-        <SettingsCard
-          title="Collaboration"
-          description="Workspace-level access and generation permissions"
-        >
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <span className="flex items-center gap-2 text-[12px]">
-              <Users className="size-4" /> 1 workspace member
-            </span>
-            <Button variant="outline" size="xs" disabled>
-              Manage
-            </Button>
-          </div>
-        </SettingsCard>
+    <div className="max-w-[880px] space-y-3">
+      <SettingsCard
+        title="Workspace context"
+        description="The active workspace determines which boards, assets and runs are visible"
+      >
+        <SettingRow
+          icon={Layers3}
+          label="Active workspace"
+          description="Switch workspaces and projects from the control beside the Branchline logo."
+          value="Header switcher"
+        />
+        <SettingRow
+          icon={ShieldCheck}
+          label="Session owner"
+          description={
+            viewer?.email ?? 'Sign in to create a private workspace session.'
+          }
+          value={viewer?.displayName ?? 'Signed out'}
+        />
+      </SettingsCard>
+      <SettingsCard
+        title="Server behavior"
+        description="Operational services are shown as status, not misleading switches"
+      >
+        <SettingStatus
+          icon={Database}
+          label="Shared server history"
+          description="Generations sync across signed-in browsers via D1"
+        />
+        <SettingStatus
+          icon={Radio}
+          label="WebSocket updates"
+          description="Run state and asset changes push in realtime"
+        />
+        <SettingStatus
+          icon={Cloud}
+          label="Polling fallback"
+          description="Refreshes every 15 seconds if the socket disconnects"
+        />
+      </SettingsCard>
+      <SettingsCard
+        title="Access boundary"
+        description="This portfolio build keeps every visitor isolated by default"
+      >
+        <SettingRow
+          icon={ShieldCheck}
+          label="Private by default"
+          description="Boards, media and generation budgets never cross workspace boundaries."
+          value="Isolated"
+        />
+      </SettingsCard>
+    </div>
+  );
+}
+
+function SettingRow({
+  icon: Icon,
+  label,
+  description,
+  value,
+}: {
+  icon: ElementType;
+  label: string;
+  description: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-t pt-3 first:border-0 first:pt-0">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+        <Icon className="size-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] font-medium">{label}</p>
+        <p className="truncate text-[10px] leading-4 text-muted-foreground">
+          {description}
+        </p>
       </div>
+      <span className="max-w-44 truncate font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+        {value}
+      </span>
     </div>
   );
 }
@@ -722,17 +942,22 @@ function SettingsCard({
   );
 }
 function SettingStatus({
+  icon: Icon,
   label,
   description,
 }: {
+  icon: ElementType;
   label: string;
   description: string;
 }) {
   return (
-    <div className="flex items-center justify-between border-t pt-3 first:border-0 first:pt-0">
-      <div>
+    <div className="flex items-center gap-3 border-t pt-3 first:border-0 first:pt-0">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+        <Icon className="size-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
         <p className="text-[12px] font-medium">{label}</p>
-        <p className="text-[10px] leading-4 text-muted-foreground">
+        <p className="truncate text-[10px] leading-4 text-muted-foreground">
           {description}
         </p>
       </div>

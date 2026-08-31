@@ -93,6 +93,9 @@
   --sidebar-ring: var(--ring);
   --playground-surface: hsl(0 0% 98%);
   --playground-surface-elevated: hsl(0 0% 100%);
+  --surface-subtle: hsl(0 0% 97%);
+  --border-strong: hsl(0 0% 82%);
+  --text-subtle: hsl(0 0% 42%);
   --surface: var(--playground-surface);
   --canvas: hsl(0 0% 100%);
   --brand: hsl(147 43% 7%);
@@ -105,8 +108,9 @@
   --app-history-width: 320px;
   --control-sm: 28px;
   --control-md: 36px;
-  --surface-shadow: 0 1px 2px hsl(0 0% 0% / 0.05);
-  --floating-shadow: 0 24px 60px -32px hsl(0 0% 0% / 0.18);
+  --surface-shadow: 0 1px 2px hsl(147 43% 7% / 0.045);
+  --floating-shadow:
+    0 12px 30px -18px hsl(147 43% 7% / 0.22), 0 2px 7px hsl(147 43% 7% / 0.055);
 }
 
 .dark {
@@ -144,6 +148,9 @@
   --sidebar-ring: oklch(0.556 0 0);
   --playground-surface: hsl(0 0% 10%);
   --playground-surface-elevated: hsl(0 0% 13%);
+  --surface-subtle: hsl(0 0% 16%);
+  --border-strong: hsl(0 0% 28%);
+  --text-subtle: hsl(0 0% 68%);
   --surface: var(--playground-surface);
   --canvas: hsl(150 8% 8%);
   --brand: #58b886;

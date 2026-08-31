@@ -68,14 +68,14 @@ export function SignInCard({ returnTo }: { returnTo: string }) {
             empty project and build the workflow from scratch.
           </p>
           <div className="mt-9 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <Clapperboard className="size-4 text-emerald-300" />
               <p className="mt-3 text-sm font-medium">Seeded demo</p>
               <p className="mt-1 text-xs leading-5 text-white/45">
                 Frames, branches, draft clips and a reel.
               </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <Layers3 className="size-4 text-emerald-300" />
               <p className="mt-3 text-sm font-medium">Isolated projects</p>
               <p className="mt-1 text-xs leading-5 text-white/45">

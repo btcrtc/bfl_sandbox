@@ -1,18 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ElementType, type ReactNode } from 'react';
 import {
-  Box,
+  Blocks,
   Braces,
   Clapperboard,
   Clock3,
+  GitBranch,
   Image as ImageIcon,
-  Monitor,
   Moon,
   SlidersHorizontal,
-  Sparkles,
   Sun,
 } from 'lucide-react';
 
@@ -44,17 +42,22 @@ const productNavigation: Array<{
     id: 'playground',
     label: 'Playground',
     href: '/playground',
-    icon: Sparkles,
+    icon: GitBranch,
   },
   { id: 'scenes', label: 'Scenes', href: '/scenes', icon: Clapperboard },
   { id: 'assets', label: 'Assets', href: '/assets', icon: ImageIcon },
-  { id: 'divider', label: '', href: '', icon: Box },
+  { id: 'divider', label: '', href: '', icon: Blocks },
   { id: 'runs', label: 'Runs', href: '/runs', icon: Clock3 },
-  { id: 'components', label: 'Design system', href: '/components', icon: Box },
+  {
+    id: 'components',
+    label: 'Design system',
+    href: '/components',
+    icon: Blocks,
+  },
 ];
 
 export const surfaceClass =
-  'rounded-lg border border-border bg-playground-surface-elevated shadow-xs';
+  'rounded-lg border border-border bg-playground-surface-elevated shadow-[var(--surface-shadow)]';
 
 export const parameterChipClass =
   'inline-flex h-7 max-w-full items-center gap-1.5 rounded-md border border-border bg-playground-surface-elevated px-2 text-[11px] leading-none shadow-xs transition-colors hover:border-foreground/25';
@@ -142,17 +145,15 @@ function RailItem({
   icon: ElementType;
   active?: boolean;
 }) {
-  const router = useRouter();
   return (
     <Tooltip>
       <TooltipTrigger
-        type="button"
+        render={<Link href={href} />}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
-        onClick={() => router.push(href)}
         className={cn(
           'mb-1 grid size-8 place-items-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50',
-          active && 'pointer-events-none bg-sidebar-accent text-foreground',
+          active && 'bg-sidebar-accent text-foreground',
         )}
       >
         <Icon className="size-4" />
@@ -162,65 +163,46 @@ function RailItem({
   );
 }
 
-type ThemePreference = 'system' | 'light' | 'dark';
+type ThemePreference = 'light' | 'dark';
 const THEME_STORAGE_KEY = 'branchline-theme';
 
 function applyTheme(preference: ThemePreference) {
-  const dark =
-    preference === 'dark' ||
-    (preference === 'system' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.classList.toggle('dark', preference === 'dark');
 }
 
 export function ThemeToggle() {
-  const [preference, setPreference] = useState<ThemePreference>('system');
+  const [preference, setPreference] = useState<ThemePreference>('light');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       try {
         const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-        if (stored === 'light' || stored === 'dark') setPreference(stored);
+        if (stored === 'dark') setPreference('dark');
       } catch {
-        // Storage unavailable; stay on system.
+        // Storage unavailable; keep the studio's light default.
       }
+      setMounted(true);
     }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
-    applyTheme(preference);
-    if (preference !== 'system') return;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => applyTheme('system');
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, [preference]);
+    if (mounted) applyTheme(preference);
+  }, [mounted, preference]);
 
   const cycle = () => {
-    const next: ThemePreference =
-      preference === 'system'
-        ? 'dark'
-        : preference === 'dark'
-          ? 'light'
-          : 'system';
+    const next: ThemePreference = preference === 'dark' ? 'light' : 'dark';
     setPreference(next);
     try {
-      if (next === 'system') window.localStorage.removeItem(THEME_STORAGE_KEY);
-      else window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
     } catch {
       // Storage unavailable; theme still applies for this tab.
     }
   };
 
-  const label =
-    preference === 'system'
-      ? 'Theme: system'
-      : preference === 'dark'
-        ? 'Theme: dark'
-        : 'Theme: light';
-  const Icon =
-    preference === 'system' ? Monitor : preference === 'dark' ? Moon : Sun;
+  const label = preference === 'dark' ? 'Theme: dark' : 'Theme: light';
+  const Icon = preference === 'dark' ? Moon : Sun;
 
   return (
     <Tooltip>

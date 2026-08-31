@@ -2992,7 +2992,7 @@ function FrameTrackTake({
       type="button"
       onClick={onSelect}
       className={cn(
-        'group w-[164px] overflow-hidden rounded-xl border bg-background text-left shadow-sm outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
+        'group w-[164px] overflow-hidden rounded-lg border bg-background text-left shadow-[var(--surface-shadow)] outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
         active ? 'border-[var(--brand)]' : 'hover:border-foreground/30',
         selected && 'ring-2 ring-foreground/20',
         active && selected && 'ring-[var(--brand-soft)]',
