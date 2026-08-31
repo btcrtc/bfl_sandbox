@@ -4,7 +4,13 @@ import { NextResponse } from 'next/server';
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
 import { getDb } from '@/db/index';
-import { storyboardClips, storyboardScenes, storyboards, storyboardTakes } from '@/db/schema';
+import {
+  storyboardClips,
+  storyboardScenes,
+  storyboardSubtitles,
+  storyboards,
+  storyboardTakes,
+} from '@/db/schema';
 
 async function loadScene(workspaceId: string, storyboardId: string, sceneId: string) {
   const db = getDb();
@@ -37,6 +43,7 @@ export async function PATCH(
   const body = ((await request.json().catch(() => null)) ?? {}) as {
     title?: unknown;
     prompt?: unknown;
+    videoPrompt?: unknown;
     durationSec?: unknown;
     seed?: unknown;
     activeGenerationId?: unknown;
@@ -65,6 +72,10 @@ export async function PATCH(
     patch.title = body.title.trim().slice(0, 80);
   }
   if (typeof body.prompt === 'string') patch.prompt = body.prompt.trim().slice(0, 2_000);
+  if (body.videoPrompt === null) patch.videoPrompt = null;
+  if (typeof body.videoPrompt === 'string') {
+    patch.videoPrompt = body.videoPrompt.trim().slice(0, 2_000) || null;
+  }
   if (body.durationSec != null) {
     const durationSec = Number(body.durationSec);
     // FLUX 3 Video clips are 5–20 seconds.
@@ -104,6 +115,7 @@ export async function DELETE(
   const db = getDb();
   await db.batch([
     db.delete(storyboardClips).where(eq(storyboardClips.sceneId, sceneId)),
+    db.delete(storyboardSubtitles).where(eq(storyboardSubtitles.sceneId, sceneId)),
     db.delete(storyboardTakes).where(eq(storyboardTakes.sceneId, sceneId)),
     db.delete(storyboardScenes).where(eq(storyboardScenes.id, sceneId)),
   ]);

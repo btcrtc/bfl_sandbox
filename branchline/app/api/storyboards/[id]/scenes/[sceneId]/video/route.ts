@@ -55,11 +55,12 @@ export async function POST(
     return NextResponse.json({ error: 'The scene still is not stored yet — wait for it to finish.' }, { status: 409 });
   }
 
-  const prompt = [scene.prompt.trim(), storyboard.styleNote?.trim()]
+  const motionDirection = scene.videoPrompt?.trim() || scene.prompt.trim();
+  const prompt = [motionDirection, storyboard.styleNote?.trim()]
     .filter(Boolean)
     .join('\n\nStyle: ');
   if (prompt.length < 3) {
-    return NextResponse.json({ error: 'Write a scene prompt first.' }, { status: 400 });
+    return NextResponse.json({ error: 'Write an image-to-video prompt first.' }, { status: 400 });
   }
 
   const budget = await checkDailyBudget(workspaceId, 'video');
@@ -78,6 +79,7 @@ export async function POST(
         storyboardId: id,
         sceneId,
         sceneIndex: scene.sceneIndex,
+        promptKind: scene.videoPrompt ? 'image-to-video' : 'scene-fallback',
       },
       submit: (apiKey) =>
         createBflVideoDraft(apiKey, {

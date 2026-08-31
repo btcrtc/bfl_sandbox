@@ -7,7 +7,7 @@ import { EXAMPLE_BOARD, exampleOverrideKey } from '@/lib/example-board';
 // Serves example frame N (1-based): the re-rendered R2 override when present,
 // otherwise the bundled static. Stable URLs for syncing the repo statics with
 // the latest renders.
-export async function GET(request: Request, context: { params: Promise<{ index: string }> }) {
+export async function GET(_request: Request, context: { params: Promise<{ index: string }> }) {
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: 'Sign in to view frames.' }, { status: 401 });
 
@@ -28,5 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ index: 
       },
     });
   }
-  return NextResponse.redirect(new URL(scene.still, request.url), 302);
+  // A relative Location keeps the caller's public HTTPS scheme when the app
+  // runs behind a TLS-terminating proxy such as Railway.
+  return new Response(null, { status: 302, headers: { location: scene.still } });
 }

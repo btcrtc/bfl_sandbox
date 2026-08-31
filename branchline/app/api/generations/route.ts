@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 
 import { getChatGPTUser } from '@/app/chatgpt-auth';
 import { ensurePersonalWorkspace } from '@/db/ensure';
+import { getHistoryRun } from '@/db/history';
 import { BFL_ENDPOINTS, MODEL_CAPS, type BflModel } from '@/lib/bfl';
+import { loadAssetDataUri } from '@/lib/media';
 import { checkDailyBudget, submitGeneration } from '@/lib/run-service';
 
 type CreateBody = {
@@ -16,6 +18,10 @@ type CreateBody = {
   promptUpsampling?: unknown;
   seed?: unknown;
   guidance?: unknown;
+  parentRunId?: unknown;
+  parentAssetId?: unknown;
+  variationType?: unknown;
+  variationLabel?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -30,6 +36,20 @@ export async function POST(request: Request) {
   const budget = await checkDailyBudget(workspaceId);
   if (!budget.ok) return NextResponse.json({ error: budget.message }, { status: 429 });
 
+  let inputImages: string[] | null = null;
+  if (parsed.branch.parentRunId) {
+    const parent = await getHistoryRun(workspaceId, parsed.branch.parentRunId);
+    if (!parent) return NextResponse.json({ error: 'Parent frame not found.' }, { status: 404 });
+    if (parsed.branch.parentAssetId) {
+      if (!parent.assets.some((asset) => asset.id === parsed.branch.parentAssetId)) {
+        return NextResponse.json({ error: 'Parent asset does not belong to that frame.' }, { status: 400 });
+      }
+      const dataUri = await loadAssetDataUri(workspaceId, parsed.branch.parentAssetId);
+      if (!dataUri) return NextResponse.json({ error: 'Parent frame is unavailable.' }, { status: 404 });
+      inputImages = [dataUri];
+    }
+  }
+
   const result = await submitGeneration({
     workspaceId,
     createdBy: user.userId,
@@ -37,6 +57,14 @@ export async function POST(request: Request) {
     prompt: parsed.prompt,
     outputs: parsed.outputs,
     parameters: parsed.parameters,
+    inputImages,
+    extraParameters: parsed.branch.parentRunId
+      ? {
+          parentRunId: parsed.branch.parentRunId,
+          variationType: parsed.branch.variationType,
+          variationLabel: parsed.branch.variationLabel,
+        }
+      : undefined,
   });
 
   return NextResponse.json(result, { status: 202 });
@@ -76,6 +104,25 @@ function validate(body: CreateBody | null) {
   if (guidance != null && (!Number.isFinite(guidance) || guidance < 1.5 || guidance > 5)) {
     return { error: 'Guidance must be between 1.5 and 5.' } as const;
   }
+  const parentRunId =
+    typeof body.parentRunId === 'string' && body.parentRunId.length <= 100
+      ? body.parentRunId
+      : null;
+  const parentAssetId =
+    typeof body.parentAssetId === 'string' && body.parentAssetId.length <= 100
+      ? body.parentAssetId
+      : null;
+  const variationType =
+    body.variationType === 'object' || body.variationType === 'camera'
+      ? body.variationType
+      : null;
+  const variationLabel =
+    typeof body.variationLabel === 'string'
+      ? body.variationLabel.trim().slice(0, 80)
+      : null;
+  if ((parentAssetId || variationType || variationLabel) && !parentRunId) {
+    return { error: 'A variation needs a parent run.' } as const;
+  }
 
   return {
     prompt: body.prompt.trim(),
@@ -90,6 +137,7 @@ function validate(body: CreateBody | null) {
       seed,
       guidance: MODEL_CAPS[model as BflModel].guidance ? guidance : null,
     },
+    branch: { parentRunId, parentAssetId, variationType, variationLabel },
   };
 }
 

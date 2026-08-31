@@ -1,111 +1,157 @@
-// "The Valley Keeps Time" — the example board's content, shared by the seed
-// route (which registers it per workspace) and the render endpoint (which
-// re-renders the frames with FLUX.2 [max] into R2 overrides).
+// "The Work That Keeps Time" — a real cinematic sequence pulled from the
+// Ads Art Figma file (section 58:87) through Figma Desktop's local MCP. The
+// image and caption layers stay separate so the editor can treat subtitles as
+// editable timing data instead of pixels baked into a still.
 
 export const EXAMPLE_STILL = {
-  width: 1344,
-  height: 768,
+  width: 2048,
+  height: 960,
   model: 'FLUX.2 [max]',
 } as const;
 
 export const EXAMPLE_BOARD = {
-  title: 'The Valley Keeps Time',
+  title: 'The Work That Keeps Time',
   idea:
-    'A Black Forest village keeps time by one great tower clock, driven since anyone can ' +
-    'remember by water from a mountain spring. At dawn the clock stops and the valley goes ' +
-    'unnaturally silent: the flume from the spring has run dry. The old clockmaker reads the ' +
-    'still gears and sends his apprentice up the water line — through storm-bent pines and fog ' +
-    'to the source, where a fallen tree has jammed the sluice. She heaves it free, the wheel ' +
-    'shudders back to life, and the bells return to the valley with the sunrise.',
+    'Deep in the Black Forest, a clockmaker has spent a lifetime trying to hold time still. ' +
+    'He builds a machine from mechanisms, memories and observed fragments; the finished work ' +
+    'does not tell the hour. It returns everything that has been seen — and finally looks back.',
   styleNote:
-    'Shot on Kodak Vision3 500T 35mm through Panavision C-Series anamorphic glass: fine grain ' +
-    'rising in the shadows, subtle gate weave, oval bokeh, halation blooming only around ' +
-    'practical light sources. ENR silver-retention grade — desaturated slate blue and raw umber, ' +
-    'protected warm skin tones, deep matte blacks, zero digital sharpness. Physically believable ' +
-    'light: soft specular roll-off on wet stone, subsurface scattering in skin, every source ' +
-    'motivated and diffused by volumetric fog. The register of Martin Scorsese photographed by ' +
-    'Rodrigo Prieto (Killers of the Flower Moon, The Irishman) — a production still from a real ' +
-    'film; never illustration, CGI gloss or stylization.',
+    'Cinematic pre-visualization from the Ads Art board: deep forest blue-black, motivated ' +
+    'tungsten practicals, wet nocturnal atmosphere, tactile brass mechanisms, restrained camera ' +
+    'movement and exact blocking. Treat each frame as production intent rather than final art: ' +
+    'preserve geography, light direction, eyelines and material continuity while exploring.',
   seed: 1968,
   scenes: [
     {
-      title: 'The stopped clock',
+      title: 'The valley before time',
       prompt:
-        'Establishing wide at 6:12 a.m. Camera under a dripping first-floor eave across the ' +
-        'square, 35mm anamorphic at T4, deep focus, a rain-beaded wrought-iron lantern bracket ' +
-        'breaking the left foreground out of focus. The cobbled Black Forest square recedes on a ' +
-        'diagonal to a plain stone-and-timber clock tower on the upper-third line, hands frozen ' +
-        'at 6:12; a loose arc of twelve villagers stands with backs to camera, motionless, their ' +
-        'stillness the subject. Light: one 2800K gas lantern is the only warm point in a 6500K ' +
-        'pre-dawn overcast field, its reflection threading the wet basalt cobbles toward camera; ' +
-        'ground fog holds the tower at half contrast. Texture in the halftones: rain-dark loden ' +
-        'wool absorbing light, zinc gutters carrying specular runoff, moss in the mortar joints, ' +
-        'slate roofs going umber in shadow.',
+        'Extreme wide aerial over a Black Forest valley drowned in low fog before dawn. One tiny ' +
+        'workshop burns amber beside a dark road; the rest of the forest remains almost black.',
+      videoPrompt:
+        'Single continuous six-second shot from the supplied start frame. Begin almost locked, then make an imperceptibly slow aerial push toward the isolated amber workshop. Low fog streams left to right between the ridges, treetops move slightly in a cold wind, and the workshop light breathes once. Preserve the valley geography and the tiny scale of the building; no new objects and no cut. Sound: distant wind through firs and a nearly inaudible clock pulse.',
       durationSec: 6,
-      still: '/example/scene-01.jpg',
+      still: '/scenes/ads-art/scene-01.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Die Zeit war immer da. Wir blieben lange in ihr – in einer ewigen, gemütlichen Dunkelheit.',
+      },
     },
     {
-      title: 'The verdict',
+      title: 'Counting time',
       prompt:
-        'Interior two-shot at workbench height, camera shooting through the opened brass ' +
-        'movement, 50mm anamorphic at T2.3, focus plane locked on the old master’s eyes while ' +
-        'the front gear train dissolves into oval bokeh. Blocking: the master leans in from left ' +
-        'in profile, his apprentice — a young woman in her twenties, dark hair tied back in a ' +
-        'low knot, gray loden coat — mirrors him from the right, eyelines converging on the ' +
-        'stopped escapement between them. Light: a single 2900K tungsten work lamp low over the ' +
-        'bench keys at 4:1 against 6000K window fill, dust motes crossing the beam; brass ' +
-        'bounces warm uplight onto both faces like candlelight. Materials: oiled brass with ' +
-        'fingerprints and micro-scratches, hand-cut steel pinions, a waxed-linen tool roll, his ' +
-        'cracked knuckles, beads of melted fog still on her wool shoulders.',
+        'Medium profile of an elderly clockmaker at a scarred bench by candlelight, disassembled ' +
+        'watch parts surrounding his hands, the room falling away into cool darkness.',
+      videoPrompt:
+        'Single continuous six-second shot. Make a restrained lateral dolly to the right while the clockmaker selects one brass gear, seats it in the movement and turns the screwdriver once. The candle flutters and a narrow rack focus travels from his eye to his fingertips. Keep his profile, hands, tools and bench geometry stable; no cut and no added action. Sound: soft tool contact, cloth movement and one tentative tick.',
+      durationSec: 6,
+      still: '/scenes/ads-art/scene-02.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Hier gab es so viel Zeit, dass wir begannen, sie zu zählen. Und vielleicht – sie zu zähmen.',
+      },
+    },
+    {
+      title: 'A heart for darkness',
+      prompt:
+        'Top-down close shot of a clock movement under one hard pool of tungsten light. Weathered ' +
+        'hands frame the mechanism; tools and pale curls of wood mark the work already done.',
+      videoPrompt:
+        'Five-second locked overhead shot. The left hand steadies the movement while the right hand tightens a single screw; the balance wheel begins to oscillate and the gear train engages in a controlled sequence. Dust motes cross the tungsten pool and the focus breathes once, but the camera does not travel. Preserve every tool and finger. Sound: precise metal clicks resolving into an even mechanical heartbeat.',
       durationSec: 5,
-      still: '/example/scene-02.jpg',
+      still: '/scenes/ads-art/scene-03.webp',
+      subtitle: { speaker: null, text: 'Wir bauten der Dunkelheit ein Herz.' },
     },
     {
-      title: 'Up the water line',
+      title: 'The witnesses arrive',
       prompt:
-        'Handheld tracking shot climbing with her, camera half a step behind her shoulder ' +
-        'swinging to a three-quarter profile, 40mm anamorphic at T2.8, 180-degree shutter ' +
-        'leaving motion blur at the frame edges. The apprentice — a young woman in her twenties, ' +
-        'dark hair tied back in a low knot, drenched gray loden coat — climbs the muddy service ' +
-        'path; the dry wooden flume cuts the frame corner to corner, leading uphill into fog ' +
-        'between towering pine trunks. Light: her swinging 2200K kerosene lantern is the only ' +
-        'key, streaking a horizontal anamorphic flare and refracting in the raindrops on her ' +
-        'hood’s fibers; 6800K storm daylight rims the canopy far above. Texture: sodden loden ' +
-        'weave read in halftone, lanolin wool beading water, black mud pulling at boot welts, ' +
-        'wet bark glistening where the lantern passes.',
+        'Night exterior in snow. The workshop door throws a warm rectangle across the yard while a ' +
+        'tall dark figure carrying a cabinet of clocks waits at the edge of the blue forest.',
+      videoPrompt:
+        'Single six-second slow push across the snow toward the waiting figure. Snow falls diagonally; the figure takes one measured step toward the workshop and the clocks in the carried cabinet sway by a few millimetres. The door opens slightly so its warm rectangle lengthens across the ground. Maintain the figure facing screen-right toward the workshop and keep the forest line fixed. Sound: winter wind, leather straps and several unsynchronised ticks.',
       durationSec: 6,
-      still: '/example/scene-03.jpg',
+      still: '/scenes/ads-art/scene-04.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Und während wir zählten, standen die Sinnbilder immer dabei.',
+      },
     },
     {
-      title: 'The sluice',
+      title: 'The firmament',
       prompt:
-        'Low three-quarter angle from water level, 40mm anamorphic at T2.8, 45-degree shutter ' +
-        'freezing every droplet mid-air. Blocking: the apprentice — a young woman in her ' +
-        'twenties, dark hair tied back in a low knot, soaked gray loden coat gone almost black — ' +
-        'throws her full weight onto a two-meter hand-forged iron bar wedged under a fallen ' +
-        'pine, back arched, boots slipping on wet granite; the sluice gate bursts open ' +
-        'screen-right and water explodes onto the moss-black mill wheel. Light: a lantern hung ' +
-        'on the sluice post keys her strained face at 2200K; each frozen droplet refracts it ' +
-        'into amber caustics against the 6500K dusk, and the turning wheel throws off silver ' +
-        'specular arcs. Materials: rust-scaled iron, waterlogged pine bark, granite sparkling ' +
-        'where spray lands, her wet lashes catching the lantern.',
+        'Hero macro of an open brass astronomical watch beside a candle, its dark face holding a ' +
+        'field of stars. A row of ordinary clocks disappears softly into the background.',
+      videoPrompt:
+        'Five-second macro shot with a minute forward creep. The balance wheel pulses, the celestial disc turns only a few degrees and the candle reflection glides across the brass rim as the flame flickers. Keep the background clocks soft and stationary and preserve all engravings; no morphing or new parts. Sound: intimate escapement ticks with a faint glass resonance.',
+      durationSec: 5,
+      still: '/scenes/ads-art/scene-05.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Die besten Werke nahmen sie auf – und trugen ein ganzes Firmament im Gehäuse.',
+      },
+    },
+    {
+      title: 'The new work',
+      prompt:
+        'The clockmaker opens the workshop door to cold dawn. Behind him, a large illuminated ' +
+        'cabinet of tiny frames and mechanisms glows like an archive made physical.',
+      videoPrompt:
+        'Single continuous six-second reverse dolly, moving backward just ahead of the opening door. The clockmaker pulls it fully open and steps aside as cold blue mist enters around his coat. Behind him, the archive cabinet wakes row by row from bottom to top without changing shape. Preserve the doorway axis and carry the warm-inside, cold-outside contrast from the previous shot. Sound: timber creak, a low relay hum and hundreds of quiet ticks joining together.',
       durationSec: 6,
-      still: '/example/scene-04.jpg',
+      still: '/scenes/ads-art/scene-06.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Inzwischen ist genug gesehen worden. Es hat sich zu einem neuen Werk gefügt.',
+      },
     },
     {
-      title: 'Time returns',
+      title: 'What was seen',
       prompt:
-        'Resolution shot: 75mm anamorphic from knee height behind the old master and the ' +
-        'apprentice — a young woman in her twenties, dark hair tied back in a low knot, gray ' +
-        'loden coat — two dark shoulders framing the clock tower between them as its minute hand ' +
-        'visibly steps forward; townsfolk turn to one another in soft-focus midground. Light: ' +
-        'first 5600K sunlight tears the fog at a 45-degree rake, carving visible volumetric ' +
-        'shafts, gilding the half-timber and splitting every face half warm, half shadow-blue; ' +
-        'one hard glint off the bell bronze in the belfry. Texture: steam beginning to lift off ' +
-        'the wet cobbles and off their wool shoulders, tired real faces with wet lashes, the ' +
-        'amber lantern from the opening now pale against the sun.',
+        'Isolated product portrait of the brass memory machine against black: a grid of miniature ' +
+        'landscapes, materials and fragments replacing a conventional clock face.',
+      videoPrompt:
+        'Five-second hero reveal against black. Execute a controlled ten-degree clockwise orbit for subtle parallax while the miniature frames awaken from left to right with restrained internal movement and the exposed brass gears synchronise. The machine must remain rigid and identical to the start frame: no extra components, no liquid deformation and no cut. Sound: layered clockwork settling into one low, confident rhythm.',
+      durationSec: 5,
+      still: '/scenes/ads-art/scene-07.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Eines, das nicht die Stunde zeigt, sondern das Gesehene.',
+      },
+    },
+    {
+      title: 'Time captured',
+      prompt:
+        'A glowing amber heart-like volume floats above a boardroom table. The forest is visible ' +
+        'through the windows; dark server racks line the opposite wall.',
+      videoPrompt:
+        'Single six-second semicircular dolly around the table. The amber volume slowly rotates and expands once like a breath, sending a warm reflection across the tabletop; server indicators answer in a restrained ripple and the forest reflection shifts on the glass. Keep the room empty and all architecture fixed. Sound: sub-bass electrical resonance, distant cooling fans and one deep pulse.',
+      durationSec: 6,
+      still: '/scenes/ads-art/scene-08.webp',
+      subtitle: {
+        speaker: null,
+        text: 'Wir haben die Zeit gefangen. Und mit ihr – alles, was in ihr war.',
+      },
+    },
+    {
+      title: 'It looks back',
+      prompt:
+        'Very wide night aerial of a modern workshop cantilevered over a forested ridge. Its warm ' +
+        'interior is a single watchful rectangle in the immense blue-black valley.',
+      videoPrompt:
+        'Six-second very wide aerial creep forward, using the same valley geography established in scene one. Fog crosses the ridge in slow layers and the warm interior light pulses almost imperceptibly. A tiny silhouette inside turns toward the window and becomes still. Preserve the building silhouette, scale and horizon; no camera roll and no cut. Sound: remote wind, a buried electrical hum and the clock pulse now slightly louder.',
+      durationSec: 6,
+      still: '/scenes/ads-art/scene-09.webp',
+      subtitle: { speaker: null, text: 'Jetzt sieht es uns an.' },
+    },
+    {
+      title: 'The work awakens',
+      prompt:
+        'Hold on the same remote workshop and valley after the revelation. Fog drifts between the ' +
+        'ridges while the lit room remains still, letting the audience decide what is watching.',
+      videoPrompt:
+        'Seven-second locked aftermath with only an imperceptible pullback. Fog climbs between the foreground ridges and gradually veils the workshop. The interior light dims until two small warm points remain aligned in the window; hold them motionless for two seconds, then let one point blink mechanically. Keep the effect ambiguous and preserve the exact building and landscape—nothing emerges. Sound: the ticking stops, silence holds, then one quiet intake of air.',
       durationSec: 7,
-      still: '/example/scene-05.jpg',
+      still: '/scenes/ads-art/scene-10.webp',
+      subtitle: { speaker: null, text: '[Das neue Werk erwacht.]' },
     },
   ],
 } as const;
