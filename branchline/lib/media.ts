@@ -13,6 +13,7 @@ export const MAX_INLINE_MEDIA_BYTES = 8 * 1024 * 1024;
 export async function loadAssetDataUri(
   workspaceId: string,
   assetId: string,
+  publicOrigin?: string,
 ): Promise<string | null> {
   const db = getDb();
   const [asset] = await db
@@ -23,11 +24,32 @@ export async function loadAssetDataUri(
     .limit(1);
   if (!asset) return null;
 
+  if (asset.r2Key.startsWith('static:')) {
+    const staticPath = asset.r2Key.slice('static:'.length);
+    const override = await env.FILES.get(`example-overrides${staticPath}`);
+    if (override) {
+      return bufferToDataUri(
+        await override.arrayBuffer(),
+        override.httpMetadata?.contentType || asset.mimeType,
+      );
+    }
+    if (!publicOrigin) return null;
+    const response = await fetch(new URL(staticPath, publicOrigin));
+    if (!response.ok) return null;
+    return bufferToDataUri(
+      await response.arrayBuffer(),
+      response.headers.get('content-type') || asset.mimeType,
+    );
+  }
+
   const object = await env.FILES.get(asset.r2Key);
   if (!object) return null;
-  const bytes = await object.arrayBuffer();
+  return bufferToDataUri(await object.arrayBuffer(), asset.mimeType);
+}
+
+function bufferToDataUri(bytes: ArrayBuffer, mimeType: string) {
   if (bytes.byteLength > MAX_INLINE_MEDIA_BYTES) return null;
-  return `data:${asset.mimeType};base64,${arrayBufferToBase64(bytes)}`;
+  return `data:${mimeType};base64,${arrayBufferToBase64(bytes)}`;
 }
 
 export function arrayBufferToBase64(buffer: ArrayBuffer) {

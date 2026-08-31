@@ -45,7 +45,11 @@ export async function POST(request: Request) {
       if (!parent.assets.some((asset) => asset.id === parsed.branch.parentAssetId)) {
         return NextResponse.json({ error: 'Parent asset does not belong to that frame.' }, { status: 400 });
       }
-      const dataUri = await loadAssetDataUri(workspaceId, parsed.branch.parentAssetId);
+      const dataUri = await loadAssetDataUri(
+        workspaceId,
+        parsed.branch.parentAssetId,
+        new URL(request.url).origin,
+      );
       if (!dataUri) return NextResponse.json({ error: 'Parent frame is unavailable.' }, { status: 404 });
       inputImages = [dataUri];
     }

@@ -565,12 +565,8 @@ export function ScenesShell({
   );
 
   const generateScene = useCallback(
-    async (
-      sceneId: string,
-      instruction?: string,
-      options?: { parentGenerationId?: string; activate?: boolean },
-    ): Promise<string | null> => {
-      if (!activeId) return null;
+    async (sceneId: string, instruction?: string) => {
+      if (!activeId) return;
       setGeneratingScenes((current) => new Set(current).add(sceneId));
       try {
         const response = await fetch(
@@ -578,21 +574,10 @@ export function ScenesShell({
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(
-              instruction
-                ? {
-                    instruction,
-                    ...(options?.parentGenerationId
-                      ? { parentGenerationId: options.parentGenerationId }
-                      : {}),
-                    ...(options?.activate === false ? { activate: false } : {}),
-                  }
-                : {},
-            ),
+            body: JSON.stringify(instruction ? { instruction } : {}),
           },
         );
         const data = (await response.json()) as {
-          id?: string;
           mode?: string;
           error?: string;
         };
@@ -606,7 +591,6 @@ export function ScenesShell({
             : { tone: 'info', text: 'Scene still is rendering.' },
         );
         await loadStoryboard(activeId);
-        return data.id ?? null;
       } catch (error) {
         setNotice({
           tone: 'error',
@@ -615,12 +599,38 @@ export function ScenesShell({
               ? error.message
               : 'Could not start the render.',
         });
-        return null;
       } finally {
         setGeneratingScenes((current) => {
           const next = new Set(current);
           next.delete(sceneId);
           return next;
+        });
+      }
+    },
+    [activeId, loadStoryboard],
+  );
+
+  const syncSceneFrameStack = useCallback(
+    async (sceneId: string) => {
+      if (!activeId) return;
+      try {
+        const response = await fetch(
+          `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}/frame-stack`,
+          { method: 'POST' },
+        );
+        const data = (await response.json().catch(() => null)) as {
+          added?: number;
+          error?: string;
+        } | null;
+        if (!response.ok) throw new Error(data?.error);
+        if ((data?.added ?? 0) > 0) await loadStoryboard(activeId);
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          text:
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not load the existing Frame Stack.',
         });
       }
     },
@@ -986,15 +996,7 @@ export function ScenesShell({
                           onRefine={(instruction) =>
                             void generateScene(selectedScene.id, instruction)
                           }
-                          onCreateVariation={(
-                            parentGenerationId,
-                            instruction,
-                          ) =>
-                            generateScene(selectedScene.id, instruction, {
-                              parentGenerationId,
-                              activate: false,
-                            })
-                          }
+                          onSyncFrameStack={() => syncSceneFrameStack(selectedScene.id)}
                           onDraftClip={() => void draftClip(selectedScene.id)}
                           onEnhance={(tier) =>
                             void enhanceClip(selectedScene.id, tier)
@@ -2087,7 +2089,7 @@ function SceneDetail({
   onPatch,
   onRenderStill,
   onRefine,
-  onCreateVariation,
+  onSyncFrameStack,
   onDraftClip,
   onEnhance,
   onDelete,
@@ -2102,10 +2104,7 @@ function SceneDetail({
   onPatch: (patch: Record<string, unknown>) => Promise<void>;
   onRenderStill: () => void;
   onRefine: (instruction: string) => void;
-  onCreateVariation: (
-    parentGenerationId: string,
-    instruction: string,
-  ) => Promise<string | null>;
+  onSyncFrameStack: () => Promise<void>;
   onDraftClip: () => void;
   onEnhance: (tier: 'hd' | 'fhd') => void;
   onDelete: () => void;
@@ -2122,6 +2121,7 @@ function SceneDetail({
         : 'still';
   const [tab, setTab] = useState<StageTab>(defaultTab);
   const [frameTrackOpen, setFrameTrackOpen] = useState(false);
+  const [frameTrackSyncing, setFrameTrackSyncing] = useState(false);
 
   const stillRunning = runStepState(scene.run) === 'active';
   const draftRunning = clipStepState(draft) === 'active';
@@ -2155,7 +2155,15 @@ function SceneDetail({
               effectiveSeed={effectiveSeed}
               isFinalScene={isFinalScene}
               onOpenFrameTrack={
-                hasStill ? () => setFrameTrackOpen(true) : undefined
+                hasStill
+                  ? () => {
+                      setFrameTrackOpen(true);
+                      setFrameTrackSyncing(true);
+                      void onSyncFrameStack().finally(() =>
+                        setFrameTrackSyncing(false),
+                      );
+                    }
+                  : undefined
               }
             />
             {tab === 'still' && scene.takes.length > 0 && (
@@ -2425,8 +2433,7 @@ function SceneDetail({
         onSetActive={(generationId) =>
           onPatch({ activeGenerationId: generationId })
         }
-        onCreateVariation={onCreateVariation}
-        busy={busyStill || stillRunning}
+        syncing={frameTrackSyncing}
       />
     </>
   );
@@ -3036,111 +3043,15 @@ function TakesTree({
   );
 }
 
-const FRAME_TRACK_TILE_W = 190;
-const FRAME_TRACK_GAP = 28;
-const FRAME_TRACK_EDGE_H = 38;
-const FRAME_TRACK_COMPOSER_W = 336;
+const FRAME_TRACK_TILE_W = 164;
+const FRAME_TRACK_GAP = 24;
+const FRAME_TRACK_EDGE_H = 30;
 
-const FRAME_TRACK_VARIATION_GROUPS = {
-  lens: {
-    label: 'Lens',
-    options: [
-      {
-        label: 'Cooke S4 · 40 mm',
-        prompt:
-          'Photograph through a Cooke S4 40 mm lens with gentle warmth, rounded falloff and soft highlight roll-off.',
-      },
-      {
-        label: 'Zeiss Super Speed · 28 mm',
-        prompt:
-          'Shift to a Zeiss Super Speed 28 mm lens with intimate wide-angle perspective, restrained distortion and crisp practical lights.',
-      },
-      {
-        label: 'Anamorphic · 75 mm',
-        prompt:
-          'Use a 75 mm anamorphic lens with compressed depth, oval bokeh and a restrained horizontal flare from motivated light.',
-      },
-    ],
-  },
-  camera: {
-    label: 'Camera',
-    options: [
-      {
-        label: 'Low three-quarter',
-        prompt:
-          'Move the camera to a low three-quarter angle while preserving subject blocking, geography and the exact story beat.',
-      },
-      {
-        label: 'Overhead lockoff',
-        prompt:
-          'Reframe as a precise overhead lockoff while preserving every object, the action and the established light direction.',
-      },
-      {
-        label: 'Tight profile',
-        prompt:
-          'Move into a tight profile composition with shallow depth of field while keeping the performance and screen direction.',
-      },
-    ],
-  },
-  light: {
-    label: 'Light',
-    options: [
-      {
-        label: 'Candle practical',
-        prompt:
-          'Let the candle become the motivated key light, with warm falloff on skin and deep cool shadows elsewhere.',
-      },
-      {
-        label: 'Cold window edge',
-        prompt:
-          'Add a cold window edge light from camera left while preserving the practical exposure and nocturnal contrast.',
-      },
-      {
-        label: 'Dawn fill',
-        prompt:
-          'Introduce the first desaturated dawn fill without changing blocking, materials or the established practical sources.',
-      },
-    ],
-  },
-  atmosphere: {
-    label: 'Atmosphere',
-    options: [
-      {
-        label: 'Fine smoke',
-        prompt:
-          'Add a fine layer of workshop smoke that reveals the light beams without obscuring faces or important objects.',
-      },
-      {
-        label: 'Rain on glass',
-        prompt:
-          'Add restrained rain texture on the foreground glass while the subjects, staging and interior remain unchanged.',
-      },
-      {
-        label: 'Clear air',
-        prompt:
-          'Remove atmospheric haze for cleaner separation and precise material detail while preserving the same lighting design.',
-      },
-    ],
-  },
-} as const;
-
-type FrameTrackVariationType = keyof typeof FRAME_TRACK_VARIATION_GROUPS;
-
-function frameTrackSubtreeWidth(
-  node: TakeNode,
-  branchParentId: string | null,
-): number {
-  const ownWidth =
-    node.generationId === branchParentId
-      ? FRAME_TRACK_COMPOSER_W
-      : FRAME_TRACK_TILE_W;
-  if (!node.children.length) return ownWidth;
+function frameTrackSubtreeWidth(node: TakeNode): number {
+  if (!node.children.length) return FRAME_TRACK_TILE_W;
   return Math.max(
-    ownWidth,
-    node.children.reduce(
-      (total, child) => total + frameTrackSubtreeWidth(child, branchParentId),
-      0,
-    ) +
+    FRAME_TRACK_TILE_W,
+    node.children.reduce((total, child) => total + frameTrackSubtreeWidth(child), 0) +
       FRAME_TRACK_GAP * (node.children.length - 1),
   );
 }
@@ -3150,7 +3061,6 @@ function FrameTrackTake({
   label,
   active,
   selected,
-  branchOpen,
   usage,
   onSelect,
 }: {
@@ -3158,7 +3068,6 @@ function FrameTrackTake({
   label: string;
   active: boolean;
   selected: boolean;
-  branchOpen: boolean;
   usage: GenerationUsage[];
   onSelect: () => void;
 }) {
@@ -3170,14 +3079,13 @@ function FrameTrackTake({
       type="button"
       onClick={onSelect}
       className={cn(
-        'group w-[190px] overflow-hidden rounded-xl border bg-background text-left shadow-sm outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
+        'group w-[164px] overflow-hidden rounded-xl border bg-background text-left shadow-sm outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
         active ? 'border-[var(--brand)]' : 'hover:border-foreground/30',
         selected && 'ring-2 ring-foreground/20',
         active && selected && 'ring-[var(--brand-soft)]',
       )}
-      aria-label={`Preview ${label}${active ? ', active in scene' : ''}`}
+      aria-label={`Preview ${label}${active ? ', current video source' : ''}`}
       aria-pressed={selected}
-      aria-expanded={branchOpen}
     >
       <span className="relative block aspect-video overflow-hidden bg-muted">
         {asset ? (
@@ -3203,7 +3111,7 @@ function FrameTrackTake({
           </span>
           {active && (
             <span className="rounded-full bg-[var(--brand)] px-1.5 py-0.5 font-mono text-[7px] uppercase">
-              in scene
+              video source
             </span>
           )}
         </span>
@@ -3218,120 +3126,8 @@ function FrameTrackTake({
             {boardCount} board{boardCount === 1 ? '' : 's'}
           </span>
         </span>
-        <span
-          className={cn(
-            'mt-2 flex items-center gap-1 border-t pt-1.5 font-mono text-[8px] uppercase',
-            branchOpen ? 'text-[var(--brand)]' : 'text-muted-foreground',
-          )}
-        >
-          <GitBranch className="size-2.5" />{' '}
-          {branchOpen ? 'branch open' : 'open branch'}
-        </span>
       </span>
     </button>
-  );
-}
-
-function FrameTrackBranchComposer({
-  parentLabel,
-  variationType,
-  variationLabel,
-  variationPrompt,
-  busy,
-  onTypeChange,
-  onPresetChange,
-  onPromptChange,
-  onCreate,
-}: {
-  parentLabel: string;
-  variationType: FrameTrackVariationType;
-  variationLabel: string;
-  variationPrompt: string;
-  busy: boolean;
-  onTypeChange: (type: FrameTrackVariationType) => void;
-  onPresetChange: (label: string) => void;
-  onPromptChange: (prompt: string) => void;
-  onCreate: () => void;
-}) {
-  const group = FRAME_TRACK_VARIATION_GROUPS[variationType];
-  return (
-    <div className="w-[336px] rounded-xl border border-foreground/15 bg-background p-3 text-left shadow-lg">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <SystemLabel>Branch from {parentLabel}</SystemLabel>
-          <p className="mt-1 text-[9px] leading-4 text-muted-foreground">
-            Choose one production decision. The current frame remains untouched.
-          </p>
-        </div>
-        <Badge variant="outline" className="font-mono text-[7px] uppercase">
-          preview
-        </Badge>
-      </div>
-      <div className="mt-2 grid grid-cols-[106px_minmax(0,1fr)] gap-1.5">
-        <Select
-          value={variationType}
-          onValueChange={(value) =>
-            value && onTypeChange(value as FrameTrackVariationType)
-          }
-        >
-          <SelectTrigger
-            className="h-8! bg-background text-[10px]"
-            aria-label="Variation type"
-          >
-            <SelectValue>{group.label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent align="start" side="bottom">
-            {(
-              Object.keys(
-                FRAME_TRACK_VARIATION_GROUPS,
-              ) as FrameTrackVariationType[]
-            ).map((type) => (
-              <SelectItem key={type} value={type}>
-                {FRAME_TRACK_VARIATION_GROUPS[type].label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={variationLabel}
-          onValueChange={(value) => value && onPresetChange(value)}
-        >
-          <SelectTrigger
-            className="h-8! bg-background text-[10px]"
-            aria-label="Variation preset"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="start" side="bottom">
-            {group.options.map((option) => (
-              <SelectItem key={option.label} value={option.label}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <Textarea
-        value={variationPrompt}
-        onChange={(event) => onPromptChange(event.target.value)}
-        aria-label="Variation direction"
-        className="mt-1.5 min-h-20 resize-none bg-background text-[10px] leading-4"
-      />
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="text-[8px] leading-3 text-muted-foreground">
-          Adds a selectable child; it does not replace the scene frame.
-        </p>
-        <Button
-          size="sm"
-          className="h-8 shrink-0"
-          onClick={onCreate}
-          disabled={busy || variationPrompt.trim().length < 3}
-        >
-          {busy ? <Loader2 className="animate-spin" /> : <GitBranch />}
-          Create variation
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -3340,8 +3136,6 @@ function FrameTrackBranch({
   labels,
   activeGenerationId,
   selectedGenerationId,
-  branchParentId,
-  branchComposer,
   usage,
   onSelect,
 }: {
@@ -3349,16 +3143,11 @@ function FrameTrackBranch({
   labels: Map<string, string>;
   activeGenerationId: string | null;
   selectedGenerationId: string | null;
-  branchParentId: string | null;
-  branchComposer: ReactNode;
   usage: Record<string, GenerationUsage[]>;
   onSelect: (generationId: string) => void;
 }) {
-  const branchOpen = node.generationId === branchParentId;
-  const width = frameTrackSubtreeWidth(node, branchParentId);
-  const childWidths = node.children.map((child) =>
-    frameTrackSubtreeWidth(child, branchParentId),
-  );
+  const width = frameTrackSubtreeWidth(node);
+  const childWidths = node.children.map(frameTrackSubtreeWidth);
   const childCenters = childWidths.map(
     (childWidth, childIndex) =>
       childWidths
@@ -3375,16 +3164,9 @@ function FrameTrackBranch({
         label={labels.get(node.generationId) ?? 'T?'}
         active={node.generationId === activeGenerationId}
         selected={node.generationId === selectedGenerationId}
-        branchOpen={branchOpen}
         usage={usage[node.generationId] ?? []}
         onSelect={() => onSelect(node.generationId)}
       />
-      {branchOpen && (
-        <>
-          <div className="h-5 border-l border-foreground/25" aria-hidden />
-          {branchComposer}
-        </>
-      )}
       {node.children.length > 0 && (
         <>
           <svg
@@ -3414,8 +3196,6 @@ function FrameTrackBranch({
                 labels={labels}
                 activeGenerationId={activeGenerationId}
                 selectedGenerationId={selectedGenerationId}
-                branchParentId={branchParentId}
-                branchComposer={branchComposer}
                 usage={usage}
                 onSelect={onSelect}
               />
@@ -3433,19 +3213,14 @@ function FrameTrackDialog({
   storyboardId,
   scene,
   onSetActive,
-  onCreateVariation,
-  busy,
+  syncing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storyboardId: string;
   scene: SceneDto;
   onSetActive: (generationId: string) => Promise<void>;
-  onCreateVariation: (
-    parentGenerationId: string,
-    instruction: string,
-  ) => Promise<string | null>;
-  busy: boolean;
+  syncing: boolean;
 }) {
   const [selectedGenerationId, setSelectedGenerationId] = useState<
     string | null
@@ -3455,17 +3230,6 @@ function FrameTrackDialog({
     'idle' | 'loading' | 'ready' | 'error'
   >('idle');
   const [applying, setApplying] = useState(false);
-  const [branching, setBranching] = useState(false);
-  const [branchParentId, setBranchParentId] = useState<string | null>(null);
-  const [variationType, setVariationType] =
-    useState<FrameTrackVariationType>('lens');
-  const initialVariation = FRAME_TRACK_VARIATION_GROUPS.lens.options[0];
-  const [variationLabel, setVariationLabel] = useState<string>(
-    initialVariation.label,
-  );
-  const [variationPrompt, setVariationPrompt] = useState<string>(
-    initialVariation.prompt,
-  );
   const roots = buildTakeTree(scene.takes);
   const labels = new Map(
     scene.takes
@@ -3524,58 +3288,6 @@ function FrameTrackDialog({
     };
   }, [open, scene.generationId, scene.takes, takeIds]);
 
-  const chooseVariationType = (type: FrameTrackVariationType) => {
-    const next = FRAME_TRACK_VARIATION_GROUPS[type].options[0];
-    setVariationType(type);
-    setVariationLabel(next.label);
-    setVariationPrompt(next.prompt);
-  };
-
-  const chooseVariationPreset = (label: string) => {
-    const option = FRAME_TRACK_VARIATION_GROUPS[variationType].options.find(
-      (entry) => entry.label === label,
-    );
-    if (!option) return;
-    setVariationLabel(option.label);
-    setVariationPrompt(option.prompt);
-  };
-
-  const selectFrameBranch = (generationId: string) => {
-    setSelectedGenerationId(generationId);
-    setBranchParentId((current) =>
-      current === generationId ? null : generationId,
-    );
-  };
-
-  const createVariation = async () => {
-    if (
-      !branchParentId ||
-      variationPrompt.trim().length < 3 ||
-      busy ||
-      branching
-    )
-      return;
-    setBranching(true);
-    try {
-      const group = FRAME_TRACK_VARIATION_GROUPS[variationType];
-      const generationId = await onCreateVariation(
-        branchParentId,
-        `${group.label} — ${variationLabel}. ${variationPrompt.trim()}`,
-      );
-      if (generationId) {
-        setSelectedGenerationId(generationId);
-        setBranchParentId(generationId);
-      }
-    } finally {
-      setBranching(false);
-    }
-  };
-
-  const changeOpenState = (nextOpen: boolean) => {
-    if (!nextOpen) setBranchParentId(null);
-    onOpenChange(nextOpen);
-  };
-
   const applySelectedFrame = async () => {
     if (!selectedTake || selectedActive || !selectedAsset) return;
     setApplying(true);
@@ -3587,7 +3299,7 @@ function FrameTrackDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={changeOpenState}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[calc(100svh-2rem)] w-[calc(100%-2rem)] max-w-[1500px]! grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0!">
         <DialogHeader className="border-b px-5 py-4 pr-14">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3605,8 +3317,8 @@ function FrameTrackDialog({
                 </Badge>
               </div>
               <DialogDescription className="mt-1 text-[11px]">
-                Select a frame to open its branch, create a variation, then
-                choose what feeds the scene.
+                Existing Frame Stack branches for this shot. The green node is
+                the image currently feeding video.
               </DialogDescription>
             </div>
             <Link
@@ -3625,6 +3337,14 @@ function FrameTrackDialog({
         <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_340px]">
           <div className="relative min-h-0 overflow-auto bg-[var(--canvas)]">
             <div className="pointer-events-none absolute inset-0 graph-grid opacity-60" />
+            {syncing && (
+              <div className="absolute inset-0 z-20 grid place-items-center bg-background/55 backdrop-blur-[1px]">
+                <p className="flex items-center gap-2 rounded-full border bg-background px-3 py-2 text-[10px] text-muted-foreground shadow-sm">
+                  <Loader2 className="size-3.5 animate-spin" /> Loading existing
+                  Frame Stack branches…
+                </p>
+              </div>
+            )}
             <div className="relative flex min-h-full min-w-max items-start justify-center p-10">
               <div
                 className="flex items-start"
@@ -3637,26 +3357,8 @@ function FrameTrackDialog({
                     labels={labels}
                     activeGenerationId={scene.generationId}
                     selectedGenerationId={selectedTake?.generationId ?? null}
-                    branchParentId={branchParentId}
-                    branchComposer={
-                      <FrameTrackBranchComposer
-                        parentLabel={
-                          branchParentId
-                            ? (labels.get(branchParentId) ?? 'take')
-                            : 'take'
-                        }
-                        variationType={variationType}
-                        variationLabel={variationLabel}
-                        variationPrompt={variationPrompt}
-                        busy={busy || branching}
-                        onTypeChange={chooseVariationType}
-                        onPresetChange={chooseVariationPreset}
-                        onPromptChange={setVariationPrompt}
-                        onCreate={() => void createVariation()}
-                      />
-                    }
                     usage={usage}
-                    onSelect={selectFrameBranch}
+                    onSelect={setSelectedGenerationId}
                   />
                 ))}
               </div>
@@ -3674,7 +3376,7 @@ function FrameTrackDialog({
                     'bg-[var(--brand-soft)] text-[var(--brand)]',
                 )}
               >
-                {selectedActive ? 'active in scene' : 'preview only'}
+                {selectedActive ? 'video source' : 'preview only'}
               </Badge>
             </div>
             <div className="relative mt-2 aspect-video overflow-hidden rounded-lg border bg-muted">
@@ -3768,14 +3470,14 @@ function FrameTrackDialog({
 
         <div className="flex items-center justify-between gap-3 border-t bg-background px-4 py-3">
           <p className="max-w-xl text-[10px] leading-4 text-muted-foreground">
-            Changing the active frame only affects future video drafts. Existing
-            clips remain attached to their original source.
+            The active node is the still used by the next image-to-video render.
+            Existing video clips remain attached to their original source.
           </p>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => changeOpenState(false)}
+              onClick={() => onOpenChange(false)}
             >
               Close
             </Button>
@@ -3785,7 +3487,7 @@ function FrameTrackDialog({
               disabled={selectedActive || !selectedAsset || applying}
             >
               {applying ? <Loader2 className="animate-spin" /> : <Check />}
-              {selectedActive ? 'In this scene' : 'Use in this scene'}
+              {selectedActive ? 'Current video source' : 'Use as video source'}
             </Button>
           </div>
         </div>

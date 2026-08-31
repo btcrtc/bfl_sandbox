@@ -82,7 +82,8 @@ export async function POST(
   const budget = await checkDailyBudget(workspaceId);
   if (!budget.ok) return NextResponse.json({ error: budget.message }, { status: 429 });
 
-  const referenceImages = await loadReferenceDataUris(workspaceId, id);
+  const publicOrigin = new URL(request.url).origin;
+  const referenceImages = await loadReferenceDataUris(workspaceId, id, publicOrigin);
   let inputImages = referenceImages;
   if (instruction) {
     if (!refinementParentId) {
@@ -94,7 +95,7 @@ export async function POST(
       .where(eq(generationAssets.generationId, refinementParentId))
       .limit(1);
     const activeDataUri = activeAsset
-      ? await loadAssetDataUri(workspaceId, activeAsset.id)
+      ? await loadAssetDataUri(workspaceId, activeAsset.id, publicOrigin)
       : null;
     if (!activeDataUri) {
       return NextResponse.json({ error: 'The active take has no stored frame yet.' }, { status: 400 });
@@ -179,6 +180,7 @@ export async function POST(
 async function loadReferenceDataUris(
   workspaceId: string,
   storyboardId: string,
+  publicOrigin: string,
 ): Promise<string[]> {
   const db = getDb();
   const referenceRows = await db
@@ -189,7 +191,7 @@ async function loadReferenceDataUris(
 
   const dataUris: string[] = [];
   for (const reference of referenceRows) {
-    const dataUri = await loadAssetDataUri(workspaceId, reference.assetId);
+    const dataUri = await loadAssetDataUri(workspaceId, reference.assetId, publicOrigin);
     if (dataUri) dataUris.push(dataUri);
   }
   return dataUris;

@@ -11,7 +11,7 @@ import { loadAssetDataUri } from '@/lib/media';
 import { checkDailyBudget, submitVideoJob } from '@/lib/run-service';
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string; sceneId: string }> },
 ) {
   if (env.VIDEO_ENABLED !== 'true') {
@@ -50,7 +50,9 @@ export async function POST(
     .from(generationAssets)
     .where(eq(generationAssets.generationId, scene.generationId))
     .limit(1);
-  const stillDataUri = stillAsset ? await loadAssetDataUri(workspaceId, stillAsset.id) : null;
+  const stillDataUri = stillAsset
+    ? await loadAssetDataUri(workspaceId, stillAsset.id, new URL(request.url).origin)
+    : null;
   if (!stillDataUri) {
     return NextResponse.json({ error: 'The scene still is not stored yet — wait for it to finish.' }, { status: 409 });
   }

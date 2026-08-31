@@ -2534,7 +2534,7 @@ function LinkedTakeCard({
         active && selected && 'ring-[var(--brand-soft)]',
       )}
       aria-pressed={selected}
-      aria-label={`Preview ${label}${active ? ', active in sequence' : ''}`}
+      aria-label={`Preview ${label}${active ? ', current video source' : ''}`}
     >
       <span className="relative block aspect-video w-full overflow-hidden bg-muted">
         {asset ? (
@@ -2554,7 +2554,7 @@ function LinkedTakeCard({
           <span className="font-mono text-[8px] uppercase tracking-[0.13em]">{label}</span>
           {active && (
             <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 font-mono text-[8px] uppercase text-white">
-              in sequence
+              video source
             </span>
           )}
         </span>
@@ -2676,6 +2676,7 @@ function LinkedSceneFrameStack({
   const [layerLabel, setLayerLabel] = useState(FRAME_LAYER_PRESETS.lens[0].label);
   const [layerPrompt, setLayerPrompt] = useState(FRAME_LAYER_PRESETS.lens[0].prompt);
   const canvasRef = useRef<HTMLElement | null>(null);
+  const frameStackSyncedRef = useRef(false);
 
   const scene = storyboard?.scenes.find((entry) => entry.id === sceneId) ?? null;
   const selectedTake =
@@ -2695,6 +2696,13 @@ function LinkedSceneFrameStack({
       return;
     }
     try {
+      if (!frameStackSyncedRef.current) {
+        const syncResponse = await fetch(
+          `/api/storyboards/${encodeURIComponent(storyboardId)}/scenes/${encodeURIComponent(sceneId)}/frame-stack`,
+          { method: 'POST' },
+        );
+        if (syncResponse.ok) frameStackSyncedRef.current = true;
+      }
       const response = await fetch(`/api/storyboards/${encodeURIComponent(storyboardId)}`, {
         cache: 'no-store',
       });
@@ -2931,7 +2939,7 @@ function LinkedSceneFrameStack({
                   </Badge>
                 </div>
                 <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
-                  Preview freely; only “Use in sequence” changes the frame feeding video.
+                  Preview freely; only “Use as video source” changes the frame feeding video.
                 </p>
               </div>
               {scene && (
@@ -3162,7 +3170,7 @@ function LinkedSceneFrameStack({
                     </div>
                     {selectedIsActive ? (
                       <Button variant="outline" size="sm" className="h-8 shrink-0" disabled>
-                        <Check /> In sequence
+                        <Check /> Current video source
                       </Button>
                     ) : (
                       <Button
@@ -3172,7 +3180,7 @@ function LinkedSceneFrameStack({
                         disabled={busyAction !== null || !selectedHasFrame}
                       >
                         {busyAction === 'activate' ? <Loader2 className="animate-spin" /> : <Clapperboard />}
-                        Use in sequence
+                        Use as video source
                       </Button>
                     )}
                   </div>
