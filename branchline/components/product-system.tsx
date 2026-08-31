@@ -147,7 +147,7 @@ function RailItem({
 }) {
   return (
     <div className="group/rail relative mb-1">
-      <Link
+      <a
         href={href}
         aria-label={label}
         aria-current={active ? 'page' : undefined}
@@ -157,7 +157,7 @@ function RailItem({
         )}
       >
         <Icon className="size-4" />
-      </Link>
+      </a>
       <span
         role="tooltip"
         className="pointer-events-none invisible absolute left-10 top-1/2 z-50 w-max -translate-y-1/2 rounded-md bg-foreground px-3 py-1.5 text-xs text-background opacity-0 shadow-sm transition-[opacity,visibility] duration-100 group-hover/rail:visible group-hover/rail:opacity-100 group-focus-within/rail:visible group-focus-within/rail:opacity-100"
