@@ -80,6 +80,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { EXAMPLE_FRAME_STACK_VARIANTS } from '@/lib/example-frame-stack';
 import {
   SCENE_STILL_ESTIMATE_USD,
   VIDEO_RATES_PER_SEC,
@@ -365,6 +366,7 @@ export function ScenesShell({
   // --- data loading ---------------------------------------------------------
 
   const exampleClipsSyncedRef = useRef(new Set<string>());
+  const exampleFrameStackSyncedRef = useRef(new Set<string>());
 
   const loadList = useCallback(async () => {
     if (!viewer) return;
@@ -423,6 +425,37 @@ export function ScenesShell({
             storyboard?: StoryboardDto;
           };
           if (syncData.storyboard) data.storyboard = syncData.storyboard;
+        }
+      }
+      const exampleFrameStackScene = data.storyboard.scenes.find(
+        (scene) =>
+          scene.sceneIndex === 1 &&
+          scene.run?.origin === 'example' &&
+          scene.takes.length < EXAMPLE_FRAME_STACK_VARIANTS.length + 1,
+      );
+      if (
+        exampleFrameStackScene &&
+        !exampleFrameStackSyncedRef.current.has(data.storyboard.id)
+      ) {
+        exampleFrameStackSyncedRef.current.add(data.storyboard.id);
+        const syncResponse = await fetch(
+          `/api/storyboards/${encodeURIComponent(id)}/scenes/${encodeURIComponent(exampleFrameStackScene.id)}/frame-stack`,
+          { method: 'POST' },
+        );
+        const syncData = (await syncResponse.json().catch(() => null)) as {
+          added?: number;
+        } | null;
+        if (syncResponse.ok && (syncData?.added ?? 0) > 0) {
+          const refreshedResponse = await fetch(
+            `/api/storyboards/${encodeURIComponent(id)}`,
+            { cache: 'no-store' },
+          );
+          if (refreshedResponse.ok) {
+            const refreshed = (await refreshedResponse.json()) as {
+              storyboard: StoryboardDto;
+            };
+            data.storyboard = refreshed.storyboard;
+          }
         }
       }
       // Ignore stale responses after the user switched boards.

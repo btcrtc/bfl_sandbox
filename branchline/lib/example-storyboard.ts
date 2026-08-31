@@ -14,6 +14,7 @@ import {
   type ExampleScene,
 } from '@/lib/example-board';
 import { registerBundledExampleClips } from '@/lib/example-clips';
+import { registerExampleFrameStack } from '@/lib/example-frame-stack-store';
 
 async function registerExampleStill(input: {
   workspaceId: string;
@@ -166,6 +167,17 @@ export async function createExampleStoryboard(input: {
       db.insert(storyboardSubtitles).values(rows),
     ),
   ]);
+
+  const frameStackSceneIndex = 1;
+  await registerExampleFrameStack({
+    workspaceId,
+    userId,
+    storyboardId,
+    sceneId: sceneIds[frameStackSceneIndex],
+    scenePrompt: EXAMPLE_BOARD.scenes[frameStackSceneIndex].prompt,
+    seed: EXAMPLE_BOARD.seed + frameStackSceneIndex,
+    baseGenerationId: generationIds[frameStackSceneIndex],
+  });
 
   await registerBundledExampleClips({
     workspaceId,
