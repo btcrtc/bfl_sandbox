@@ -13,6 +13,7 @@ import {
   storyboardTakes,
 } from '@/db/schema';
 import { EXAMPLE_BOARD, EXAMPLE_STILL, type ExampleScene } from '@/lib/example-board';
+import { registerBundledExampleClips } from '@/lib/example-clips';
 
 // A finished-looking board for first contact: the layout reads instantly
 // without spending a single credit. Content lives in lib/example-board.ts;
@@ -154,6 +155,13 @@ export async function POST() {
     ...chunks(takeRows, 8).map((rows) => db.insert(storyboardTakes).values(rows)),
     ...chunks(subtitleRows, 4).map((rows) => db.insert(storyboardSubtitles).values(rows)),
   ]);
+
+  await registerBundledExampleClips({
+    workspaceId,
+    userId: user.userId,
+    storyboardId,
+    scenes: sceneRows,
+  });
 
   return NextResponse.json({ id: storyboardId }, { status: 201 });
 }
