@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import NextImage from 'next/image';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
@@ -196,6 +197,20 @@ export function ScenesShell({
       } catch {
         // Storage unavailable — keep the default.
       }
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  // A Frame Stack return link restores both the board and the exact scene.
+  // Keep this separate from the reference-pin query so the two flows can
+  // coexist without consuming one another's parameters.
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const storyboardId = params.get('storyboardId');
+      const sceneId = params.get('sceneId');
+      if (storyboardId) setActiveId(storyboardId);
+      if (sceneId) setRawSelection({ kind: 'scene', id: sceneId });
     }, 0);
     return () => window.clearTimeout(timeout);
   }, []);
@@ -851,6 +866,7 @@ export function ScenesShell({
                       {selection.kind === 'scene' && selectedScene && (
                         <SceneDetail
                           key={selectedScene.id}
+                          storyboardId={storyboard.id}
                           scene={selectedScene}
                           isFinalScene={selectedScene.sceneIndex === storyboard.scenes.length - 1}
                           boardSeed={storyboard.seed}
@@ -1940,6 +1956,7 @@ function StageRail({
 }
 
 function SceneDetail({
+  storyboardId,
   scene,
   isFinalScene,
   boardSeed,
@@ -1953,6 +1970,7 @@ function SceneDetail({
   onEnhance,
   onDelete,
 }: {
+  storyboardId: string;
   scene: SceneDto;
   isFinalScene: boolean;
   boardSeed: number | null;
@@ -2002,6 +2020,26 @@ function SceneDetail({
             effectiveSeed={effectiveSeed}
             isFinalScene={isFinalScene}
           />
+          {tab === 'still' && hasStill && (
+            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border bg-background/55 px-3 py-2.5">
+              <div className="min-w-0">
+                <SystemLabel>Frame source</SystemLabel>
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  Explore every take as a branch, then choose which frame feeds the next video draft.
+                </p>
+              </div>
+              <Link
+                href={`/playground?storyboardId=${encodeURIComponent(storyboardId)}&sceneId=${encodeURIComponent(scene.id)}`}
+                className={buttonVariants({
+                  variant: 'outline',
+                  size: 'sm',
+                  className: 'h-8 shrink-0',
+                })}
+              >
+                <Images /> Open Frame Stack
+              </Link>
+            </div>
+          )}
           {tab === 'still' && scene.takes.length > 0 && (
             <TakesTree
               takes={scene.takes}

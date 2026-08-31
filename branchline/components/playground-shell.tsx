@@ -14,6 +14,7 @@ import {
 } from 'react';
 import {
   Aperture,
+  ArrowLeft,
   ArrowRight,
   Box,
   Camera,
@@ -121,6 +122,7 @@ import { BFL_ENDPOINTS, MODEL_CAPS, type BflModel } from '@/lib/bfl';
 import { estimateRunCostUsd, formatUsd } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
 import type { HistoryRun } from '@/db/history';
+import type { StoryboardDto, TakeDto } from '@/lib/storyboard-service';
 
 type NodeId = 'prompt' | 'model' | 'generate';
 
@@ -673,6 +675,20 @@ export function PlaygroundShell({
   const [frameCanvasCompact, setFrameCanvasCompact] = useState(false);
   const [frameStackFullscreen, setFrameStackFullscreen] = useState(false);
   const frameStackRef = useRef<HTMLElement | null>(null);
+  const [linkedSceneIds, setLinkedSceneIds] = useState<{
+    storyboardId: string;
+    sceneId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const storyboardId = params.get('storyboardId');
+      const sceneId = params.get('sceneId');
+      if (storyboardId && sceneId) setLinkedSceneIds({ storyboardId, sceneId });
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     const syncFullscreen = () => setFrameStackFullscreen(document.fullscreenElement === frameStackRef.current);
@@ -1130,6 +1146,16 @@ export function PlaygroundShell({
       : frameCanvasState === 'one-branch' && selectedRecipeNode === 'cooke'
         ? 0
         : selectedRecipeContext?.childCount ?? 0;
+
+  if (linkedSceneIds) {
+    return (
+      <LinkedSceneFrameStack
+        {...linkedSceneIds}
+        viewer={viewer}
+        signInPath={signInPath}
+      />
+    );
+  }
 
   return (
     <TooltipProvider delay={350}>
@@ -2444,6 +2470,718 @@ export function PlaygroundShell({
           onRerun={rerunFromRun}
         />
       )}
+    </TooltipProvider>
+  );
+}
+
+const LINKED_TAKE_W = 238;
+const LINKED_TAKE_GAP = 34;
+const LINKED_EDGE_H = 44;
+
+type LinkedTakeNode = TakeDto & { children: LinkedTakeNode[] };
+
+function buildLinkedTakeTree(takes: TakeDto[]): LinkedTakeNode[] {
+  const nodes = new Map<string, LinkedTakeNode>(
+    takes.map((take) => [take.generationId, { ...take, children: [] }]),
+  );
+  const roots: LinkedTakeNode[] = [];
+  for (const node of nodes.values()) {
+    const refinedFrom = node.run?.parameters.refinedFrom;
+    const parent = typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+  const byAge = (a: LinkedTakeNode, b: LinkedTakeNode) => a.createdAt - b.createdAt;
+  for (const node of nodes.values()) node.children.sort(byAge);
+  return roots.sort(byAge);
+}
+
+function linkedSubtreeWidth(node: LinkedTakeNode): number {
+  if (!node.children.length) return LINKED_TAKE_W;
+  return Math.max(
+    LINKED_TAKE_W,
+    node.children.reduce((total, child) => total + linkedSubtreeWidth(child), 0) +
+      LINKED_TAKE_GAP * (node.children.length - 1),
+  );
+}
+
+function LinkedTakeCard({
+  node,
+  label,
+  active,
+  selected,
+  onSelect,
+}: {
+  node: LinkedTakeNode;
+  label: string;
+  active: boolean;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const asset = node.run?.assets[0];
+  const instruction = node.run?.parameters.instruction;
+  const inFlight = node.run && ['queued', 'running'].includes(node.run.status);
+  const seed = node.run?.parameters.seed;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'group relative w-[238px] overflow-hidden rounded-xl border bg-background text-left shadow-[var(--floating-shadow)] outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
+        active ? 'border-[var(--brand)]' : 'hover:border-foreground/30',
+        selected && 'ring-2 ring-foreground/20',
+        active && selected && 'ring-[var(--brand-soft)]',
+      )}
+      aria-pressed={selected}
+      aria-label={`Preview ${label}${active ? ', active in sequence' : ''}`}
+    >
+      <span className="relative block aspect-video w-full overflow-hidden bg-muted">
+        {asset ? (
+          <NextImage
+            src={asset.url}
+            alt={`${label} frame`}
+            fill
+            unoptimized
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
+          />
+        ) : (
+          <span className="grid size-full place-items-center text-muted-foreground">
+            {inFlight ? <Loader2 className="size-5 animate-spin" /> : <ImageIcon className="size-5" />}
+          </span>
+        )}
+        <span className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-2 pt-10 text-white">
+          <span className="font-mono text-[8px] uppercase tracking-[0.13em]">{label}</span>
+          {active && (
+            <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 font-mono text-[8px] uppercase text-white">
+              in sequence
+            </span>
+          )}
+        </span>
+      </span>
+      <span className="block p-2.5">
+        <span className="flex items-center justify-between gap-2">
+          <span className="truncate text-[11px] font-medium">
+            {typeof instruction === 'string' ? instruction : 'Base frame'}
+          </span>
+          <span
+            className={cn(
+              'size-1.5 shrink-0 rounded-full',
+              inFlight
+                ? 'animate-pulse bg-amber-500'
+                : node.run?.status === 'succeeded'
+                  ? 'bg-[var(--success)]'
+                  : 'bg-border',
+            )}
+          />
+        </span>
+        <span className="mt-1 flex items-center justify-between gap-2 font-mono text-[8px] uppercase text-muted-foreground">
+          <span className="truncate">{node.run?.modelId ?? 'pending model'}</span>
+          <span>{typeof seed === 'number' ? `seed ${seed}` : node.run?.status ?? 'saved'}</span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function LinkedTakeBranch({
+  node,
+  labels,
+  activeGenerationId,
+  selectedGenerationId,
+  onSelect,
+}: {
+  node: LinkedTakeNode;
+  labels: Map<string, string>;
+  activeGenerationId: string | null;
+  selectedGenerationId: string | null;
+  onSelect: (generationId: string) => void;
+}) {
+  const width = linkedSubtreeWidth(node);
+  const childWidths = node.children.map(linkedSubtreeWidth);
+  const childCenters = childWidths.map(
+    (childWidth, childIndex) =>
+      childWidths.slice(0, childIndex).reduce((total, value) => total + value, 0) +
+      childIndex * LINKED_TAKE_GAP +
+      childWidth / 2,
+  );
+  const bend = LINKED_EDGE_H * 0.62;
+
+  return (
+    <div style={{ width }} className="flex shrink-0 flex-col items-center">
+      <LinkedTakeCard
+        node={node}
+        label={labels.get(node.generationId) ?? 'T?'}
+        active={node.generationId === activeGenerationId}
+        selected={node.generationId === selectedGenerationId}
+        onSelect={() => onSelect(node.generationId)}
+      />
+      {node.children.length > 0 && (
+        <>
+          <svg
+            width={width}
+            height={LINKED_EDGE_H}
+            viewBox={`0 0 ${width} ${LINKED_EDGE_H}`}
+            className="shrink-0"
+            aria-hidden
+          >
+            {node.children.map((child, childIndex) => (
+              <path
+                key={child.id}
+                d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${LINKED_EDGE_H - bend}, ${childCenters[childIndex]} ${LINKED_EDGE_H}`}
+                className={cn(
+                  'graph-edge',
+                  child.generationId === activeGenerationId && 'graph-edge-active',
+                )}
+              />
+            ))}
+          </svg>
+          <div className="flex items-start" style={{ gap: LINKED_TAKE_GAP }}>
+            {node.children.map((child) => (
+              <LinkedTakeBranch
+                key={child.id}
+                node={child}
+                labels={labels}
+                activeGenerationId={activeGenerationId}
+                selectedGenerationId={selectedGenerationId}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LinkedSceneFrameStack({
+  storyboardId,
+  sceneId,
+  viewer,
+  signInPath,
+}: {
+  storyboardId: string;
+  sceneId: string;
+  viewer: { displayName: string; email: string } | null;
+  signInPath: string;
+}) {
+  const [storyboard, setStoryboard] = useState<StoryboardDto | null>(null);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [message, setMessage] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
+  const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<'activate' | 'branch' | 'root' | null>(null);
+  const [zoom, setZoom] = useState(90);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [layerType, setLayerType] = useState<FrameLayerType>('lens');
+  const [layerLabel, setLayerLabel] = useState(FRAME_LAYER_PRESETS.lens[0].label);
+  const [layerPrompt, setLayerPrompt] = useState(FRAME_LAYER_PRESETS.lens[0].prompt);
+  const canvasRef = useRef<HTMLElement | null>(null);
+
+  const scene = storyboard?.scenes.find((entry) => entry.id === sceneId) ?? null;
+  const selectedTake =
+    scene?.takes.find((take) => take.generationId === selectedGenerationId) ??
+    scene?.takes.find((take) => take.generationId === scene.generationId) ??
+    scene?.takes[0] ??
+    null;
+  const roots = scene ? buildLinkedTakeTree(scene.takes) : [];
+  const labels = new Map(
+    (scene?.takes ?? []).map((take, index) => [take.generationId, `T${index + 1}`]),
+  );
+  const returnHref = `/scenes?storyboardId=${encodeURIComponent(storyboardId)}&sceneId=${encodeURIComponent(sceneId)}`;
+
+  const loadStoryboard = useCallback(async () => {
+    if (!viewer) {
+      setLoadState('error');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/storyboards/${encodeURIComponent(storyboardId)}`, {
+        cache: 'no-store',
+      });
+      const data = (await response.json().catch(() => null)) as {
+        storyboard?: StoryboardDto;
+        error?: string;
+      } | null;
+      if (!response.ok || !data?.storyboard) throw new Error(data?.error);
+      const nextScene = data.storyboard.scenes.find((entry) => entry.id === sceneId);
+      if (!nextScene) throw new Error('Scene not found in this storyboard.');
+      setStoryboard(data.storyboard);
+      setSelectedGenerationId((current) =>
+        current && nextScene.takes.some((take) => take.generationId === current)
+          ? current
+          : nextScene.generationId ?? nextScene.takes[0]?.generationId ?? null,
+      );
+      setLoadState('ready');
+    } catch (error) {
+      setMessage({
+        tone: 'error',
+        text: error instanceof Error && error.message ? error.message : 'Could not load this scene.',
+      });
+      setLoadState('error');
+    }
+  }, [sceneId, storyboardId, viewer]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadStoryboard(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadStoryboard]);
+
+  const hasRunningTake = Boolean(
+    scene?.takes.some((take) => take.run && ['queued', 'running'].includes(take.run.status)),
+  );
+  useEffect(() => {
+    if (!hasRunningTake || !scene) return;
+    const interval = window.setInterval(() => {
+      for (const take of scene.takes) {
+        if (take.run && ['queued', 'running'].includes(take.run.status)) {
+          void fetch(`/api/generations/${encodeURIComponent(take.generationId)}`, {
+            cache: 'no-store',
+          });
+        }
+      }
+      void loadStoryboard();
+    }, 4_000);
+    return () => window.clearInterval(interval);
+  }, [hasRunningTake, loadStoryboard, scene]);
+
+  useEffect(() => {
+    const syncFullscreen = () => setFullscreen(document.fullscreenElement === canvasRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  const chooseLayerType = (nextType: FrameLayerType) => {
+    const first = FRAME_LAYER_PRESETS[nextType][0];
+    setLayerType(nextType);
+    setLayerLabel(first.label);
+    setLayerPrompt(first.prompt);
+  };
+
+  const chooseLayerPreset = (value: string) => {
+    const preset = FRAME_LAYER_PRESETS[layerType].find((entry) => entry.label === value);
+    if (!preset) return;
+    setLayerLabel(preset.label);
+    setLayerPrompt(preset.prompt);
+  };
+
+  const activateSelected = async () => {
+    if (!scene || !selectedTake || selectedTake.generationId === scene.generationId) return;
+    setBusyAction('activate');
+    setMessage(null);
+    try {
+      const response = await fetch(
+        `/api/storyboards/${encodeURIComponent(storyboardId)}/scenes/${encodeURIComponent(sceneId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ activeGenerationId: selectedTake.generationId }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(data?.error);
+      setMessage({
+        tone: 'info',
+        text: 'Active frame updated. Existing clips stay intact; the next video draft starts here.',
+      });
+      await loadStoryboard();
+    } catch (error) {
+      setMessage({
+        tone: 'error',
+        text: error instanceof Error && error.message ? error.message : 'Could not update the scene frame.',
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const createChild = async () => {
+    if (!scene || !selectedTake || layerPrompt.trim().length < 3) return;
+    setBusyAction('branch');
+    setMessage(null);
+    try {
+      const instruction = `${FRAME_LAYER_META[layerType].label} — ${layerLabel}. ${layerPrompt}`;
+      const response = await fetch(
+        `/api/storyboards/${encodeURIComponent(storyboardId)}/scenes/${encodeURIComponent(sceneId)}/generate`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            instruction,
+            parentGenerationId: selectedTake.generationId,
+            activate: false,
+          }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as {
+        id?: string;
+        mode?: string;
+        error?: string;
+      } | null;
+      if (!response.ok || !data?.id) throw new Error(data?.error);
+      setSelectedGenerationId(data.id);
+      setMessage({
+        tone: 'info',
+        text:
+          data.mode === 'preview'
+            ? 'Variation saved as a draft node. Add BFL_API_KEY to render its image.'
+            : 'Variation is rendering as a child. The sequence frame has not changed.',
+      });
+      await loadStoryboard();
+    } catch (error) {
+      setMessage({
+        tone: 'error',
+        text: error instanceof Error && error.message ? error.message : 'Could not create the variation.',
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const renderRoot = async () => {
+    setBusyAction('root');
+    setMessage(null);
+    try {
+      const response = await fetch(
+        `/api/storyboards/${encodeURIComponent(storyboardId)}/scenes/${encodeURIComponent(sceneId)}/generate`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as { id?: string; error?: string } | null;
+      if (!response.ok || !data?.id) throw new Error(data?.error);
+      setSelectedGenerationId(data.id);
+      await loadStoryboard();
+    } catch (error) {
+      setMessage({
+        tone: 'error',
+        text: error instanceof Error && error.message ? error.message : 'Could not render the base frame.',
+      });
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await canvasRef.current?.requestFullscreen();
+  };
+
+  const selectedInstruction = selectedTake?.run?.parameters.instruction;
+  const selectedIsActive = Boolean(
+    scene && selectedTake && scene.generationId === selectedTake.generationId,
+  );
+  const selectedHasFrame = Boolean(selectedTake?.run?.assets[0]);
+
+  return (
+    <TooltipProvider delay={350}>
+      <main className="h-svh overflow-hidden bg-background text-foreground">
+        <ProductHeader
+          concept
+          center={
+            <Link
+              href={returnHref}
+              className="flex h-9 w-full items-center gap-2 rounded-md px-3 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ArrowLeft className="size-3.5" />
+              <span className="truncate">
+                {scene
+                  ? `Scenes / ${String(scene.sceneIndex + 1).padStart(2, '0')} · ${scene.title}`
+                  : 'Back to scenes'}
+              </span>
+            </Link>
+          }
+          end={
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              {viewer ? (
+                <Tooltip>
+                  <TooltipTrigger className="grid size-7 place-items-center rounded-full bg-accent font-mono text-[10px] text-accent-foreground">
+                    {initials(viewer.displayName)}
+                  </TooltipTrigger>
+                  <TooltipContent>{viewer.email}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <a
+                  href={signInPath}
+                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                >
+                  Sign in
+                </a>
+              )}
+            </div>
+          }
+        />
+
+        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_minmax(0,1fr)]">
+          <ProductRail active="playground" />
+          <section
+            ref={canvasRef}
+            className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas)]"
+          >
+            <div className="pointer-events-none absolute inset-0 graph-grid opacity-60" />
+            <div className="relative z-30 flex min-h-[var(--app-header-height)] shrink-0 items-center gap-3 border-b bg-background/94 px-4 py-2 backdrop-blur-md">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Layers3 className="size-3.5" />
+                  <span className="text-[13px] font-medium">Frame Stack</span>
+                  <Badge variant="outline" className="h-5 font-mono text-[8px] uppercase">
+                    linked scene
+                  </Badge>
+                </div>
+                <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
+                  Preview freely; only “Use in sequence” changes the frame feeding video.
+                </p>
+              </div>
+              {scene && (
+                <div className="hidden min-w-0 items-center gap-2 border-l pl-3 lg:flex">
+                  <span className="font-mono text-[9px] uppercase text-muted-foreground">
+                    Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
+                  </span>
+                  <span className="truncate text-[11px] font-medium">{scene.title}</span>
+                  <Badge className="bg-[var(--brand-soft)] font-mono text-[8px] uppercase text-[var(--brand)]">
+                    {scene.takes.length} take{scene.takes.length === 1 ? '' : 's'}
+                  </Badge>
+                </div>
+              )}
+              <div className="ml-auto flex items-center gap-1">
+                <IconTooltip label="Zoom out">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Zoom out"
+                    onClick={() => setZoom((value) => Math.max(55, value - 10))}
+                  >
+                    <ZoomOut />
+                  </Button>
+                </IconTooltip>
+                <span className="w-9 text-center font-mono text-[9px] text-muted-foreground">
+                  {zoom}%
+                </span>
+                <IconTooltip label="Zoom in">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Zoom in"
+                    onClick={() => setZoom((value) => Math.min(120, value + 10))}
+                  >
+                    <ZoomIn />
+                  </Button>
+                </IconTooltip>
+                <IconTooltip label="Fit graph">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Fit graph"
+                    onClick={() => setZoom(scene && scene.takes.length > 5 ? 70 : 90)}
+                  >
+                    <RotateCcw />
+                  </Button>
+                </IconTooltip>
+                <Separator orientation="vertical" className="mx-1 h-5" />
+                <IconTooltip label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+                    onClick={() => void toggleFullscreen()}
+                  >
+                    {fullscreen ? <Minimize2 /> : <Maximize2 />}
+                  </Button>
+                </IconTooltip>
+              </div>
+            </div>
+
+            <div className="relative z-10 min-h-0 flex-1 overflow-auto">
+              {message && (
+                <div
+                  className={cn(
+                    'sticky left-4 top-3 z-40 w-fit max-w-xl rounded-md border bg-background/95 px-3 py-2 text-[10px] shadow-sm',
+                    message.tone === 'error' && 'border-destructive/30 text-destructive',
+                  )}
+                >
+                  {message.text}
+                </div>
+              )}
+              {loadState === 'loading' && (
+                <div className="absolute inset-0 grid place-items-center">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+              {loadState === 'error' && (
+                <div className="absolute inset-0 grid place-items-center px-6">
+                  <div className="max-w-sm rounded-xl border bg-background/90 p-6 text-center shadow-sm">
+                    <ShieldAlert className="mx-auto size-5 text-destructive" />
+                    <p className="mt-2 text-[12px] font-medium">Frame Stack is unavailable</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {viewer ? 'Return to the scene and try again.' : 'Sign in to open a linked scene.'}
+                    </p>
+                    <Link href={returnHref} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'mt-3' })}>
+                      <ArrowLeft /> Back to scene
+                    </Link>
+                  </div>
+                </div>
+              )}
+              {loadState === 'ready' && scene && roots.length === 0 && (
+                <div className="absolute inset-0 grid place-items-center px-6">
+                  <div className="w-[380px] rounded-2xl border border-dashed bg-background/90 p-8 text-center shadow-sm">
+                    <ImageIcon className="mx-auto size-6 text-muted-foreground" />
+                    <p className="mt-3 text-[13px] font-medium">This scene has no frame yet</p>
+                    <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                      Render the root here. Once it exists, every camera, lens and light pass becomes a traceable child node.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => void renderRoot()}
+                      disabled={busyAction !== null}
+                    >
+                      {busyAction === 'root' ? <Loader2 className="animate-spin" /> : <Play />}
+                      Render root frame
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {loadState === 'ready' && scene && roots.length > 0 && (
+                <div
+                  className="flex min-h-full min-w-full w-max items-start justify-center px-12 py-10 transition-[zoom] duration-200"
+                  style={{ zoom: zoom / 100 } as CSSProperties}
+                >
+                  <div className="flex items-start" style={{ gap: LINKED_TAKE_GAP * 1.5 }}>
+                    {roots.map((root) => (
+                      <LinkedTakeBranch
+                        key={root.id}
+                        node={root}
+                        labels={labels}
+                        activeGenerationId={scene.generationId}
+                        selectedGenerationId={selectedTake?.generationId ?? null}
+                        onSelect={setSelectedGenerationId}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {scene && selectedTake && (
+              <div className="relative z-40 shrink-0 border-t bg-background/96 px-3 py-3 shadow-[0_-12px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
+                <div className="mx-auto grid max-w-[1540px] gap-3 xl:grid-cols-[minmax(220px,0.72fr)_minmax(560px,1.8fr)_minmax(280px,0.9fr)]">
+                  <div className="min-w-0 rounded-lg border bg-background/55 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <SystemLabel>Selected take</SystemLabel>
+                      {selectedIsActive ? (
+                        <Badge className="bg-[var(--brand-soft)] font-mono text-[8px] uppercase text-[var(--brand)]">
+                          active
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                          preview only
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-1 truncate text-[12px] font-medium">
+                      {labels.get(selectedTake.generationId) ?? 'Take'} ·{' '}
+                      {typeof selectedInstruction === 'string' ? selectedInstruction : 'Base frame'}
+                    </p>
+                    <p className="mt-1 text-[9px] leading-4 text-muted-foreground">
+                      {selectedTake.run?.modelId ?? 'Pending model'} · {selectedTake.run?.status ?? 'saved'}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 rounded-lg border bg-background/55 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <SystemLabel>Branch from selected take</SystemLabel>
+                        <p className="mt-0.5 text-[9px] text-muted-foreground">
+                          One local decision; composition and all prior decisions are inherited.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                        parent {labels.get(selectedTake.generationId) ?? 'take'}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[112px_180px_minmax(0,1fr)]">
+                      <Select
+                        value={layerType}
+                        onValueChange={(value) => value && chooseLayerType(value as FrameLayerType)}
+                      >
+                        <SelectTrigger className="h-8! bg-background text-[10px]">
+                          <SelectValue>{FRAME_LAYER_META[layerType].label}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="start" side="top">
+                          {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {FRAME_LAYER_META[type].label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={layerLabel} onValueChange={(value) => value && chooseLayerPreset(value)}>
+                        <SelectTrigger className="h-8! bg-background text-[10px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent align="start" side="top">
+                          {FRAME_LAYER_PRESETS[layerType].map((preset) => (
+                            <SelectItem key={preset.label} value={preset.label}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex min-w-0 gap-2">
+                        <Input
+                          value={layerPrompt}
+                          onChange={(event) => setLayerPrompt(event.target.value)}
+                          className="h-8 min-w-0 bg-background text-[10px]"
+                          aria-label="Variation direction"
+                        />
+                        <Button
+                          size="sm"
+                          className="h-8 shrink-0"
+                          onClick={() => void createChild()}
+                          disabled={
+                            busyAction !== null ||
+                            !selectedHasFrame ||
+                            layerPrompt.trim().length < 3
+                          }
+                        >
+                          {busyAction === 'branch' ? <Loader2 className="animate-spin" /> : <GitBranch />}
+                          Create child
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-background/55 p-3">
+                    <div className="min-w-0">
+                      <SystemLabel>Video source</SystemLabel>
+                      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                        Existing clips stay attached. New drafts start from the active frame.
+                      </p>
+                    </div>
+                    {selectedIsActive ? (
+                      <Button variant="outline" size="sm" className="h-8 shrink-0" disabled>
+                        <Check /> In sequence
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="h-8 shrink-0"
+                        onClick={() => void activateSelected()}
+                        disabled={busyAction !== null || !selectedHasFrame}
+                      >
+                        {busyAction === 'activate' ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+                        Use in sequence
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
     </TooltipProvider>
   );
 }

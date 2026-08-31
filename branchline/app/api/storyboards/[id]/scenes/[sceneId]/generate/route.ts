@@ -36,9 +36,39 @@ export async function POST(
   // Optional refinement: image-to-image on top of the active take — the
   // current frame rides along as the first reference and the instruction
   // tells FLUX.2 what to add, remove or change while keeping the shot.
-  const body = ((await request.json().catch(() => null)) ?? {}) as { instruction?: unknown };
+  const body = ((await request.json().catch(() => null)) ?? {}) as {
+    instruction?: unknown;
+    parentGenerationId?: unknown;
+    activate?: unknown;
+  };
   const instruction =
     typeof body.instruction === 'string' ? body.instruction.trim().slice(0, 500) : '';
+  const requestedParentId =
+    typeof body.parentGenerationId === 'string' ? body.parentGenerationId : null;
+  // A brand-new root must become visible on the scene. Only refinements can
+  // be rendered as non-active preview branches.
+  const activate = instruction ? body.activate !== false : true;
+
+  let refinementParentId = scene.generationId;
+  if (instruction && requestedParentId) {
+    const [parentTake] = await db
+      .select({ id: storyboardTakes.id })
+      .from(storyboardTakes)
+      .where(
+        and(
+          eq(storyboardTakes.sceneId, sceneId),
+          eq(storyboardTakes.generationId, requestedParentId),
+        ),
+      )
+      .limit(1);
+    if (!parentTake && scene.generationId !== requestedParentId) {
+      return NextResponse.json(
+        { error: 'That parent frame does not belong to this scene.' },
+        { status: 400 },
+      );
+    }
+    refinementParentId = requestedParentId;
+  }
 
   let basePrompt = scene.prompt.trim();
   if (instruction) {
@@ -55,13 +85,13 @@ export async function POST(
   const referenceImages = await loadReferenceDataUris(workspaceId, id);
   let inputImages = referenceImages;
   if (instruction) {
-    if (!scene.generationId) {
+    if (!refinementParentId) {
       return NextResponse.json({ error: 'Render a still before refining it.' }, { status: 400 });
     }
     const [activeAsset] = await db
       .select({ id: generationAssets.id })
       .from(generationAssets)
-      .where(eq(generationAssets.generationId, scene.generationId))
+      .where(eq(generationAssets.generationId, refinementParentId))
       .limit(1);
     const activeDataUri = activeAsset
       ? await loadAssetDataUri(workspaceId, activeAsset.id)
@@ -94,7 +124,7 @@ export async function POST(
       storyboardId: id,
       sceneId,
       sceneIndex: scene.sceneIndex,
-      ...(instruction ? { refinedFrom: scene.generationId, instruction } : {}),
+      ...(instruction ? { refinedFrom: refinementParentId, instruction } : {}),
     },
   });
 
@@ -137,13 +167,13 @@ export async function POST(
   await db.batch([
     db
       .update(storyboardScenes)
-      .set({ generationId: result.id, updatedAt: now })
+      .set(activate ? { generationId: result.id, updatedAt: now } : { updatedAt: now })
       .where(eq(storyboardScenes.id, sceneId)),
     db.update(storyboards).set({ updatedAt: now }).where(eq(storyboards.id, id)),
     ...takeInserts,
   ]);
 
-  return NextResponse.json({ ...result, sceneId }, { status: 202 });
+  return NextResponse.json({ ...result, sceneId, active: activate }, { status: 202 });
 }
 
 async function loadReferenceDataUris(
