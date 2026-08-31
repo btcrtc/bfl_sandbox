@@ -123,6 +123,11 @@ const BUNDLED_DRAFT_SCENE_TITLES = new Set([
   'What was seen',
   'Time captured',
 ]);
+const BUNDLED_DRAFT_DURATION_OVERRIDES = new Map([
+  ['The new work', 15],
+  ['What was seen', 15],
+  ['Time captured', 15],
+]);
 
 type TrimRange = { startMs: number; endMs: number };
 
@@ -322,8 +327,11 @@ export function ScenesShell({
       const data = (await response.json()) as { storyboard: StoryboardDto };
       const needsBundledDraft = data.storyboard.scenes.some(
         (scene) =>
-          BUNDLED_DRAFT_SCENE_TITLES.has(scene.title) &&
-          !scene.clips.some((clip) => clip.tier === 'draft'),
+          (BUNDLED_DRAFT_SCENE_TITLES.has(scene.title) &&
+            !scene.clips.some((clip) => clip.tier === 'draft')) ||
+          BUNDLED_DRAFT_DURATION_OVERRIDES.get(scene.title) !== undefined &&
+            BUNDLED_DRAFT_DURATION_OVERRIDES.get(scene.title) !==
+              scene.durationSec,
       );
       if (
         needsBundledDraft &&

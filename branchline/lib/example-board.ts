@@ -96,7 +96,7 @@ export const EXAMPLE_BOARD = {
         'cabinet of tiny frames and mechanisms glows like an archive made physical.',
       videoPrompt:
         'Single continuous six-second reverse dolly, moving backward just ahead of the opening door. The clockmaker pulls it fully open and steps aside as cold blue mist enters around his coat. Behind him, the archive cabinet wakes row by row from bottom to top without changing shape. Preserve the doorway axis and carry the warm-inside, cold-outside contrast from the previous shot. Sound: timber creak, a low relay hum and hundreds of quiet ticks joining together.',
-      durationSec: 6,
+      durationSec: 15,
       still: '/scenes/ads-art/scene-06.webp',
       subtitle: {
         speaker: null,
@@ -110,7 +110,7 @@ export const EXAMPLE_BOARD = {
         'landscapes, materials and fragments replacing a conventional clock face.',
       videoPrompt:
         'Single continuous six-second shot from the supplied frame. Begin nearly locked, then make an extremely slow, controlled push-in toward the brass memory machine. The holographic image cells flicker asynchronously, briefly stutter like damaged film, then awaken one by one: forest mist drifts, water ripples, the star field slowly breathes, and the fragmented eyes blink once. Let subtle scan-line interference and light glitches pass across the holograms without moving their borders. Keep the brass cage and the entire machine perfectly rigid and identical to the source frame—no new panels, no warping, no morphing and no cut. Sound: low mechanical hum, soft projector chatter, tiny electrical glitches and a clock tick gradually forming into a pulse.',
-      durationSec: 6,
+      durationSec: 15,
       still: '/scenes/ads-art/scene-07.webp',
       subtitle: {
         speaker: null,
@@ -124,7 +124,7 @@ export const EXAMPLE_BOARD = {
         'through the windows; dark server racks line the opposite wall.',
       videoPrompt:
         'Single six-second semicircular dolly around the table. The amber volume slowly rotates and expands once like a breath, sending a warm reflection across the tabletop; server indicators answer in a restrained ripple and the forest reflection shifts on the glass. Keep the room empty and all architecture fixed. Sound: sub-bass electrical resonance, distant cooling fans and one deep pulse.',
-      durationSec: 6,
+      durationSec: 15,
       still: '/scenes/ads-art/scene-08.webp',
       subtitle: {
         speaker: null,

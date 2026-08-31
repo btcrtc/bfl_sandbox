@@ -16,14 +16,25 @@ export const EXAMPLE_DRAFT_CLIPS = [
   { sceneIndex: 1, path: '/scenes/ads-art/scene-02-draft.mp4', durationSec: 6 },
   { sceneIndex: 2, path: '/scenes/ads-art/scene-03-draft.mp4', durationSec: 5 },
   { sceneIndex: 3, path: '/scenes/ads-art/scene-04-draft.mp4', durationSec: 6 },
-  { sceneIndex: 5, path: '/scenes/ads-art/scene-06-draft.mp4', durationSec: 6 },
+  {
+    sceneIndex: 5,
+    path: '/scenes/ads-art/scene-06-draft.mp4',
+    durationSec: 15,
+    syncScene: true,
+  },
   {
     sceneIndex: 6,
     path: '/scenes/ads-art/scene-07-draft.mp4',
-    durationSec: 6,
+    durationSec: 15,
+    syncScene: true,
     syncVideoPrompt: true,
   },
-  { sceneIndex: 7, path: '/scenes/ads-art/scene-08-draft.mp4', durationSec: 6 },
+  {
+    sceneIndex: 7,
+    path: '/scenes/ads-art/scene-08-draft.mp4',
+    durationSec: 15,
+    syncScene: true,
+  },
 ] as const;
 
 type SceneRef = {
@@ -57,23 +68,43 @@ export async function registerBundledExampleClips(input: {
     );
   const occupiedSceneIds = new Set(existingDrafts.map((clip) => clip.sceneId));
   const attached: Array<{ sceneId: string; clipId: string }> = [];
+  const updatedScenes: string[] = [];
   const now = Date.now();
 
   for (const draft of EXAMPLE_DRAFT_CLIPS) {
     const scene = input.scenes.find((candidate) => candidate.sceneIndex === draft.sceneIndex);
     const expected = EXAMPLE_BOARD.scenes[draft.sceneIndex];
-    if (!scene || scene.title !== expected.title || occupiedSceneIds.has(scene.id)) continue;
+    if (!scene || scene.title !== expected.title) continue;
+
+    const syncVideoPrompt = 'syncVideoPrompt' in draft && draft.syncVideoPrompt;
+    const canonicalVideoPrompt = expected.videoPrompt.trim();
+    const shouldSyncScene =
+      'syncScene' in draft &&
+      draft.syncScene &&
+      (scene.durationSec !== draft.durationSec ||
+        (syncVideoPrompt && scene.videoPrompt?.trim() !== canonicalVideoPrompt));
+    if (shouldSyncScene) {
+      await db
+        .update(storyboardScenes)
+        .set({
+          durationSec: draft.durationSec,
+          ...(syncVideoPrompt ? { videoPrompt: canonicalVideoPrompt } : {}),
+          updatedAt: now + draft.sceneIndex,
+        })
+        .where(eq(storyboardScenes.id, scene.id));
+      updatedScenes.push(scene.id);
+    }
+
+    if (occupiedSceneIds.has(scene.id)) continue;
 
     const generationId = crypto.randomUUID();
     const jobId = crypto.randomUUID();
     const assetId = crypto.randomUUID();
     const clipId = crypto.randomUUID();
     const createdAt = now + draft.sceneIndex;
-    const canonicalVideoPrompt = expected.videoPrompt.trim();
-    const prompt =
-      'syncVideoPrompt' in draft && draft.syncVideoPrompt
-        ? canonicalVideoPrompt
-        : scene.videoPrompt?.trim() || scene.prompt.trim();
+    const prompt = syncVideoPrompt
+      ? canonicalVideoPrompt
+      : scene.videoPrompt?.trim() || scene.prompt.trim();
 
     await db.batch([
       db.insert(generations).values({
@@ -125,28 +156,16 @@ export async function registerBundledExampleClips(input: {
         generationId,
         createdAt,
       }),
-      ...('syncVideoPrompt' in draft && draft.syncVideoPrompt
-        ? [
-            db
-              .update(storyboardScenes)
-              .set({
-                videoPrompt: canonicalVideoPrompt,
-                durationSec: draft.durationSec,
-                updatedAt: createdAt,
-              })
-              .where(eq(storyboardScenes.id, scene.id)),
-          ]
-        : []),
     ]);
     attached.push({ sceneId: scene.id, clipId });
   }
 
-  if (attached.length) {
+  if (attached.length || updatedScenes.length) {
     await db
       .update(storyboards)
       .set({ updatedAt: Date.now() })
       .where(eq(storyboards.id, input.storyboardId));
   }
 
-  return { attached };
+  return { attached, updatedScenes };
 }
