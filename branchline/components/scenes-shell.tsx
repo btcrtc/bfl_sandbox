@@ -21,6 +21,8 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
+  Scissors,
   ShieldAlert,
   Shrink,
   SkipBack,
@@ -60,12 +62,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   SCENE_STILL_ESTIMATE_USD,
   VIDEO_RATES_PER_SEC,
@@ -83,12 +80,41 @@ import type {
 } from '@/lib/storyboard-service';
 import type { LookDto } from '@/app/api/looks/route';
 
-type StoryboardListItem = { id: string; title: string; createdAt: number; updatedAt: number };
+type StoryboardListItem = {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+};
 
 type Selection = { kind: 'idea' } | { kind: 'scene'; id: string } | { kind: 'reel' };
 
 const DURATION_OPTIONS = ['5', '8', '10', '12', '15', '20'];
 const SCENE_COUNT_OPTIONS = ['3', '4', '5', '6'];
+const MIN_TRIM_MS = 1_000;
+const TRIM_STEP_MS = 100;
+
+type TrimRange = { startMs: number; endMs: number };
+
+function sceneTrimRange(scene: SceneDto, override?: TrimRange): TrimRange {
+  const sourceDurationMs = scene.durationSec * 1_000;
+  const rawStart = override?.startMs ?? scene.trimStartMs ?? 0;
+  const rawEnd = override?.endMs ?? scene.trimEndMs ?? sourceDurationMs;
+  const startMs = Math.min(
+    Math.max(0, Math.round(rawStart / TRIM_STEP_MS) * TRIM_STEP_MS),
+    Math.max(0, sourceDurationMs - MIN_TRIM_MS),
+  );
+  const endMs = Math.min(
+    sourceDurationMs,
+    Math.max(startMs + MIN_TRIM_MS, Math.round(rawEnd / TRIM_STEP_MS) * TRIM_STEP_MS),
+  );
+  return { startMs, endMs };
+}
+
+function sceneCutDurationSec(scene: SceneDto, override?: TrimRange) {
+  const trim = sceneTrimRange(scene, override);
+  return (trim.endMs - trim.startMs) / 1_000;
+}
 
 // --- pipeline step state -----------------------------------------------------
 
@@ -151,7 +177,10 @@ export function ScenesShell({
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
   const [videoBusyScenes, setVideoBusyScenes] = useState<Set<string>>(new Set());
   const [assembling, setAssembling] = useState(false);
-  const [notice, setNotice] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    tone: 'info' | 'error';
+    text: string;
+  } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [rawSelection, setRawSelection] = useState<Selection>({ kind: 'idea' });
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
@@ -211,7 +240,9 @@ export function ScenesShell({
     try {
       const response = await fetch('/api/storyboards', { cache: 'no-store' });
       if (!response.ok) throw new Error();
-      const data = (await response.json()) as { storyboards: StoryboardListItem[] };
+      const data = (await response.json()) as {
+        storyboards: StoryboardListItem[];
+      };
       setStoryboardList(data.storyboards);
       setListState('ready');
       setActiveId((current) => current ?? data.storyboards[0]?.id ?? null);
@@ -281,34 +312,37 @@ export function ScenesShell({
 
   // --- board actions --------------------------------------------------------
 
-  const createStoryboard = useCallback(async (kind: 'blank' | 'example' = 'blank') => {
-    setCreating(true);
-    try {
-      const response = await fetch(
-        kind === 'example' ? '/api/storyboards/example' : '/api/storyboards',
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-      );
-      const data = (await response.json()) as { id?: string; error?: string };
-      if (!response.ok || !data.id) throw new Error(data.error);
-      await loadList();
-      setActiveId(data.id);
-      setRawSelection({ kind: 'idea' });
-    } catch (error) {
-      setNotice({
-        tone: 'error',
-        text:
-          error instanceof Error && error.message
-            ? error.message
-            : 'Could not create a storyboard.',
-      });
-    } finally {
-      setCreating(false);
-    }
-  }, [loadList]);
+  const createStoryboard = useCallback(
+    async (kind: 'blank' | 'example' = 'blank') => {
+      setCreating(true);
+      try {
+        const response = await fetch(
+          kind === 'example' ? '/api/storyboards/example' : '/api/storyboards',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+          },
+        );
+        const data = (await response.json()) as { id?: string; error?: string };
+        if (!response.ok || !data.id) throw new Error(data.error);
+        await loadList();
+        setActiveId(data.id);
+        setRawSelection({ kind: 'idea' });
+      } catch (error) {
+        setNotice({
+          tone: 'error',
+          text:
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not create a storyboard.',
+        });
+      } finally {
+        setCreating(false);
+      }
+    },
+    [loadList],
+  );
 
   const patchStoryboard = useCallback(
     async (patch: Record<string, unknown>, options?: { apply?: boolean }) => {
@@ -319,7 +353,10 @@ export function ScenesShell({
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(patch),
         });
-        const data = (await response.json()) as { storyboard?: StoryboardDto; error?: string };
+        const data = (await response.json()) as {
+          storyboard?: StoryboardDto;
+          error?: string;
+        };
         if (!response.ok || !data.storyboard) throw new Error(data.error);
         // apply:false keeps local state as-is — used for blur-saves that can
         // race a concurrent breakdown (a late response must not revert it).
@@ -349,14 +386,11 @@ export function ScenesShell({
       }
       setBreakingDown(true);
       try {
-        const response = await fetch(
-          `/api/storyboards/${encodeURIComponent(activeId)}/breakdown`,
-          {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ idea, sceneCount }),
-          },
-        );
+        const response = await fetch(`/api/storyboards/${encodeURIComponent(activeId)}/breakdown`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ idea, sceneCount }),
+        });
         const data = (await response.json()) as {
           source?: 'mistral' | 'template';
           storyboard?: StoryboardDto;
@@ -407,7 +441,9 @@ export function ScenesShell({
           },
         );
         if (!response.ok) {
-          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          const data = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
           throw new Error(data?.error);
         }
         void loadStoryboard(activeId);
@@ -429,7 +465,9 @@ export function ScenesShell({
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
     });
-    const data = (await response.json().catch(() => null)) as { id?: string } | null;
+    const data = (await response.json().catch(() => null)) as {
+      id?: string;
+    } | null;
     await loadStoryboard(activeId);
     if (data?.id) setRawSelection({ kind: 'scene', id: data.id });
   }, [activeId, loadStoryboard]);
@@ -439,7 +477,9 @@ export function ScenesShell({
       if (!activeId) return;
       await fetch(
         `/api/storyboards/${encodeURIComponent(activeId)}/scenes/${encodeURIComponent(sceneId)}`,
-        { method: 'DELETE' },
+        {
+          method: 'DELETE',
+        },
       );
       setRawSelection({ kind: 'idea' });
       void loadStoryboard(activeId);
@@ -460,7 +500,10 @@ export function ScenesShell({
             body: JSON.stringify(instruction ? { instruction } : {}),
           },
         );
-        const data = (await response.json()) as { mode?: string; error?: string };
+        const data = (await response.json()) as {
+          mode?: string;
+          error?: string;
+        };
         if (!response.ok) throw new Error(data.error);
         setNotice(
           data.mode === 'preview'
@@ -475,9 +518,7 @@ export function ScenesShell({
         setNotice({
           tone: 'error',
           text:
-            error instanceof Error && error.message
-              ? error.message
-              : 'Could not start the render.',
+            error instanceof Error && error.message ? error.message : 'Could not start the render.',
         });
       } finally {
         setGeneratingScenes((current) => {
@@ -578,12 +619,18 @@ export function ScenesShell({
           body: JSON.stringify({ clipId, cues }),
         },
       );
-      const data = (await response.json()) as { storyboard?: StoryboardDto; error?: string };
+      const data = (await response.json()) as {
+        storyboard?: StoryboardDto;
+        error?: string;
+      };
       if (!response.ok || !data.storyboard) {
         throw new Error(data.error || 'Could not save subtitles.');
       }
       setStoryboard(data.storyboard);
-      setNotice({ tone: 'info', text: 'Subtitle timing saved to the shared storyboard.' });
+      setNotice({
+        tone: 'info',
+        text: 'Subtitle timing saved to the shared storyboard.',
+      });
     },
     [activeId],
   );
@@ -604,7 +651,10 @@ export function ScenesShell({
         return;
       }
       void patchStoryboard({ referenceAssetIds: [...existingIds, assetId] });
-      setNotice({ tone: 'info', text: 'Reference pinned from the Playground.' });
+      setNotice({
+        tone: 'info',
+        text: 'Reference pinned from the Playground.',
+      });
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [storyboard, patchStoryboard]);
@@ -653,9 +703,7 @@ export function ScenesShell({
         : { kind: 'idea' }
       : rawSelection;
   const selectedScene =
-    selection.kind === 'scene'
-      ? (scenes.find((scene) => scene.id === selection.id) ?? null)
-      : null;
+    selection.kind === 'scene' ? (scenes.find((scene) => scene.id === selection.id) ?? null) : null;
 
   // Arrow keys walk the strip: idea → scenes → reel. Ignored while typing.
   const selectionOrder: Selection[] = [
@@ -694,7 +742,7 @@ export function ScenesShell({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const totalSeconds = scenes.reduce((sum, scene) => sum + scene.durationSec, 0);
+  const totalSeconds = scenes.reduce((sum, scene) => sum + sceneCutDurationSec(scene), 0);
 
   // --- render ---------------------------------------------------------------
 
@@ -783,7 +831,9 @@ export function ScenesShell({
                       compact={density === 'compact'}
                       busyScenes={generatingScenes}
                       onSelectTake={(sceneId, generationId) =>
-                        void patchScene(sceneId, { activeGenerationId: generationId })
+                        void patchScene(sceneId, {
+                          activeGenerationId: generationId,
+                        })
                       }
                       onNewTake={(sceneId) => void generateScene(sceneId)}
                     />
@@ -802,9 +852,7 @@ export function ScenesShell({
                         <SceneDetail
                           key={selectedScene.id}
                           scene={selectedScene}
-                          isFinalScene={
-                            selectedScene.sceneIndex === storyboard.scenes.length - 1
-                          }
+                          isFinalScene={selectedScene.sceneIndex === storyboard.scenes.length - 1}
                           boardSeed={storyboard.seed}
                           videoEnabled={videoEnabled}
                           busyStill={generatingScenes.has(selectedScene.id)}
@@ -822,7 +870,6 @@ export function ScenesShell({
                       {selection.kind === 'reel' && (
                         <ReelDetail
                           storyboard={storyboard}
-                          totalSeconds={totalSeconds}
                           videoEnabled={videoEnabled}
                           draftableCount={draftableScenes.length}
                           assembling={assembling}
@@ -833,8 +880,11 @@ export function ScenesShell({
                           onEnhance={(sceneId, tier) => void enhanceClip(sceneId, tier)}
                           onSaveSubtitles={saveSubtitles}
                           onOpenScene={(id) => setRawSelection({ kind: 'scene', id })}
-                          onTrim={(sceneId, durationSec) =>
-                            void patchScene(sceneId, { durationSec })
+                          onTrim={(sceneId, trim) =>
+                            void patchScene(sceneId, {
+                              trimStartMs: trim.startMs,
+                              trimEndMs: trim.endMs,
+                            })
                           }
                         />
                       )}
@@ -879,9 +929,7 @@ export function ScenesShell({
           onPick={(assetId) => {
             setPickerOpen(false);
             const next = [
-              ...storyboard.references
-                .map((entry) => entry.assetId)
-                .filter((id) => id !== assetId),
+              ...storyboard.references.map((entry) => entry.assetId).filter((id) => id !== assetId),
               assetId,
             ].slice(-3);
             void patchStoryboard({ referenceAssetIds: next });
@@ -1066,8 +1114,8 @@ function LooksChip({ onPatch }: { onPatch: (patch: Record<string, unknown>) => v
         )}
         {looks != null && looks.length === 0 && (
           <p className="rounded-md border border-dashed p-2.5 text-[11px] leading-4 text-muted-foreground">
-            No looks yet. Iterate a frame in the Playground until the style sings, then save it
-            as a Look from the run detail.
+            No looks yet. Iterate a frame in the Playground until the style sings, then save it as a
+            Look from the run detail.
           </p>
         )}
         {looks != null && looks.length > 0 && (
@@ -1502,7 +1550,11 @@ function useNodeScrollIntoView(selected: boolean) {
   const ref = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (selected) {
-      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      ref.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
     }
   }, [selected]);
   return ref;
@@ -1543,7 +1595,9 @@ function IdeaNode({
       </div>
       <p
         className={cn(
-          compact ? 'line-clamp-3 min-h-12 text-[10px] leading-4' : 'line-clamp-4 min-h-16 text-[11px] leading-4',
+          compact
+            ? 'line-clamp-3 min-h-12 text-[10px] leading-4'
+            : 'line-clamp-4 min-h-16 text-[11px] leading-4',
           idea ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
@@ -1708,7 +1762,7 @@ function ReelNode({
         </span>
       </div>
       <p className={cn('font-medium', compact ? 'text-[13px] leading-4' : 'text-[15px] leading-5')}>
-        {totalSeconds}s
+        {formatCutDuration(totalSeconds)}
       </p>
       <p className="mt-0.5 text-[11px] text-muted-foreground">
         {sceneCount} scene{sceneCount === 1 ? '' : 's'}
@@ -1743,8 +1797,8 @@ function IdeaDetail({
     <Surface className="p-5">
       <SystemLabel>Core idea</SystemLabel>
       <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted-foreground">
-        One paragraph: who, where, what happens. The sequence of shots is written from this —
-        then every scene is yours to refine and render.
+        One paragraph: who, where, what happens. The sequence of shots is written from this — then
+        every scene is yours to refine and render.
       </p>
       <div className="relative mt-3 max-w-2xl">
         <Textarea
@@ -1774,7 +1828,10 @@ function IdeaDetail({
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={() => onWriteSequence(idea.trim(), Number(sceneCount))} disabled={!canWrite}>
+        <Button
+          onClick={() => onWriteSequence(idea.trim(), Number(sceneCount))}
+          disabled={!canWrite}
+        >
           {busy ? <Loader2 className="animate-spin" /> : <Sparkles />}
           {storyboard.scenes.length ? 'Rewrite sequence' : 'Write scene sequence'}
         </Button>
@@ -1830,7 +1887,10 @@ function StageRail({
   states: Record<StageTab, StepState>;
 }) {
   return (
-    <nav aria-label="Scene production stages" className="relative grid grid-cols-4 gap-1.5 lg:block">
+    <nav
+      aria-label="Scene production stages"
+      className="relative grid grid-cols-4 gap-1.5 lg:block"
+    >
       <span
         aria-hidden
         className="absolute bottom-8 left-[17px] top-8 hidden w-px bg-border lg:block"
@@ -1864,7 +1924,9 @@ function StageRail({
                 <span className="truncate text-[11px] font-semibold lg:text-[12px]">
                   {entry.label}
                 </span>
-                <span className={cn('size-1.5 shrink-0 rounded-full', STEP_DOT_CLASS[states[id]])} />
+                <span
+                  className={cn('size-1.5 shrink-0 rounded-full', STEP_DOT_CLASS[states[id]])}
+                />
               </span>
               <span className="mt-0.5 hidden text-[9px] leading-3 text-muted-foreground lg:block">
                 {entry.eyebrow}
@@ -2072,23 +2134,23 @@ function SceneDetail({
 
           <div className="mt-4">
             {tab === 'still' && (
-            <StepRow
-              index={1}
-              label={hasStill ? 'Render new take' : 'Render still'}
-              cost={`~${formatUsd(SCENE_STILL_ESTIMATE_USD)}`}
-              state={runStepState(scene.run)}
-              busy={busyStill || stillRunning}
-              disabled={busyStill || stillRunning || scene.prompt.trim().length < 3}
-              onRun={onRenderStill}
-              hint={
-                scene.prompt.trim().length < 3
-                  ? 'Write the shot prompt first.'
-                  : hasStill
-                    ? 'FLUX.2 [pro] frame — earlier takes stay selectable under the stage.'
-                    : 'FLUX.2 [pro] frame with the board references and seed.'
-              }
-              error={scene.run?.errorMessage ?? null}
-            />
+              <StepRow
+                index={1}
+                label={hasStill ? 'Render new take' : 'Render still'}
+                cost={`~${formatUsd(SCENE_STILL_ESTIMATE_USD)}`}
+                state={runStepState(scene.run)}
+                busy={busyStill || stillRunning}
+                disabled={busyStill || stillRunning || scene.prompt.trim().length < 3}
+                onRun={onRenderStill}
+                hint={
+                  scene.prompt.trim().length < 3
+                    ? 'Write the shot prompt first.'
+                    : hasStill
+                      ? 'FLUX.2 [pro] frame — earlier takes stay selectable under the stage.'
+                      : 'FLUX.2 [pro] frame with the board references and seed.'
+                }
+                error={scene.run?.errorMessage ?? null}
+              />
             )}
 
             {tab === 'draft' &&
@@ -2115,21 +2177,21 @@ function SceneDetail({
               ))}
 
             {tab === 'hd' && (
-                <StepRow
-                  index={3}
-                  label={hd ? 'Rebuild HD master' : 'Upscale to HD'}
-                  cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}`}
-                  state={clipStepState(hd)}
-                  busy={busyVideo || enhanceRunning}
-                  disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
-                  onRun={() => onEnhance('hd')}
-                  hint={
-                    hasFinishedDraft
-                      ? 'No new prompt at this stage. Preserve the approved motion and upscale it to an HD master.'
-                      : 'Finish a draft clip first.'
-                  }
-                  error={hd?.run?.errorMessage ?? null}
-                />
+              <StepRow
+                index={3}
+                label={hd ? 'Rebuild HD master' : 'Upscale to HD'}
+                cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}`}
+                state={clipStepState(hd)}
+                busy={busyVideo || enhanceRunning}
+                disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
+                onRun={() => onEnhance('hd')}
+                hint={
+                  hasFinishedDraft
+                    ? 'No new prompt at this stage. Preserve the approved motion and upscale it to an HD master.'
+                    : 'Finish a draft clip first.'
+                }
+                error={hd?.run?.errorMessage ?? null}
+              />
             )}
 
             {tab === 'fhd' && (
@@ -2251,7 +2313,9 @@ function SceneStage({
         </div>
       );
     } else {
-      content = <StagePlaceholder icon="film" text={`No ${tab} clip yet — render the still first.`} />;
+      content = (
+        <StagePlaceholder icon="film" text={`No ${tab} clip yet — render the still first.`} />
+      );
     }
     meta = `FLUX 3 Video [${tab}] · ${clip?.run?.status ?? 'not rendered'}${
       clip?.run?.costCredits ? ` · ${formatCost(clip.run.costCredits)}` : ''
@@ -2501,8 +2565,7 @@ function buildTakeTree(takes: TakeDto[]): TakeNode[] {
   const roots: TakeNode[] = [];
   for (const node of nodes.values()) {
     const refinedFrom = node.run?.parameters?.refinedFrom;
-    const parent =
-      typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
+    const parent = typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
     if (parent && parent !== node) parent.children.push(node);
     else roots.push(node);
   }
@@ -2701,41 +2764,121 @@ function TakesTree({
 
 const TIMELINE_PX_PER_SEC = 22;
 
-function clampDuration(value: number) {
-  return Math.min(20, Math.max(5, value));
-}
-
-// One scene on the timeline: width encodes duration, the right edge is a drag
-// handle that trims it (arrow keys work too), and the body selects the clip
+// One scene on the timeline: width encodes the non-destructive cut duration,
+// both source edges are draggable (arrow keys work too), and the body selects the clip
 // inside the reel editor. Opening the source scene is an explicit action in
 // the active-video panel, so selecting a sub-video never throws the editor away.
 function TimelineBlock({
   scene,
-  playing,
+  trim,
+  playProgress,
   selected,
   onSelect,
-  onTrim,
+  onTrimPreview,
+  onTrimCommit,
 }: {
   scene: SceneDto;
-  playing: boolean;
+  trim: TrimRange;
+  playProgress: number | null;
   selected: boolean;
   onSelect: (clipId: string | null) => void;
-  onTrim: (durationSec: number) => void;
+  onTrimPreview: (trim: TrimRange | null) => void;
+  onTrimCommit: (trim: TrimRange) => void;
 }) {
-  const [dragDur, setDragDur] = useState<number | null>(null);
-  const dragStateRef = useRef<{ startX: number; startDur: number } | null>(null);
-  const dragDurRef = useRef<number | null>(null);
-  const durationSec = dragDur ?? scene.durationSec;
+  const [dragTrim, setDragTrim] = useState<TrimRange | null>(null);
+  const dragStateRef = useRef<{
+    edge: 'in' | 'out';
+    startX: number;
+    initial: TrimRange;
+  } | null>(null);
+  const dragTrimRef = useRef<TrimRange | null>(null);
+  const visibleTrim = dragTrim ?? trim;
+  const durationSec = (visibleTrim.endMs - visibleTrim.startMs) / 1_000;
+  const sourceDurationMs = scene.durationSec * 1_000;
+  const trimmed = visibleTrim.startMs > 0 || visibleTrim.endMs < sourceDurationMs;
   const asset = scene.run?.assets[0];
   const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
   const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
+
+  const beginTrim = (edge: 'in' | 'out', event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const initial = sceneTrimRange(scene, trim);
+    dragStateRef.current = { edge, startX: event.clientX, initial };
+    dragTrimRef.current = initial;
+    setDragTrim(initial);
+  };
+
+  const moveTrim = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragStateRef.current;
+    if (!drag) return;
+    const deltaMs =
+      Math.round(((event.clientX - drag.startX) / TIMELINE_PX_PER_SEC / TRIM_STEP_MS) * 1_000) *
+      TRIM_STEP_MS;
+    const next =
+      drag.edge === 'in'
+        ? {
+            startMs: Math.min(
+              Math.max(0, drag.initial.startMs + deltaMs),
+              drag.initial.endMs - MIN_TRIM_MS,
+            ),
+            endMs: drag.initial.endMs,
+          }
+        : {
+            startMs: drag.initial.startMs,
+            endMs: Math.max(
+              drag.initial.startMs + MIN_TRIM_MS,
+              Math.min(sourceDurationMs, drag.initial.endMs + deltaMs),
+            ),
+          };
+    dragTrimRef.current = next;
+    setDragTrim(next);
+    onTrimPreview(next);
+  };
+
+  const commitTrim = () => {
+    const finalTrim = dragTrimRef.current;
+    dragStateRef.current = null;
+    dragTrimRef.current = null;
+    setDragTrim(null);
+    if (finalTrim && (finalTrim.startMs !== trim.startMs || finalTrim.endMs !== trim.endMs)) {
+      onTrimCommit(finalTrim);
+    }
+  };
+
+  const cancelTrim = () => {
+    dragStateRef.current = null;
+    dragTrimRef.current = null;
+    setDragTrim(null);
+    onTrimPreview(null);
+  };
+
+  const nudgeTrim = (edge: 'in' | 'out', direction: -1 | 1) => {
+    const next =
+      edge === 'in'
+        ? {
+            startMs: Math.min(
+              Math.max(0, trim.startMs + direction * TRIM_STEP_MS),
+              trim.endMs - MIN_TRIM_MS,
+            ),
+            endMs: trim.endMs,
+          }
+        : {
+            startMs: trim.startMs,
+            endMs: Math.max(
+              trim.startMs + MIN_TRIM_MS,
+              Math.min(sourceDurationMs, trim.endMs + direction * TRIM_STEP_MS),
+            ),
+          };
+    if (next.startMs !== trim.startMs || next.endMs !== trim.endMs) onTrimCommit(next);
+  };
 
   return (
     <div
       className={cn(
         'relative h-20 shrink-0 overflow-hidden rounded-md border bg-muted transition-all',
         selected && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
-        playing && 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-[var(--brand)]',
       )}
       style={{ width: durationSec * TIMELINE_PX_PER_SEC }}
     >
@@ -2777,47 +2920,57 @@ function TimelineBlock({
             {clipAsset ? clip.tier : `${clip.tier}…`}
           </span>
         )}
+        {trimmed && (
+          <span className="absolute left-1 top-1 rounded bg-black/72 px-1 font-mono text-[8px] uppercase tracking-wider text-white backdrop-blur">
+            {formatTrimTime(visibleTrim.startMs)}–{formatTrimTime(visibleTrim.endMs)}
+          </span>
+        )}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-1 pt-3">
           <p className="truncate font-mono text-[9px] uppercase tracking-wider">
-            {String(scene.sceneIndex + 1).padStart(2, '0')} · {durationSec}s
+            {String(scene.sceneIndex + 1).padStart(2, '0')} · {formatCutDuration(durationSec)}
           </p>
         </div>
       </div>
+      {playProgress != null && (
+        <span
+          className="pointer-events-none absolute inset-y-0 left-0 z-[2] border-r border-[#ffd84d] bg-[#ffd84d]/12"
+          style={{
+            width: `${Math.min(100, Math.max(0, playProgress * 100))}%`,
+          }}
+          aria-hidden
+        />
+      )}
       <button
         type="button"
-        aria-label={`Trim scene ${scene.sceneIndex + 1} duration: ${durationSec} seconds. Arrow keys adjust.`}
-        onPointerDown={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          dragStateRef.current = { startX: event.clientX, startDur: scene.durationSec };
-          dragDurRef.current = scene.durationSec;
-          setDragDur(scene.durationSec);
-        }}
-        onPointerMove={(event) => {
-          const drag = dragStateRef.current;
-          if (!drag) return;
-          const next = clampDuration(
-            Math.round(drag.startDur + (event.clientX - drag.startX) / TIMELINE_PX_PER_SEC),
-          );
-          dragDurRef.current = next;
-          setDragDur(next);
-        }}
-        onPointerUp={() => {
-          const finalDur = dragDurRef.current;
-          dragStateRef.current = null;
-          dragDurRef.current = null;
-          setDragDur(null);
-          if (finalDur != null && finalDur !== scene.durationSec) onTrim(finalDur);
-        }}
+        aria-label={`Trim in scene ${scene.sceneIndex + 1}: ${formatTrimTime(visibleTrim.startMs)}. Arrow keys adjust by 0.1 seconds.`}
+        onPointerDown={(event) => beginTrim('in', event)}
+        onPointerMove={moveTrim}
+        onPointerUp={commitTrim}
+        onPointerCancel={cancelTrim}
+        onLostPointerCapture={commitTrim}
         onKeyDown={(event) => {
           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
           event.preventDefault();
           event.stopPropagation();
-          const next = clampDuration(scene.durationSec + (event.key === 'ArrowRight' ? 1 : -1));
-          if (next !== scene.durationSec) onTrim(next);
+          nudgeTrim('in', event.key === 'ArrowRight' ? 1 : -1);
         }}
-        className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize border-l border-background/60 bg-foreground/10 outline-none transition-colors hover:bg-foreground/25 focus-visible:bg-foreground/25"
+        className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize border-r border-background/70 bg-[var(--brand)]/80 outline-none transition-colors before:absolute before:inset-y-0 before:-left-1 before:-right-1 hover:bg-[var(--brand)] focus-visible:bg-[var(--brand)]"
+      ></button>
+      <button
+        type="button"
+        aria-label={`Trim out scene ${scene.sceneIndex + 1}: ${formatTrimTime(visibleTrim.endMs)}. Arrow keys adjust by 0.1 seconds.`}
+        onPointerDown={(event) => beginTrim('out', event)}
+        onPointerMove={moveTrim}
+        onPointerUp={commitTrim}
+        onPointerCancel={cancelTrim}
+        onLostPointerCapture={commitTrim}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          event.stopPropagation();
+          nudgeTrim('out', event.key === 'ArrowRight' ? 1 : -1);
+        }}
+        className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize border-l border-background/70 bg-[var(--brand)]/80 outline-none transition-colors before:absolute before:inset-y-0 before:-left-1 before:-right-1 hover:bg-[var(--brand)] focus-visible:bg-[var(--brand)]"
       ></button>
     </div>
   );
@@ -2876,7 +3029,10 @@ function SubtitleEditor({
 
   const addCue = () => {
     const previousEnd = cues.at(-1)?.endMs ?? 0;
-    const startMs = Math.min(previousEnd + (previousEnd ? 100 : 400), scene.durationSec * 1_000 - 500);
+    const startMs = Math.min(
+      previousEnd + (previousEnd ? 100 : 400),
+      scene.durationSec * 1_000 - 500,
+    );
     setCues((current) => [
       ...current,
       {
@@ -2983,7 +3139,9 @@ function SubtitleEditor({
                 variant="ghost"
                 size="icon-xs"
                 aria-label="Remove subtitle cue"
-                onClick={() => setCues((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                onClick={() =>
+                  setCues((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                }
               >
                 <Trash2 />
               </Button>
@@ -3013,7 +3171,6 @@ function SubtitleEditor({
 
 function ReelDetail({
   storyboard,
-  totalSeconds,
   videoEnabled,
   draftableCount,
   assembling,
@@ -3027,7 +3184,6 @@ function ReelDetail({
   onTrim,
 }: {
   storyboard: StoryboardDto;
-  totalSeconds: number;
   videoEnabled: boolean;
   draftableCount: number;
   assembling: boolean;
@@ -3042,13 +3198,14 @@ function ReelDetail({
     cues: Array<Omit<SubtitleDto, 'id' | 'clipId'>>,
   ) => Promise<void>;
   onOpenScene: (id: string) => void;
-  onTrim: (sceneId: string, durationSec: number) => void;
+  onTrim: (sceneId: string, trim: TrimRange) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [trimDrafts, setTrimDrafts] = useState<Record<string, TrimRange>>({});
   const initialScene = storyboard.scenes[0] ?? null;
   const [activeSceneId, setActiveSceneId] = useState<string | null>(initialScene?.id ?? null);
   const [activeClipId, setActiveClipId] = useState<string | null>(
-    initialScene ? latestClip(initialScene, ['fhd', 'hd', 'draft'])?.id ?? null : null,
+    initialScene ? (latestClip(initialScene, ['fhd', 'hd', 'draft'])?.id ?? null) : null,
   );
 
   const activeScene =
@@ -3057,6 +3214,12 @@ function ReelDetail({
     activeScene && activeClipId
       ? (activeScene.clips.find((clip) => clip.id === activeClipId) ?? null)
       : null;
+  const trimFor = (scene: SceneDto) => sceneTrimRange(scene, trimDrafts[scene.id]);
+  const activeTrim = activeScene ? trimFor(activeScene) : null;
+  const cutTotalSeconds = storyboard.scenes.reduce(
+    (sum, scene) => sum + sceneCutDurationSec(scene, trimDrafts[scene.id]),
+    0,
+  );
 
   useEffect(() => {
     if (!activeScene) {
@@ -3064,7 +3227,7 @@ function ReelDetail({
         setActiveSceneId(storyboard.scenes[0]?.id ?? null);
         setActiveClipId(
           storyboard.scenes[0]
-            ? latestClip(storyboard.scenes[0], ['fhd', 'hd', 'draft'])?.id ?? null
+            ? (latestClip(storyboard.scenes[0], ['fhd', 'hd', 'draft'])?.id ?? null)
             : null,
         );
       }, 0);
@@ -3088,6 +3251,9 @@ function ReelDetail({
     clipUrl: string | null;
     title: string;
     sceneIndex: number;
+    sourceDurationSec: number;
+    trimStartSec: number;
+    trimEndSec: number;
     durationSec: number;
   }> | null>(null);
   const [playPos, setPlayPos] = useState(0);
@@ -3096,7 +3262,36 @@ function ReelDetail({
   const [elapsed, setElapsed] = useState(0);
   const playerVideoRef = useRef<HTMLVideoElement | null>(null);
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
+  const mediaAdvanceRef = useRef(false);
   const playingItem = playlist && playPos < playlist.length ? playlist[playPos] : null;
+
+  const applyTrimPreview = (scene: SceneDto, trim: TrimRange | null) => {
+    setTrimDrafts((current) => {
+      const next = { ...current };
+      if (trim) next[scene.id] = trim;
+      else delete next[scene.id];
+      return next;
+    });
+    const nextTrim = sceneTrimRange(scene, trim ?? undefined);
+    setPlaylist(
+      (current) =>
+        current?.map((item) =>
+          item.id === scene.id
+            ? {
+                ...item,
+                trimStartSec: nextTrim.startMs / 1_000,
+                trimEndSec: nextTrim.endMs / 1_000,
+                durationSec: (nextTrim.endMs - nextTrim.startMs) / 1_000,
+              }
+            : item,
+        ) ?? null,
+    );
+  };
+
+  const commitTrim = (scene: SceneDto, trim: TrimRange) => {
+    applyTrimPreview(scene, trim);
+    onTrim(scene.id, trim);
+  };
 
   useEffect(() => {
     if (!playlist) return;
@@ -3110,6 +3305,10 @@ function ReelDetail({
       return () => window.clearTimeout(timeout);
     }
   }, [playlist, playPos]);
+
+  useEffect(() => {
+    mediaAdvanceRef.current = false;
+  }, [playingItem?.id, playingItem?.trimEndSec, playingItem?.trimStartSec]);
 
   useEffect(() => {
     if (!playingItem || playingItem.clipUrl || isPaused) return;
@@ -3130,12 +3329,26 @@ function ReelDetail({
     const video = playerVideoRef.current;
     if (!video || !playingItem?.clipUrl) return;
     video.muted = muted;
+    if (
+      video.currentTime < playingItem.trimStartSec ||
+      video.currentTime >= playingItem.trimEndSec
+    ) {
+      video.currentTime = playingItem.trimStartSec;
+      setElapsed(0);
+    }
     if (isPaused) {
       video.pause();
     } else {
       void video.play().catch(() => setIsPaused(true));
     }
-  }, [isPaused, muted, playingItem?.clipUrl, playingItem?.id]);
+  }, [
+    isPaused,
+    muted,
+    playingItem?.clipUrl,
+    playingItem?.id,
+    playingItem?.trimEndSec,
+    playingItem?.trimStartSec,
+  ]);
 
   useEffect(() => {
     if (!playingItem) return;
@@ -3154,6 +3367,7 @@ function ReelDetail({
       const asset = scene.run?.assets[0];
       const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
       const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
+      const trim = trimFor(scene);
       return asset || clipAsset
         ? [
             {
@@ -3162,7 +3376,10 @@ function ReelDetail({
               clipUrl: clipAsset?.url ?? null,
               title: scene.title,
               sceneIndex: scene.sceneIndex,
-              durationSec: scene.durationSec,
+              sourceDurationSec: scene.durationSec,
+              trimStartSec: trim.startMs / 1_000,
+              trimEndSec: trim.endMs / 1_000,
+              durationSec: (trim.endMs - trim.startMs) / 1_000,
             },
           ]
         : [];
@@ -3172,14 +3389,20 @@ function ReelDetail({
     activeClip?.run?.status === 'succeeded' ? activeClip.run.assets[0] : undefined;
   const selectedPreview =
     activeScene && (activeStill || activeClipAsset)
-      ? {
-          id: activeScene.id,
-          url: activeStill?.url ?? '',
-          clipUrl: activeClipAsset?.url ?? null,
-          title: activeScene.title,
-          sceneIndex: activeScene.sceneIndex,
-          durationSec: activeScene.durationSec,
-        }
+      ? (() => {
+          const trim = trimFor(activeScene);
+          return {
+            id: activeScene.id,
+            url: activeStill?.url ?? '',
+            clipUrl: activeClipAsset?.url ?? null,
+            title: activeScene.title,
+            sceneIndex: activeScene.sceneIndex,
+            sourceDurationSec: activeScene.durationSec,
+            trimStartSec: trim.startMs / 1_000,
+            trimEndSec: trim.endMs / 1_000,
+            durationSec: (trim.endMs - trim.startMs) / 1_000,
+          };
+        })()
       : null;
   const previewItem = playingItem ?? selectedPreview ?? buildPlaylist()[0] ?? null;
   const previewScene = previewItem
@@ -3187,9 +3410,9 @@ function ReelDetail({
     : null;
   const previewClipId = playingItem
     ? previewScene
-      ? latestClip(previewScene, ['fhd', 'hd', 'draft'])?.id ?? null
+      ? (latestClip(previewScene, ['fhd', 'hd', 'draft'])?.id ?? null)
       : null
-    : activeClip?.id ?? null;
+    : (activeClip?.id ?? null);
   const previewSubtitles = previewScene
     ? (() => {
         const exact = previewScene.subtitles.filter((cue) => cue.clipId === previewClipId);
@@ -3198,9 +3421,15 @@ function ReelDetail({
     : [];
   const activeSubtitle = playingItem
     ? previewSubtitles.find(
-        (cue) => elapsed * 1_000 >= cue.startMs && elapsed * 1_000 <= cue.endMs,
+        (cue) =>
+          (elapsed + playingItem.trimStartSec) * 1_000 >= cue.startMs &&
+          (elapsed + playingItem.trimStartSec) * 1_000 <= cue.endMs,
       )
     : previewSubtitles[0];
+  const elapsedBeforeScene = playlist
+    ? playlist.slice(0, playPos).reduce((sum, item) => sum + item.durationSec, 0)
+    : 0;
+  const cutElapsed = playingItem ? elapsedBeforeScene + elapsed : 0;
 
   const startAnimatic = () => {
     const items = buildPlaylist();
@@ -3251,6 +3480,20 @@ function ReelDetail({
     setPlayPos((position) => position + 1);
   };
 
+  const advanceFromMedia = () => {
+    if (mediaAdvanceRef.current) return;
+    mediaAdvanceRef.current = true;
+    playerVideoRef.current?.pause();
+    nextSegment();
+  };
+
+  const updateVideoClock = (video: HTMLVideoElement) => {
+    if (!playingItem) return;
+    const localTime = Math.max(0, video.currentTime - playingItem.trimStartSec);
+    setElapsed(Math.min(playingItem.durationSec, localTime));
+    if (video.currentTime >= playingItem.trimEndSec - 0.025) advanceFromMedia();
+  };
+
   const togglePlayback = () => {
     if (!playingItem) {
       startAnimatic();
@@ -3276,6 +3519,8 @@ function ReelDetail({
         prompt: scene.prompt,
         videoPrompt: scene.videoPrompt,
         durationSec: scene.durationSec,
+        trimStartMs: trimFor(scene).startMs,
+        trimEndMs: trimFor(scene).endMs,
         seed: scene.seed,
         subtitles: scene.subtitles,
       })),
@@ -3295,18 +3540,14 @@ function ReelDetail({
         <div>
           <SystemLabel>Reel</SystemLabel>
           <p className="mt-1 text-[15px] font-medium">
-            {storyboard.scenes.length} scenes · {totalSeconds}s
+            {storyboard.scenes.length} scenes · {formatCutDuration(cutTotalSeconds)} cut
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             Draft everything cheap, watch the cut, enhance only the keepers.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={togglePlayback}
-          >
+          <Button variant="outline" size="sm" onClick={togglePlayback}>
             {playingItem && !isPaused ? <Pause /> : <Play />}{' '}
             {playingItem && !isPaused ? 'Pause cut' : playingItem ? 'Resume cut' : 'Play cut'}
           </Button>
@@ -3316,7 +3557,8 @@ function ReelDetail({
           {videoEnabled && (
             <Button size="sm" onClick={onAssemble} disabled={assembling || draftableCount === 0}>
               {assembling ? <Loader2 className="animate-spin" /> : <Clapperboard />}
-              Assemble draft reel{draftableCount > 0 ? ` (${draftableCount})` : ''}
+              Assemble draft reel
+              {draftableCount > 0 ? ` (${draftableCount})` : ''}
             </Button>
           )}
         </div>
@@ -3324,280 +3566,360 @@ function ReelDetail({
 
       {previewItem && (
         <div className="mt-4 grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div
-          ref={playerContainerRef}
-          className="relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-sm"
-        >
-          {playingItem ? (
-            playingItem.clipUrl ? (
+          <div
+            ref={playerContainerRef}
+            className="relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-sm"
+          >
+            {playingItem ? (
+              playingItem.clipUrl ? (
+                <video
+                  ref={playerVideoRef}
+                  key={`${playingItem.id}:${playingItem.trimStartSec}:${playingItem.trimEndSec}`}
+                  src={playingItem.clipUrl}
+                  poster={playingItem.url || undefined}
+                  autoPlay
+                  muted={muted}
+                  playsInline
+                  onLoadedMetadata={(event) => {
+                    event.currentTarget.currentTime = Math.min(
+                      playingItem.trimStartSec,
+                      event.currentTarget.duration || playingItem.sourceDurationSec,
+                    );
+                  }}
+                  onTimeUpdate={(event) => updateVideoClock(event.currentTarget)}
+                  onEnded={advanceFromMedia}
+                  onError={advanceFromMedia}
+                  className="size-full bg-black object-cover"
+                >
+                  <track kind="captions" label="Captions are rendered as an editable overlay" />
+                </video>
+              ) : (
+                <NextImage
+                  key={playingItem.id}
+                  src={playingItem.url}
+                  alt={playingItem.title}
+                  width={1344}
+                  height={768}
+                  unoptimized
+                  className="size-full object-cover"
+                />
+              )
+            ) : previewItem.clipUrl ? (
               <video
-                ref={playerVideoRef}
-                key={playingItem.id}
-                src={playingItem.clipUrl}
-                poster={playingItem.url || undefined}
-                autoPlay
-                muted={muted}
+                src={previewItem.clipUrl}
+                poster={previewItem.url || undefined}
+                muted
                 playsInline
-                onTimeUpdate={(event) => setElapsed(event.currentTarget.currentTime)}
-                onEnded={nextSegment}
-                onError={nextSegment}
+                preload="metadata"
+                onLoadedMetadata={(event) => {
+                  event.currentTarget.currentTime = Math.min(
+                    previewItem.trimStartSec,
+                    event.currentTarget.duration || previewItem.sourceDurationSec,
+                  );
+                }}
                 className="size-full bg-black object-cover"
-              >
-                <track kind="captions" label="Captions are rendered as an editable overlay" />
-              </video>
+              />
             ) : (
               <NextImage
-                key={playingItem.id}
-                src={playingItem.url}
-                alt={playingItem.title}
+                src={previewItem.url}
+                alt={previewItem.title}
                 width={1344}
                 height={768}
                 unoptimized
                 className="size-full object-cover"
               />
-            )
-          ) : previewItem.clipUrl ? (
-            <video
-              src={previewItem.clipUrl}
-              poster={previewItem.url || undefined}
-              muted
-              playsInline
-              preload="metadata"
-              className="size-full bg-black object-cover"
-            />
-          ) : (
-            <NextImage
-              src={previewItem.url}
-              alt={previewItem.title}
-              width={1344}
-              height={768}
-              unoptimized
-              className="size-full object-cover"
-            />
-          )}
-          {!playingItem && (
-            <button
-              type="button"
-              onClick={startAnimatic}
-              className="absolute inset-0 z-10 grid place-items-center outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              aria-label="Play the cut"
-            >
-              <span className="grid size-14 place-items-center rounded-full bg-background/85 shadow-lg backdrop-blur transition-transform hover:scale-105">
-                <Play className="ml-0.5 size-6" />
-              </span>
-            </button>
-          )}
-          {previewScene?.sceneIndex === storyboard.scenes.length - 1 && <EndCardLogo />}
-          {activeSubtitle && (
-            <div className="pointer-events-none absolute inset-x-[10%] bottom-16 z-20 text-center">
-              <span className="inline rounded bg-black/78 px-2.5 py-1 text-[14px] font-medium leading-6 text-[#ffd84d] shadow-lg [box-decoration-break:clone] [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]">
-                {activeSubtitle.speaker ? `${activeSubtitle.speaker}: ` : ''}
-                {activeSubtitle.text}
-              </span>
-            </div>
-          )}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/65 to-transparent p-3 pt-10 text-white">
-            <div className="flex items-center gap-1.5">
+            )}
+            {!playingItem && (
               <button
                 type="button"
-                onClick={previousSegment}
-                disabled={!playingItem || playPos === 0}
-                className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded bg-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-35"
-                aria-label="Previous segment"
+                onClick={startAnimatic}
+                className="absolute inset-0 z-10 grid place-items-center outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-label="Play the cut"
               >
-                <SkipBack className="size-3.5" />
+                <span className="grid size-14 place-items-center rounded-full bg-background/85 shadow-lg backdrop-blur transition-transform hover:scale-105">
+                  <Play className="ml-0.5 size-6" />
+                </span>
               </button>
-              <button
-                type="button"
-                onClick={togglePlayback}
-                className="pointer-events-auto grid size-8 shrink-0 place-items-center rounded-full bg-white text-black shadow transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white/60"
-                aria-label={playingItem && !isPaused ? 'Pause playback' : 'Play the cut'}
-              >
-                {playingItem && !isPaused ? (
-                  <Pause className="size-3.5" />
-                ) : (
-                  <Play className="ml-px size-3.5" />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={nextSegment}
-                disabled={!playingItem}
-                className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded bg-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-35"
-                aria-label="Next segment"
-              >
-                <SkipForward className="size-3.5" />
-              </button>
-              <p className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-wider">
-                {playingItem
-                  ? `${String(playingItem.sceneIndex + 1).padStart(2, '0')}/${String(storyboard.scenes.length).padStart(2, '0')} · ${playingItem.title} · ${playingItem.durationSec}s${playingItem.clipUrl ? ' · clip' : ' · still'}`
-                  : `Cut ready · ${storyboard.scenes.length} scenes · ${totalSeconds}s — clips play where rendered, stills hold`}
-              </p>
-              <span className="shrink-0 font-mono text-[10px] tabular-nums text-white/72">
-                {formatPlayerTime(playingItem ? elapsed : 0)} /{' '}
-                {formatPlayerTime(playingItem?.durationSec ?? totalSeconds)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setMuted((value) => !value)}
-                className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60"
-                aria-label={muted ? 'Unmute playback' : 'Mute playback'}
-              >
-                {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
-              </button>
-              <button
-                type="button"
-                onClick={openFullscreen}
-                className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60"
-                aria-label="Enter fullscreen"
-              >
-                <Maximize2 className="size-3.5" />
-              </button>
-            </div>
-            <div className="pointer-events-auto mt-2 flex h-2 w-full gap-px overflow-hidden rounded-full bg-white/10">
-              {storyboard.scenes.map((scene, sceneIndex) => {
-                const segmentState =
-                  currentSceneIndex < 0
-                    ? 'idle'
-                    : sceneIndex < currentSceneIndex
-                      ? 'done'
-                      : sceneIndex === currentSceneIndex
-                        ? 'current'
-                        : 'pending';
-                return (
-                  <button
-                    key={scene.id}
-                    type="button"
-                    onClick={() => jumpTo(scene.id)}
-                    style={{ width: `${(scene.durationSec / Math.max(totalSeconds, 1)) * 100}%` }}
-                    className={cn(
-                      'relative h-full overflow-hidden outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring',
-                      segmentState === 'done'
-                        ? 'bg-[#ffd84d]'
-                        : 'bg-white/20 hover:bg-white/40',
-                    )}
-                    aria-label={`Play from scene ${sceneIndex + 1}: ${scene.title}`}
-                  >
-                    {segmentState === 'current' && playingItem && (
-                      <span
-                        key={playingItem.id}
-                        className="absolute inset-y-0 left-0 bg-[#ffd84d] transition-[width] duration-100"
-                        style={{
-                          width: `${Math.min(100, (elapsed / Math.max(playingItem.durationSec, 0.1)) * 100)}%`,
-                        }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        {activeScene && (
-          <aside className="rounded-lg border bg-background p-3 shadow-xs xl:max-h-[min(570px,calc(100svh-250px))] xl:overflow-y-auto">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <SystemLabel>Active video</SystemLabel>
-                <p className="mt-1 truncate text-[13px] font-medium">
-                  {String(activeScene.sceneIndex + 1).padStart(2, '0')} · {activeScene.title}
-                </p>
-                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                  {activeClip ? `${activeClip.tier} clip` : 'source still'} · {activeScene.durationSec}s
-                </p>
+            )}
+            {previewScene?.sceneIndex === storyboard.scenes.length - 1 && <EndCardLogo />}
+            {activeSubtitle && (
+              <div className="pointer-events-none absolute inset-x-[10%] bottom-16 z-20 text-center">
+                <span className="inline rounded bg-black/78 px-2.5 py-1 text-[14px] font-medium leading-6 text-[#ffd84d] shadow-lg [box-decoration-break:clone] [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]">
+                  {activeSubtitle.speaker ? `${activeSubtitle.speaker}: ` : ''}
+                  {activeSubtitle.text}
+                </span>
               </div>
-              <span className="size-2 shrink-0 rounded-full bg-[var(--brand)] shadow-[0_0_0_4px_var(--brand-soft)]" />
-            </div>
-
-            <div className="mt-3">
-              <SystemLabel>Versions</SystemLabel>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/65 to-transparent p-3 pt-10 text-white">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setActiveClipId(null)}
-                  className={cn(
-                    'rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                    !activeClip && 'border-[var(--brand)] bg-[var(--brand-soft)]',
-                  )}
+                  onClick={previousSegment}
+                  disabled={!playingItem || playPos === 0}
+                  className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded bg-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-35"
+                  aria-label="Previous segment"
                 >
-                  <span className="block font-mono text-[9px] uppercase tracking-wider">Still</span>
-                  <span className="block truncate text-[10px] text-muted-foreground">Master frame</span>
+                  <SkipBack className="size-3.5" />
                 </button>
-                {activeScene.clips.map((clip) => (
+                <button
+                  type="button"
+                  onClick={togglePlayback}
+                  className="pointer-events-auto grid size-8 shrink-0 place-items-center rounded-full bg-white text-black shadow transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white/60"
+                  aria-label={playingItem && !isPaused ? 'Pause playback' : 'Play the cut'}
+                >
+                  {playingItem && !isPaused ? (
+                    <Pause className="size-3.5" />
+                  ) : (
+                    <Play className="ml-px size-3.5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={nextSegment}
+                  disabled={!playingItem}
+                  className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded bg-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-35"
+                  aria-label="Next segment"
+                >
+                  <SkipForward className="size-3.5" />
+                </button>
+                <p className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-wider">
+                  {playingItem
+                    ? `${String(playingItem.sceneIndex + 1).padStart(2, '0')}/${String(storyboard.scenes.length).padStart(2, '0')} · ${playingItem.title} · ${formatCutDuration(playingItem.durationSec)} · ${formatTrimTime(playingItem.trimStartSec * 1_000)}–${formatTrimTime(playingItem.trimEndSec * 1_000)}`
+                    : `Cut ready · ${storyboard.scenes.length} scenes · ${formatCutDuration(cutTotalSeconds)} — clips play where rendered, stills hold`}
+                </p>
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-white/72">
+                  {formatPlayerTime(cutElapsed)} / {formatPlayerTime(cutTotalSeconds)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMuted((value) => !value)}
+                  className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60"
+                  aria-label={muted ? 'Unmute playback' : 'Mute playback'}
+                >
+                  {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={openFullscreen}
+                  className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60"
+                  aria-label="Enter fullscreen"
+                >
+                  <Maximize2 className="size-3.5" />
+                </button>
+              </div>
+              <div className="pointer-events-auto mt-2 flex h-2 w-full gap-px overflow-hidden rounded-full bg-white/10">
+                {storyboard.scenes.map((scene, sceneIndex) => {
+                  const segmentState =
+                    currentSceneIndex < 0
+                      ? 'idle'
+                      : sceneIndex < currentSceneIndex
+                        ? 'done'
+                        : sceneIndex === currentSceneIndex
+                          ? 'current'
+                          : 'pending';
+                  return (
+                    <button
+                      key={scene.id}
+                      type="button"
+                      onClick={() => jumpTo(scene.id)}
+                      style={{
+                        width: `${(sceneCutDurationSec(scene, trimDrafts[scene.id]) / Math.max(cutTotalSeconds, 0.1)) * 100}%`,
+                      }}
+                      className={cn(
+                        'relative h-full overflow-hidden outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring',
+                        segmentState === 'done' ? 'bg-[#ffd84d]' : 'bg-white/20 hover:bg-white/40',
+                      )}
+                      aria-label={`Play from scene ${sceneIndex + 1}: ${scene.title}`}
+                    >
+                      {segmentState === 'current' && playingItem && (
+                        <span
+                          key={playingItem.id}
+                          className="absolute inset-y-0 left-0 bg-[#ffd84d] transition-[width] duration-100"
+                          style={{
+                            width: `${Math.min(100, (elapsed / Math.max(playingItem.durationSec, 0.1)) * 100)}%`,
+                          }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {activeScene && (
+            <aside className="rounded-lg border bg-background p-3 shadow-xs xl:max-h-[min(570px,calc(100svh-250px))] xl:overflow-y-auto">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <SystemLabel>Active video</SystemLabel>
+                  <p className="mt-1 truncate text-[13px] font-medium">
+                    {String(activeScene.sceneIndex + 1).padStart(2, '0')} · {activeScene.title}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                    {activeClip ? `${activeClip.tier} clip` : 'source still'} ·{' '}
+                    {activeTrim
+                      ? `${formatCutDuration((activeTrim.endMs - activeTrim.startMs) / 1_000)} cut / ${activeScene.durationSec}s source`
+                      : `${activeScene.durationSec}s`}
+                  </p>
+                </div>
+                <span className="size-2 shrink-0 rounded-full bg-[var(--brand)] shadow-[0_0_0_4px_var(--brand-soft)]" />
+              </div>
+
+              <div className="mt-3">
+                <SystemLabel>Versions</SystemLabel>
+                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                   <button
-                    key={clip.id}
                     type="button"
-                    onClick={() => setActiveClipId(clip.id)}
+                    onClick={() => setActiveClipId(null)}
                     className={cn(
                       'rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                      activeClip?.id === clip.id && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+                      !activeClip && 'border-[var(--brand)] bg-[var(--brand-soft)]',
                     )}
                   >
                     <span className="block font-mono text-[9px] uppercase tracking-wider">
-                      {clip.tier}
+                      Still
                     </span>
                     <span className="block truncate text-[10px] text-muted-foreground">
-                      {clip.run?.status ?? 'rendering'}
+                      Master frame
                     </span>
                   </button>
-                ))}
+                  {activeScene.clips.map((clip) => (
+                    <button
+                      key={clip.id}
+                      type="button"
+                      onClick={() => setActiveClipId(clip.id)}
+                      className={cn(
+                        'rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                        activeClip?.id === clip.id &&
+                          'border-[var(--brand)] bg-[var(--brand-soft)]',
+                      )}
+                    >
+                      <span className="block font-mono text-[9px] uppercase tracking-wider">
+                        {clip.tier}
+                      </span>
+                      <span className="block truncate text-[10px] text-muted-foreground">
+                        {clip.run?.status ?? 'rendering'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.025] p-2.5">
-              <SystemLabel>Image → video prompt</SystemLabel>
-              <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
-                {activeScene.videoPrompt ||
-                  'No separate motion direction yet. Drafting will fall back to the still prompt.'}
-              </p>
-            </div>
+              {activeTrim && (
+                <div className="mt-3 rounded-md border bg-muted/25 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Scissors className="size-3.5" />
+                      <SystemLabel>Cut range</SystemLabel>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      disabled={
+                        activeTrim.startMs === 0 &&
+                        activeTrim.endMs === activeScene.durationSec * 1_000
+                      }
+                      onClick={() =>
+                        commitTrim(activeScene, {
+                          startMs: 0,
+                          endMs: activeScene.durationSec * 1_000,
+                        })
+                      }
+                    >
+                      <RotateCcw /> Reset
+                    </Button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    {[
+                      ['In', formatTrimTime(activeTrim.startMs)],
+                      ['Out', formatTrimTime(activeTrim.endMs)],
+                      ['Cut', formatCutDuration((activeTrim.endMs - activeTrim.startMs) / 1_000)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded border bg-background px-2 py-1.5">
+                        <span className="block font-mono text-[8px] uppercase text-muted-foreground">
+                          {label}
+                        </span>
+                        <span className="mt-0.5 block font-mono text-[11px] tabular-nums">
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="relative mt-2 h-5 overflow-hidden rounded bg-foreground/8">
+                    <span
+                      className="absolute inset-y-0 rounded-sm border-x-2 border-[var(--brand)] bg-[var(--brand-soft)]"
+                      style={{
+                        left: `${(activeTrim.startMs / (activeScene.durationSec * 1_000)) * 100}%`,
+                        width: `${((activeTrim.endMs - activeTrim.startMs) / (activeScene.durationSec * 1_000)) * 100}%`,
+                      }}
+                    />
+                    <span className="absolute inset-y-0 left-1/2 w-px bg-background/80" />
+                  </div>
+                  <p className="mt-1.5 text-[9px] leading-3.5 text-muted-foreground">
+                    Drag the green IN and OUT handles on the track. Playback and both timelines use
+                    this exact source range.
+                  </p>
+                </div>
+              )}
 
-            <div className="mt-3 grid grid-cols-2 gap-1.5">
-              <Button variant="outline" size="sm" onClick={() => jumpTo(activeScene.id)}>
-                <Play /> Play from here
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onOpenScene(activeScene.id)}>
-                Open source scene
-              </Button>
-              {videoEnabled && !activeScene.clips.some((clip) => clip.tier === 'draft') && (
-                <Button
-                  size="sm"
-                  onClick={() => onDraftClip(activeScene.id)}
-                  disabled={busyScenes.has(activeScene.id) || !activeStill}
-                >
-                  {busyScenes.has(activeScene.id) ? <Loader2 className="animate-spin" /> : <Play />}
-                  Draft video
+              <div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.025] p-2.5">
+                <SystemLabel>Image → video prompt</SystemLabel>
+                <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+                  {activeScene.videoPrompt ||
+                    'No separate motion direction yet. Drafting will fall back to the still prompt.'}
+                </p>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                <Button variant="outline" size="sm" onClick={() => jumpTo(activeScene.id)}>
+                  <Play /> Play from here
                 </Button>
-              )}
-              {videoEnabled && activeScene.clips.some((clip) => clip.tier === 'draft') && (
-                <>
+                <Button variant="outline" size="sm" onClick={() => onOpenScene(activeScene.id)}>
+                  Open source scene
+                </Button>
+                {videoEnabled && !activeScene.clips.some((clip) => clip.tier === 'draft') && (
                   <Button
-                    variant="outline"
                     size="sm"
-                    onClick={() => onEnhance(activeScene.id, 'hd')}
-                    disabled={busyScenes.has(activeScene.id)}
+                    onClick={() => onDraftClip(activeScene.id)}
+                    disabled={busyScenes.has(activeScene.id) || !activeStill}
                   >
-                    Enhance HD
+                    {busyScenes.has(activeScene.id) ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Play />
+                    )}
+                    Draft video
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onEnhance(activeScene.id, 'fhd')}
-                    disabled={busyScenes.has(activeScene.id)}
-                  >
-                    Enhance FHD
-                  </Button>
-                </>
-              )}
-            </div>
+                )}
+                {videoEnabled && activeScene.clips.some((clip) => clip.tier === 'draft') && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEnhance(activeScene.id, 'hd')}
+                      disabled={busyScenes.has(activeScene.id)}
+                    >
+                      Enhance HD
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEnhance(activeScene.id, 'fhd')}
+                      disabled={busyScenes.has(activeScene.id)}
+                    >
+                      Enhance FHD
+                    </Button>
+                  </>
+                )}
+              </div>
 
-            <SubtitleEditor
-              key={`${activeScene.id}:${activeClip?.id ?? 'master'}`}
-              scene={activeScene}
-              clipId={activeClip?.id ?? null}
-              onSave={onSaveSubtitles}
-            />
-          </aside>
-        )}
+              <SubtitleEditor
+                key={`${activeScene.id}:${activeClip?.id ?? 'master'}`}
+                scene={activeScene}
+                clipId={activeClip?.id ?? null}
+                onSave={onSaveSubtitles}
+              />
+            </aside>
+          )}
         </div>
       )}
 
@@ -3608,13 +3930,12 @@ function ReelDetail({
             <div
               className="relative mb-0.5 h-4"
               style={{
-                width:
-                  totalSeconds * TIMELINE_PX_PER_SEC + (storyboard.scenes.length - 1) * 4,
+                width: cutTotalSeconds * TIMELINE_PX_PER_SEC + (storyboard.scenes.length - 1) * 4,
               }}
               aria-hidden
             >
               {Array.from(
-                { length: Math.floor(totalSeconds / 5) + 1 },
+                { length: Math.floor(cutTotalSeconds / 5) + 1 },
                 (_, tickIndex) => tickIndex * 5,
               ).map((second) => (
                 <span
@@ -3634,34 +3955,40 @@ function ReelDetail({
                 <TimelineBlock
                   key={scene.id}
                   scene={scene}
-                  playing={playingItem?.id === scene.id}
+                  trim={trimFor(scene)}
+                  playProgress={
+                    playingItem?.id === scene.id
+                      ? elapsed / Math.max(playingItem.durationSec, 0.1)
+                      : null
+                  }
                   selected={activeScene?.id === scene.id}
                   onSelect={(clipId) => {
                     setActiveSceneId(scene.id);
                     setActiveClipId(clipId);
                     stopAnimatic();
                   }}
-                  onTrim={(durationSec) => onTrim(scene.id, durationSec)}
+                  onTrimPreview={(trim) => applyTrimPreview(scene, trim)}
+                  onTrimCommit={(trim) => commitTrim(scene, trim)}
                 />
               ))}
             </div>
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Click a block to select its active clip and keep editing · drag the right edge to trim ·
-            click a segment in the player bar to play from that scene.
+            Click a block to select its active clip · drag either green edge for source IN/OUT · the
+            yellow playhead and both segmented bars follow the resulting cut in real time.
           </p>
         </div>
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         <span className="rounded border px-1.5 py-0.5">
-          draft ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'draft'))}
+          draft ~{formatUsd(estimateVideoCostUsd(cutTotalSeconds, 'draft'))}
         </span>
         <span className="rounded border px-1.5 py-0.5">
-          enhance HD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'hd'))}
+          enhance HD ~{formatUsd(estimateVideoCostUsd(cutTotalSeconds, 'hd'))}
         </span>
         <span className="rounded border px-1.5 py-0.5">
-          FHD ~{formatUsd(estimateVideoCostUsd(totalSeconds, 'fhd'))}
+          FHD ~{formatUsd(estimateVideoCostUsd(cutTotalSeconds, 'fhd'))}
         </span>
         <span className="rounded border px-1.5 py-0.5">audio included</span>
       </div>
@@ -3694,7 +4021,7 @@ function VideoPlanBar({
         <div className="flex items-center gap-2">
           <Film className="size-3.5 text-muted-foreground" />
           <span className="text-[12px] font-medium">
-            {sceneCount} scenes · {totalSeconds}s reel
+            {sceneCount} scenes · {formatCutDuration(totalSeconds)} reel
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -3710,12 +4037,7 @@ function VideoPlanBar({
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-[12px]"
-            onClick={onOpenTimeline}
-          >
+          <Button size="sm" variant="outline" className="h-8 text-[12px]" onClick={onOpenTimeline}>
             <Film /> Timeline
           </Button>
           {videoEnabled ? (
@@ -3726,7 +4048,8 @@ function VideoPlanBar({
               disabled={assembling || draftableCount === 0}
             >
               {assembling ? <Loader2 className="animate-spin" /> : <Clapperboard />}
-              Assemble draft reel{draftableCount > 0 ? ` (${draftableCount})` : ''}
+              Assemble draft reel
+              {draftableCount > 0 ? ` (${draftableCount})` : ''}
             </Button>
           ) : (
             <Tooltip>
@@ -3831,7 +4154,11 @@ function ReferencePickerDialog({
           data.runs.flatMap((run) =>
             run.assets
               .filter((asset) => !asset.mimeType.startsWith('video/'))
-              .map((asset) => ({ id: asset.id, url: asset.url, prompt: run.prompt })),
+              .map((asset) => ({
+                id: asset.id,
+                url: asset.url,
+                prompt: run.prompt,
+              })),
           ),
         );
         setState('ready');
@@ -3845,8 +4172,8 @@ function ReferencePickerDialog({
         <DialogHeader>
           <DialogTitle>Pin a reference</DialogTitle>
           <DialogDescription>
-            Pick any output from your shared history. It will ride along as a FLUX.2 reference
-            image with every scene render.
+            Pick any output from your shared history. It will ride along as a FLUX.2 reference image
+            with every scene render.
           </DialogDescription>
         </DialogHeader>
         {state === 'loading' && (
@@ -3854,7 +4181,9 @@ function ReferencePickerDialog({
             <Loader2 className="size-3.5 animate-spin" /> Loading your outputs…
           </p>
         )}
-        {state === 'error' && <p className="text-[12px] text-destructive">Could not load history.</p>}
+        {state === 'error' && (
+          <p className="text-[12px] text-destructive">Could not load history.</p>
+        )}
         {state === 'ready' && assets.length === 0 && (
           <p className="rounded-md border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
             No stored outputs yet — generate an image in the Playground first, then pin it here as
@@ -3895,9 +4224,18 @@ function formatCost(credits: string | null) {
 }
 
 function formatPlayerTime(seconds: number) {
-  const safe = Math.max(0, Math.floor(seconds));
+  const safe = Math.max(0, seconds);
   const minutes = Math.floor(safe / 60);
-  return `${minutes}:${String(safe % 60).padStart(2, '0')}`;
+  const remainder = (safe - minutes * 60).toFixed(1).padStart(4, '0');
+  return `${minutes}:${remainder}`;
+}
+
+function formatTrimTime(milliseconds: number) {
+  return formatPlayerTime(milliseconds / 1_000);
+}
+
+function formatCutDuration(seconds: number) {
+  return `${Math.max(0, seconds).toFixed(1)}s`;
 }
 
 function initials(name: string) {

@@ -46,6 +46,8 @@ export type SceneDto = {
   prompt: string;
   videoPrompt: string | null;
   durationSec: number;
+  trimStartMs: number;
+  trimEndMs: number | null;
   seed: number | null;
   generationId: string | null;
   run: HistoryRun | null;
@@ -180,6 +182,8 @@ export async function getStoryboard(
       prompt: scene.prompt,
       videoPrompt: scene.videoPrompt,
       durationSec: scene.durationSec,
+      trimStartMs: scene.trimStartMs,
+      trimEndMs: scene.trimEndMs,
       seed: scene.seed,
       generationId: scene.generationId,
       run: scene.generationId ? (runsById.get(scene.generationId) ?? null) : null,

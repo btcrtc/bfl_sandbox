@@ -45,10 +45,14 @@ export async function PATCH(
     prompt?: unknown;
     videoPrompt?: unknown;
     durationSec?: unknown;
+    trimStartMs?: unknown;
+    trimEndMs?: unknown;
     seed?: unknown;
     activeGenerationId?: unknown;
   };
-  const patch: Partial<typeof storyboardScenes.$inferInsert> = { updatedAt: Date.now() };
+  const patch: Partial<typeof storyboardScenes.$inferInsert> = {
+    updatedAt: Date.now(),
+  };
   if (typeof body.activeGenerationId === 'string') {
     // Switching the active take: only a generation already recorded as a take
     // of this scene (or the current active one) qualifies.
@@ -64,7 +68,10 @@ export async function PATCH(
       )
       .limit(1);
     if (!take && scene.generationId !== body.activeGenerationId) {
-      return NextResponse.json({ error: 'That take does not belong to this scene.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'That take does not belong to this scene.' },
+        { status: 400 },
+      );
     }
     patch.generationId = body.activeGenerationId;
   }
@@ -76,13 +83,49 @@ export async function PATCH(
   if (typeof body.videoPrompt === 'string') {
     patch.videoPrompt = body.videoPrompt.trim().slice(0, 2_000) || null;
   }
+  let nextDurationSec = scene.durationSec;
+  let trimStartMs = scene.trimStartMs ?? 0;
+  let trimEndMs = scene.trimEndMs ?? scene.durationSec * 1_000;
+  let trimTouched = false;
   if (body.durationSec != null) {
     const durationSec = Number(body.durationSec);
     // FLUX 3 Video clips are 5–20 seconds.
     if (!Number.isInteger(durationSec) || durationSec < 5 || durationSec > 20) {
       return NextResponse.json({ error: 'Duration must be 5–20 seconds.' }, { status: 400 });
     }
+    nextDurationSec = durationSec;
     patch.durationSec = durationSec;
+    // A different source render starts with a clean, full-length cut.
+    trimStartMs = 0;
+    trimEndMs = durationSec * 1_000;
+    trimTouched = true;
+  }
+  if (body.trimStartMs != null) {
+    trimStartMs = Number(body.trimStartMs);
+    trimTouched = true;
+  }
+  if (body.trimEndMs !== undefined) {
+    trimEndMs = body.trimEndMs === null ? nextDurationSec * 1_000 : Number(body.trimEndMs);
+    trimTouched = true;
+  }
+  if (trimTouched) {
+    const sourceDurationMs = nextDurationSec * 1_000;
+    if (
+      !Number.isInteger(trimStartMs) ||
+      !Number.isInteger(trimEndMs) ||
+      trimStartMs < 0 ||
+      trimEndMs > sourceDurationMs ||
+      trimEndMs - trimStartMs < 1_000
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Trim points must stay inside the source and keep at least 1 second.',
+        },
+        { status: 400 },
+      );
+    }
+    patch.trimStartMs = trimStartMs;
+    patch.trimEndMs = trimEndMs === sourceDurationMs ? null : trimEndMs;
   }
   if (body.seed === null) patch.seed = null;
   if (typeof body.seed === 'number') {

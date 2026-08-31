@@ -42,9 +42,7 @@ export const generations = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [
-    index('generations_workspace_created_idx').on(table.workspaceId, table.createdAt),
-  ],
+  (table) => [index('generations_workspace_created_idx').on(table.workspaceId, table.createdAt)],
 );
 
 export const generationJobs = sqliteTable(
@@ -119,9 +117,7 @@ export const storyboardReferences = sqliteTable(
     assetId: text('asset_id').notNull(),
     createdAt: integer('created_at').notNull(),
   },
-  (table) => [
-    index('storyboard_references_storyboard_idx').on(table.storyboardId, table.refIndex),
-  ],
+  (table) => [index('storyboard_references_storyboard_idx').on(table.storyboardId, table.refIndex)],
 );
 
 // Video clips rendered from a scene: draft first, then enhanced tiers that
@@ -196,6 +192,10 @@ export const storyboardScenes = sqliteTable(
     videoPrompt: text('video_prompt'),
     prompt: text('prompt').notNull(),
     durationSec: integer('duration_sec').notNull().default(5),
+    // Non-destructive edit points for the assembled reel. duration_sec stays
+    // the generated source length; the cut can use any range inside it.
+    trimStartMs: integer('trim_start_ms').notNull().default(0),
+    trimEndMs: integer('trim_end_ms'),
     // Per-scene override; falls back to the storyboard seed when null.
     seed: integer('seed'),
     generationId: text('generation_id'),
@@ -212,7 +212,9 @@ export const generationAssets = sqliteTable(
     generationId: text('generation_id')
       .notNull()
       .references(() => generations.id, { onDelete: 'cascade' }),
-    jobId: text('job_id').references(() => generationJobs.id, { onDelete: 'set null' }),
+    jobId: text('job_id').references(() => generationJobs.id, {
+      onDelete: 'set null',
+    }),
     kind: text('kind').notNull().default('image'),
     r2Key: text('r2_key').notNull(),
     mimeType: text('mime_type').notNull(),
