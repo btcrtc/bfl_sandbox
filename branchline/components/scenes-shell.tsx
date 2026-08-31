@@ -1667,24 +1667,18 @@ function EndCardLogo({ compact = false }: { compact?: boolean }) {
   return (
     <span
       className={cn(
-        'pointer-events-none absolute right-[4%] top-[7%] z-20 inline-flex items-center rounded bg-black/68 text-white shadow-lg backdrop-blur-sm',
-        compact ? 'gap-1 px-1.5 py-1' : 'gap-2 px-2.5 py-2',
+        'pointer-events-none absolute left-1/2 top-1/2 z-20 w-[9.5703125%] -translate-x-1/2 -translate-y-1/2',
+        compact && 'min-w-3',
       )}
       aria-label="Black Forest Labs logo overlay"
     >
-      <span
-        className={cn(
-          'grid place-items-center rounded-sm border border-white/45 bg-white text-black font-mono font-black tracking-[-0.12em]',
-          compact ? 'size-3.5 text-[5px]' : 'size-6 text-[8px]',
-        )}
-      >
-        BFL
-      </span>
-      {!compact && (
-        <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.16em]">
-          Black Forest Labs
-        </span>
-      )}
+      <NextImage
+        src="/brand/bfl-mark-white.svg"
+        alt=""
+        width={196}
+        height={140}
+        className="block h-auto w-full"
+      />
     </span>
   );
 }
