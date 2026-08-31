@@ -89,7 +89,7 @@ export function ProductBrand({ concept = false }: { concept?: boolean }) {
         <span className="grid size-7 shrink-0 place-items-center rounded-md bg-foreground text-background">
           <Braces className="size-4" />
         </span>
-        <span className="text-sm font-semibold tracking-tight max-xl:hidden">
+        <span className="text-sm font-semibold tracking-tight max-lg:hidden">
           Branchline
         </span>
         {concept && (

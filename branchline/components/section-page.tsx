@@ -48,7 +48,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import {
   Tooltip,
@@ -384,7 +383,13 @@ function Assets({
         <Select value={kind} onValueChange={(next) => next && setKind(next)}>
           <SelectTrigger className="h-7! w-32 text-[10px]">
             <ListFilter />
-            <SelectValue />
+            <span className="min-w-0 flex-1 truncate text-left">
+              {kind === 'image'
+                ? 'Images'
+                : kind === 'video'
+                  ? 'Videos'
+                  : 'All assets'}
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All assets</SelectItem>
