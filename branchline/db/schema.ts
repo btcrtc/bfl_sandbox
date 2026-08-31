@@ -1,4 +1,49 @@
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core';
+
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull(),
+  displayName: text('display_name').notNull(),
+  provider: text('provider').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+// Product-level workspaces and projects deliberately sit above the legacy
+// `workspaces` table. The latter remains a private data namespace used by all
+// generation/storyboard queries, while a studio project points at exactly one
+// such namespace. This keeps every existing ownership check effective and
+// makes project isolation structural rather than a client-side filter.
+export const studioWorkspaces = sqliteTable('studio_workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull().default('personal'),
+  createdBy: text('created_by').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const studioWorkspaceMembers = sqliteTable(
+  'studio_workspace_members',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => studioWorkspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    role: text('role').notNull().default('owner'),
+    joinedAt: integer('joined_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.userId] }),
+    index('studio_workspace_members_user_idx').on(table.userId),
+  ],
+);
 
 export const workspaces = sqliteTable('workspaces', {
   id: text('id').primaryKey(),
@@ -22,6 +67,32 @@ export const workspaceMembers = sqliteTable(
   ],
 );
 
+export const studioProjects = sqliteTable(
+  'studio_projects',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => studioWorkspaces.id, { onDelete: 'cascade' }),
+    dataWorkspaceId: text('data_workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    kind: text('kind').notNull().default('standard'),
+    createdBy: text('created_by').notNull(),
+    seededAt: integer('seeded_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    index('studio_projects_workspace_idx').on(
+      table.workspaceId,
+      table.createdAt,
+    ),
+    index('studio_projects_data_workspace_idx').on(table.dataWorkspaceId),
+  ],
+);
+
 export const generations = sqliteTable(
   'generations',
   {
@@ -42,7 +113,12 @@ export const generations = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [index('generations_workspace_created_idx').on(table.workspaceId, table.createdAt)],
+  (table) => [
+    index('generations_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+    ),
+  ],
 );
 
 export const generationJobs = sqliteTable(
@@ -80,7 +156,9 @@ export const storyboards = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [index('storyboards_workspace_idx').on(table.workspaceId, table.createdAt)],
+  (table) => [
+    index('storyboards_workspace_idx').on(table.workspaceId, table.createdAt),
+  ],
 );
 
 // A saved look: the style essence crafted in the Playground — style prompt,
@@ -101,7 +179,9 @@ export const looks = sqliteTable(
     assetId: text('asset_id').notNull(),
     createdAt: integer('created_at').notNull(),
   },
-  (table) => [index('looks_workspace_idx').on(table.workspaceId, table.createdAt)],
+  (table) => [
+    index('looks_workspace_idx').on(table.workspaceId, table.createdAt),
+  ],
 );
 
 // Up to three pinned reference images per storyboard (subject / style /
@@ -117,7 +197,12 @@ export const storyboardReferences = sqliteTable(
     assetId: text('asset_id').notNull(),
     createdAt: integer('created_at').notNull(),
   },
-  (table) => [index('storyboard_references_storyboard_idx').on(table.storyboardId, table.refIndex)],
+  (table) => [
+    index('storyboard_references_storyboard_idx').on(
+      table.storyboardId,
+      table.refIndex,
+    ),
+  ],
 );
 
 // Video clips rendered from a scene: draft first, then enhanced tiers that
@@ -135,7 +220,9 @@ export const storyboardClips = sqliteTable(
     sourceClipId: text('source_clip_id'),
     createdAt: integer('created_at').notNull(),
   },
-  (table) => [index('storyboard_clips_scene_idx').on(table.sceneId, table.createdAt)],
+  (table) => [
+    index('storyboard_clips_scene_idx').on(table.sceneId, table.createdAt),
+  ],
 );
 
 // Timed dialogue/caption cues are first-class edit data. A cue can follow the
@@ -158,7 +245,9 @@ export const storyboardSubtitles = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [index('storyboard_subtitles_scene_idx').on(table.sceneId, table.startMs)],
+  (table) => [
+    index('storyboard_subtitles_scene_idx').on(table.sceneId, table.startMs),
+  ],
 );
 
 // Every rendered still for a scene is kept as a take; the scene's
@@ -175,7 +264,9 @@ export const storyboardTakes = sqliteTable(
     generationId: text('generation_id').notNull(),
     createdAt: integer('created_at').notNull(),
   },
-  (table) => [index('storyboard_takes_scene_idx').on(table.sceneId, table.createdAt)],
+  (table) => [
+    index('storyboard_takes_scene_idx').on(table.sceneId, table.createdAt),
+  ],
 );
 
 export const storyboardScenes = sqliteTable(
@@ -202,7 +293,12 @@ export const storyboardScenes = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
-  (table) => [index('storyboard_scenes_storyboard_idx').on(table.storyboardId, table.sceneIndex)],
+  (table) => [
+    index('storyboard_scenes_storyboard_idx').on(
+      table.storyboardId,
+      table.sceneIndex,
+    ),
+  ],
 );
 
 export const generationAssets = sqliteTable(

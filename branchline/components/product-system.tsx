@@ -24,6 +24,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 
 export type ProductSection =
   | 'playground'
@@ -68,7 +69,7 @@ export function ProductHeader({
   concept?: boolean;
 }) {
   return (
-    <header className="grid h-[var(--app-header-height)] grid-cols-[220px_minmax(280px,1fr)_220px] items-center border-b bg-background px-3 max-lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+    <header className="grid h-[var(--app-header-height)] grid-cols-[360px_minmax(280px,1fr)_220px] items-center border-b bg-background px-3 max-xl:grid-cols-[280px_minmax(220px,1fr)_180px] max-lg:grid-cols-[auto_minmax(0,1fr)_auto]">
       <ProductBrand concept={concept} />
       <div className="mx-auto flex w-[min(380px,48vw)] min-w-0 justify-center">
         {center}
@@ -80,22 +81,25 @@ export function ProductHeader({
 
 export function ProductBrand({ concept = false }: { concept?: boolean }) {
   return (
-    <Link href="/playground" className="flex min-w-0 items-center gap-2.5">
-      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-foreground text-background">
-        <Braces className="size-4" />
-      </span>
-      <span className="truncate text-sm font-semibold tracking-tight">
-        Branchline
-      </span>
-      {concept && (
-        <Badge
-          variant="outline"
-          className="h-5 rounded-md px-1.5 font-mono text-[9px] tracking-wider max-lg:hidden"
-        >
-          CONCEPT
-        </Badge>
-      )}
-    </Link>
+    <div className="flex min-w-0 items-center">
+      <Link href="/playground" className="flex shrink-0 items-center gap-2.5">
+        <span className="grid size-7 shrink-0 place-items-center rounded-md bg-foreground text-background">
+          <Braces className="size-4" />
+        </span>
+        <span className="text-sm font-semibold tracking-tight max-xl:hidden">
+          Branchline
+        </span>
+        {concept && (
+          <Badge
+            variant="outline"
+            className="h-5 rounded-md px-1.5 font-mono text-[9px] tracking-wider max-xl:hidden"
+          >
+            CONCEPT
+          </Badge>
+        )}
+      </Link>
+      <WorkspaceSwitcher />
+    </div>
   );
 }
 
@@ -164,7 +168,8 @@ const THEME_STORAGE_KEY = 'branchline-theme';
 function applyTheme(preference: ThemePreference) {
   const dark =
     preference === 'dark' ||
-    (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    (preference === 'system' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
 }
 
@@ -194,7 +199,11 @@ export function ThemeToggle() {
 
   const cycle = () => {
     const next: ThemePreference =
-      preference === 'system' ? 'dark' : preference === 'dark' ? 'light' : 'system';
+      preference === 'system'
+        ? 'dark'
+        : preference === 'dark'
+          ? 'light'
+          : 'system';
     setPreference(next);
     try {
       if (next === 'system') window.localStorage.removeItem(THEME_STORAGE_KEY);
@@ -205,8 +214,13 @@ export function ThemeToggle() {
   };
 
   const label =
-    preference === 'system' ? 'Theme: system' : preference === 'dark' ? 'Theme: dark' : 'Theme: light';
-  const Icon = preference === 'system' ? Monitor : preference === 'dark' ? Moon : Sun;
+    preference === 'system'
+      ? 'Theme: system'
+      : preference === 'dark'
+        ? 'Theme: dark'
+        : 'Theme: light';
+  const Icon =
+    preference === 'system' ? Monitor : preference === 'dark' ? Moon : Sun;
 
   return (
     <Tooltip>

@@ -7,8 +7,9 @@ declare namespace Cloudflare {
     VIDEO_ENABLED?: string;
     VIDEO_DAILY_LIMIT?: string;
     MISTRAL_API_KEY?: string;
-    // 'true' signs visitors into a shared demo workspace when no platform
-    // auth headers are present — for standalone demo deployments only.
+    // Enables the explicit, cookie-backed portfolio sign-in when the app is
+    // running without ChatGPT's trusted identity headers.
     DEMO_MODE?: string;
+    AUTH_SECRET?: string;
   }
 }

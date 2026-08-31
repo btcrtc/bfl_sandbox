@@ -110,6 +110,65 @@ type Selection =
   | { kind: 'scene'; id: string }
   | { kind: 'reel' };
 
+type ReelPlaylistItem = {
+  id: string;
+  url: string;
+  clipUrl: string | null;
+  title: string;
+  sceneIndex: number;
+  sourceDurationSec: number;
+  trimStartSec: number;
+  trimEndSec: number;
+  durationSec: number;
+};
+
+function reelVideoPreparationKey(item: ReelPlaylistItem) {
+  return `${item.clipUrl ?? 'still'}@${item.trimStartSec.toFixed(3)}`;
+}
+
+function waitForMediaEvents(
+  video: HTMLVideoElement,
+  eventNames: Array<keyof HTMLMediaElementEventMap>,
+  timeoutMs: number,
+) {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      for (const eventName of eventNames) {
+        video.removeEventListener(eventName, finish);
+      }
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, timeoutMs);
+    for (const eventName of eventNames) {
+      video.addEventListener(eventName, finish, { once: true });
+    }
+  });
+}
+
+function waitForDecodedVideoFrame(video: HTMLVideoElement, timeoutMs: number) {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = window.setTimeout(finish, timeoutMs);
+    if ('requestVideoFrameCallback' in video) {
+      video.requestVideoFrameCallback(() => finish());
+    } else {
+      (video as HTMLMediaElement).addEventListener('timeupdate', finish, {
+        once: true,
+      });
+    }
+  });
+}
+
 const DURATION_OPTIONS = ['5', '8', '10', '12', '15', '20'];
 const SCENE_COUNT_OPTIONS = ['3', '4', '5', '6'];
 const MIN_TRIM_MS = 1_000;
@@ -3888,25 +3947,19 @@ function ReelDetail({
   // Animatic: play the cut in real time — scenes with a finished clip play
   // the video, the rest hold their still for the scene duration. The edit
   // reads end-to-end at whatever stage the renders are in.
-  const [playlist, setPlaylist] = useState<Array<{
-    id: string;
-    url: string;
-    clipUrl: string | null;
-    title: string;
-    sceneIndex: number;
-    sourceDurationSec: number;
-    trimStartSec: number;
-    trimEndSec: number;
-    durationSec: number;
-  }> | null>(null);
+  const [playlist, setPlaylist] = useState<ReelPlaylistItem[] | null>(null);
   const [playPos, setPlayPos] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [muted, setMuted] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const playerVideoRef = useRef<HTMLVideoElement | null>(null);
   const playerVideoRefs = useRef(new Map<string, HTMLVideoElement>());
+  const preparedVideoKeysRef = useRef(new Set<string>());
+  const videoPreparationRef = useRef(new Map<string, Promise<boolean>>());
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const mediaAdvanceRef = useRef<string | null>(null);
+  const transitionRequestRef = useRef(0);
   const playingItem =
     playlist && playPos < playlist.length ? playlist[playPos] : null;
   const playlistVideoSources = (playlist ?? []).reduce<
@@ -3920,6 +3973,92 @@ function ReelDetail({
     }
     return sources;
   }, []);
+
+  const prepareVideo = useCallback(
+    (item: ReelPlaylistItem): Promise<boolean> => {
+      if (!item.clipUrl) return Promise.resolve(true);
+      const key = reelVideoPreparationKey(item);
+      if (preparedVideoKeysRef.current.has(key)) return Promise.resolve(true);
+      const pending = videoPreparationRef.current.get(key);
+      if (pending) return pending;
+
+      const preparation = (async () => {
+        // Refs have been committed before effects run. One animation frame also
+        // covers a playlist that was mounted by the same user action.
+        let video = playerVideoRefs.current.get(item.clipUrl!);
+        if (!video) {
+          await new Promise<void>((resolve) =>
+            window.requestAnimationFrame(() => resolve()),
+          );
+          video = playerVideoRefs.current.get(item.clipUrl!);
+        }
+        if (!video) return false;
+        const targetVideo = video;
+
+        targetVideo.preload = 'auto';
+        targetVideo.muted = true;
+
+        if (targetVideo.readyState < HTMLMediaElement.HAVE_METADATA) {
+          targetVideo.load();
+          await waitForMediaEvents(
+            targetVideo,
+            ['loadedmetadata', 'error'],
+            4_000,
+          );
+        }
+        if (targetVideo.error) return false;
+
+        const duration = Number.isFinite(targetVideo.duration)
+          ? targetVideo.duration
+          : item.sourceDurationSec;
+        const target = Math.min(
+          item.trimStartSec,
+          Math.max(0, duration - 0.04),
+        );
+        if (Math.abs(targetVideo.currentTime - target) > 0.04) {
+          targetVideo.currentTime = target;
+          await waitForMediaEvents(
+            targetVideo,
+            ['seeked', 'canplay', 'error'],
+            4_000,
+          );
+        }
+        if (targetVideo.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
+          await waitForMediaEvents(
+            targetVideo,
+            ['canplay', 'canplaythrough', 'error'],
+            4_000,
+          );
+        }
+        if (
+          targetVideo.error ||
+          targetVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+        )
+          return false;
+
+        // Seeking a hidden paused video does not consistently force Safari and
+        // Chromium to decode its first frame. A muted one-frame prime does.
+        try {
+          await targetVideo.play();
+          await waitForDecodedVideoFrame(targetVideo, 800);
+        } catch {
+          // A decoded seeked frame is still useful if autoplay is unavailable.
+        } finally {
+          targetVideo.pause();
+          targetVideo.currentTime = target;
+        }
+
+        preparedVideoKeysRef.current.add(key);
+        return true;
+      })().finally(() => {
+        videoPreparationRef.current.delete(key);
+      });
+
+      videoPreparationRef.current.set(key, preparation);
+      return preparation;
+    },
+    [],
+  );
 
   const applyTrimPreview = (scene: SceneDto, trim: TrimRange | null) => {
     setTrimDrafts((current) => {
@@ -3978,36 +4117,60 @@ function ReelDetail({
   }, [isPaused, playingItem]);
 
   useEffect(() => {
+    let cancelled = false;
     const activeUrl = playingItem?.clipUrl ?? null;
     const video = activeUrl
       ? (playerVideoRefs.current.get(activeUrl) ?? null)
       : null;
     playerVideoRef.current = video;
     for (const [url, candidate] of playerVideoRefs.current) {
-      candidate.muted = url === activeUrl ? muted : true;
       if (url !== activeUrl) candidate.pause();
     }
     if (!video || !playingItem?.clipUrl) return;
-    if (
+    preparedVideoKeysRef.current.delete(reelVideoPreparationKey(playingItem));
+    const needsSeek =
       video.currentTime < playingItem.trimStartSec ||
-      video.currentTime >= playingItem.trimEndSec
-    ) {
+      video.currentTime >= playingItem.trimEndSec;
+    if (needsSeek) {
+      mediaAdvanceRef.current = playingItem.id;
+      setIsBuffering(true);
       video.currentTime = playingItem.trimStartSec;
       setElapsed(0);
     }
-    if (isPaused) {
-      video.pause();
-    } else {
-      void video.play().catch(() => setIsPaused(true));
-    }
+
+    const beginPlayback = async () => {
+      if (needsSeek && video.seeking) {
+        await waitForMediaEvents(video, ['seeked', 'error'], 3_000);
+      }
+      if (cancelled) return;
+      mediaAdvanceRef.current = null;
+      setIsBuffering(false);
+      if (isPaused) {
+        video.pause();
+      } else {
+        void video.play().catch(() => setIsPaused(true));
+      }
+    };
+    void beginPlayback();
+    return () => {
+      cancelled = true;
+    };
   }, [
     isPaused,
     muted,
+    playingItem,
     playingItem?.clipUrl,
     playingItem?.id,
     playingItem?.trimEndSec,
     playingItem?.trimStartSec,
   ]);
+
+  useEffect(() => {
+    if (!playlist || !playingItem) return;
+    const nextItem = playlist[playPos + 1];
+    if (!nextItem?.clipUrl || nextItem.clipUrl === playingItem.clipUrl) return;
+    void prepareVideo(nextItem);
+  }, [playPos, playingItem, playlist, prepareVideo]);
 
   useEffect(() => {
     if (!playingItem) return;
@@ -4111,7 +4274,9 @@ function ReelDetail({
     setPlayPos(0);
     setElapsed(0);
     setIsPaused(false);
+    setIsBuffering(false);
     mediaAdvanceRef.current = null;
+    transitionRequestRef.current += 1;
     setPlaylist(items);
   };
 
@@ -4123,26 +4288,35 @@ function ReelDetail({
       onNotice('Render this scene first — nothing to play there yet.');
       return;
     }
+    playerVideoRef.current?.pause();
     setPlaylist(items);
     setPlayPos(index);
     setElapsed(0);
     setIsPaused(false);
-    mediaAdvanceRef.current = null;
+    setIsBuffering(false);
+    mediaAdvanceRef.current = items[index]?.id ?? null;
+    transitionRequestRef.current += 1;
   };
   const currentSceneIndex = playingItem
     ? storyboard.scenes.findIndex((scene) => scene.id === playingItem.id)
     : -1;
   const stopAnimatic = () => {
+    playerVideoRef.current?.pause();
     setPlaylist(null);
     setPlayPos(0);
     setElapsed(0);
     setIsPaused(false);
-    mediaAdvanceRef.current = null;
+    setIsBuffering(false);
+    mediaAdvanceRef.current = playingItem?.id ?? null;
+    transitionRequestRef.current += 1;
   };
 
   const previousSegment = () => {
     if (!playlist) return;
-    mediaAdvanceRef.current = null;
+    playerVideoRef.current?.pause();
+    mediaAdvanceRef.current = playingItem?.id ?? null;
+    transitionRequestRef.current += 1;
+    setIsBuffering(false);
     setElapsed(0);
     setIsPaused(false);
     setPlayPos((position) => Math.max(0, position - 1));
@@ -4150,37 +4324,40 @@ function ReelDetail({
 
   const nextSegment = (manual = true) => {
     if (!playlist) return;
-    if (manual) mediaAdvanceRef.current = null;
-    setElapsed(0);
-    setIsPaused(false);
-    setPlayPos((position) => position + 1);
+    const nextPosition = playPos + 1;
+    const nextItem = playlist[nextPosition];
+    const currentItem = playingItem;
+    if (manual) mediaAdvanceRef.current = currentItem?.id ?? null;
+    const request = ++transitionRequestRef.current;
+    const seamlessContinuation = Boolean(
+      currentItem?.clipUrl &&
+      nextItem?.clipUrl === currentItem.clipUrl &&
+      Math.abs(nextItem.trimStartSec - currentItem.trimEndSec) <= 0.15,
+    );
+    const complete = () => {
+      if (request !== transitionRequestRef.current) return;
+      if (!seamlessContinuation) playerVideoRef.current?.pause();
+      setIsBuffering(false);
+      setElapsed(0);
+      setIsPaused(false);
+      setPlayPos(nextPosition);
+    };
+
+    if (
+      nextItem?.clipUrl &&
+      nextItem.clipUrl !== currentItem?.clipUrl &&
+      !preparedVideoKeysRef.current.has(reelVideoPreparationKey(nextItem))
+    ) {
+      setIsBuffering(true);
+      void prepareVideo(nextItem).then(complete);
+      return;
+    }
+    complete();
   };
 
   const advanceFromMedia = () => {
     if (!playingItem || mediaAdvanceRef.current === playingItem.id) return;
     mediaAdvanceRef.current = playingItem.id;
-    const nextItem = playlist?.[playPos + 1];
-    const seamlessContinuation = Boolean(
-      playingItem?.clipUrl &&
-      nextItem?.clipUrl === playingItem.clipUrl &&
-      Math.abs(nextItem.trimStartSec - playingItem.trimEndSec) <= 0.15,
-    );
-    if (!seamlessContinuation) {
-      const nextVideo = nextItem?.clipUrl
-        ? playerVideoRefs.current.get(nextItem.clipUrl)
-        : null;
-      if (nextVideo && nextItem) {
-        nextVideo.muted = true;
-        if (
-          nextVideo.currentTime < nextItem.trimStartSec ||
-          nextVideo.currentTime >= nextItem.trimEndSec
-        ) {
-          nextVideo.currentTime = nextItem.trimStartSec;
-        }
-        void nextVideo.play().catch(() => undefined);
-      }
-      playerVideoRef.current?.pause();
-    }
     nextSegment(false);
   };
 
@@ -4316,6 +4493,15 @@ function ReelDetail({
                       onTimeUpdate={(event) => {
                         if (active) updateVideoClock(event.currentTarget);
                       }}
+                      onPlaying={() => {
+                        if (active) setIsBuffering(false);
+                      }}
+                      onWaiting={() => {
+                        if (active) setIsBuffering(true);
+                      }}
+                      onStalled={() => {
+                        if (active) setIsBuffering(true);
+                      }}
                       onEnded={() => {
                         if (active) advanceFromMedia();
                       }}
@@ -4373,6 +4559,14 @@ function ReelDetail({
                 unoptimized
                 className="size-full object-contain"
               />
+            )}
+            {playingItem && isBuffering && (
+              <div className="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-black/72 px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-white shadow backdrop-blur">
+                  <Loader2 className="size-3 animate-spin" /> Preparing next
+                  shot
+                </span>
+              </div>
             )}
             {!playingItem && (
               <button

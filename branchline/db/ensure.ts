@@ -1,8 +1,4 @@
 import { env } from 'cloudflare:workers';
-import { eq } from 'drizzle-orm';
-
-import { getDb } from './index';
-import { workspaceMembers, workspaces } from './schema';
 
 let ready: Promise<void> | null = null;
 
@@ -16,6 +12,27 @@ export function ensureDatabase() {
     ),
     env.DB.prepare(
       'CREATE INDEX IF NOT EXISTS workspace_members_user_idx ON workspace_members(user_id)',
+    ),
+    env.DB.prepare(
+      'CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY NOT NULL, email TEXT NOT NULL, display_name TEXT NOT NULL, provider TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS studio_workspaces (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'personal', created_by TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS studio_workspace_members (workspace_id TEXT NOT NULL REFERENCES studio_workspaces(id) ON DELETE CASCADE, user_id TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'owner', joined_at INTEGER NOT NULL, PRIMARY KEY(workspace_id, user_id))",
+    ),
+    env.DB.prepare(
+      'CREATE INDEX IF NOT EXISTS studio_workspace_members_user_idx ON studio_workspace_members(user_id)',
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS studio_projects (id TEXT PRIMARY KEY NOT NULL, workspace_id TEXT NOT NULL REFERENCES studio_workspaces(id) ON DELETE CASCADE, data_workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'standard', created_by TEXT NOT NULL, seeded_at INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    ),
+    env.DB.prepare(
+      'CREATE INDEX IF NOT EXISTS studio_projects_workspace_idx ON studio_projects(workspace_id, created_at)',
+    ),
+    env.DB.prepare(
+      'CREATE INDEX IF NOT EXISTS studio_projects_data_workspace_idx ON studio_projects(data_workspace_id)',
     ),
     env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS generations (id TEXT PRIMARY KEY NOT NULL, workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, created_by TEXT NOT NULL, status TEXT NOT NULL, origin TEXT NOT NULL DEFAULT 'live', model_id TEXT NOT NULL, prompt TEXT NOT NULL, parameters_json TEXT NOT NULL, output_count INTEGER NOT NULL, cost_credits TEXT, latency_ms INTEGER, error_message TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
@@ -85,12 +102,16 @@ export function ensureDatabase() {
       // Additive migration for databases created before the idea column
       // existed; the error on re-run ("duplicate column") is expected.
       try {
-        await env.DB.prepare('ALTER TABLE storyboards ADD COLUMN idea TEXT').run();
+        await env.DB.prepare(
+          'ALTER TABLE storyboards ADD COLUMN idea TEXT',
+        ).run();
       } catch {
         // Column already present.
       }
       try {
-        await env.DB.prepare('ALTER TABLE storyboard_scenes ADD COLUMN video_prompt TEXT').run();
+        await env.DB.prepare(
+          'ALTER TABLE storyboard_scenes ADD COLUMN video_prompt TEXT',
+        ).run();
       } catch {
         // Column already present.
       }
@@ -102,46 +123,36 @@ export function ensureDatabase() {
         // Column already present.
       }
       try {
-        await env.DB.prepare('ALTER TABLE storyboard_scenes ADD COLUMN trim_end_ms INTEGER').run();
+        await env.DB.prepare(
+          'ALTER TABLE storyboard_scenes ADD COLUMN trim_end_ms INTEGER',
+        ).run();
       } catch {
         // Column already present.
       }
       // Sweep the fake sample runs earlier builds seeded into new
       // workspaces — Runs/Assets show real work or honest empty states.
-      await env.DB.prepare("DELETE FROM generations WHERE origin = 'sample'").run();
+      await env.DB.prepare(
+        "DELETE FROM generations WHERE origin = 'sample'",
+      ).run();
     })
     .then(() => undefined);
 
   return ready;
 }
 
-export async function ensurePersonalWorkspace(userId: string, displayName: string) {
-  await ensureDatabase();
-  const db = getDb();
-  const workspaceId = `personal:${userId}`;
-  const now = Date.now();
-
-  // Fast path: workspace already provisioned — skip member/sample writes so
-  // routine API requests cost one indexed read instead of three writes.
-  const [existing] = await db
-    .select({ id: workspaces.id })
-    .from(workspaces)
-    .where(eq(workspaces.id, workspaceId))
-    .limit(1);
-  if (existing) return workspaceId;
-
-  await db
-    .insert(workspaces)
-    .values({
-      id: workspaceId,
-      name: `${displayName}'s Studio`,
-      createdAt: now,
-    })
-    .onConflictDoNothing();
-  await db
-    .insert(workspaceMembers)
-    .values({ workspaceId, userId, role: 'owner', joinedAt: now })
-    .onConflictDoNothing();
-
-  return workspaceId;
+export async function ensurePersonalWorkspace(
+  userId: string,
+  displayName: string,
+) {
+  // Loaded lazily so studio bootstrap can call ensureDatabase without an ESM
+  // initialization cycle between the migration and selection layers.
+  const { resolveStudioContext } = await import('./studio');
+  const context = await resolveStudioContext({
+    userId,
+    displayName,
+    email: `${userId}@branchline.local`,
+    fullName: displayName,
+    provider: 'legacy',
+  });
+  return context.activeProject.dataWorkspaceId;
 }

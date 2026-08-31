@@ -97,7 +97,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -158,12 +162,30 @@ const nodes: Array<{
   icon: typeof WandSparkles;
   position: string;
 }> = [
-  { id: 'prompt', eyebrow: 'STORY BEAT', icon: WandSparkles, position: 'left-[3%] top-[10%]' },
-  { id: 'model', eyebrow: 'VISUAL GRAMMAR', icon: Box, position: 'left-[39.5%] top-[10%]' },
-  { id: 'generate', eyebrow: 'MASTER FRAME', icon: Play, position: 'right-[3%] top-[10%]' },
+  {
+    id: 'prompt',
+    eyebrow: 'STORY BEAT',
+    icon: WandSparkles,
+    position: 'left-[3%] top-[10%]',
+  },
+  {
+    id: 'model',
+    eyebrow: 'VISUAL GRAMMAR',
+    icon: Box,
+    position: 'left-[39.5%] top-[10%]',
+  },
+  {
+    id: 'generate',
+    eyebrow: 'MASTER FRAME',
+    icon: Play,
+    position: 'right-[3%] top-[10%]',
+  },
 ];
 
-const inspectorCopy: Record<NodeId, { label: string; title: string; description: string }> = {
+const inspectorCopy: Record<
+  NodeId,
+  { label: string; title: string; description: string }
+> = {
   prompt: {
     label: 'Prompt node',
     title: 'Prompt',
@@ -400,10 +422,17 @@ function FrameBranchCard({
           alt=""
           fill
           unoptimized
-          className={cn('object-cover transition-transform duration-300 group-hover:scale-[1.02]', !asset && 'opacity-65')}
+          className={cn(
+            'object-cover transition-transform duration-300 group-hover:scale-[1.02]',
+            !asset && 'opacity-65',
+          )}
         />
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-5 font-mono text-[8px] uppercase tracking-wider text-white/90">
-          {run ? (inFlight ? run.status : 'generated branch') : 'planned branch'}
+          {run
+            ? inFlight
+              ? run.status
+              : 'generated branch'
+            : 'planned branch'}
         </span>
       </button>
       <div className="p-2">
@@ -414,7 +443,9 @@ function FrameBranchCard({
           <Icon className="size-3 text-muted-foreground" />
         </div>
         <p className="mt-0.5 truncate text-[11px] font-medium">{label}</p>
-        <p className="mt-0.5 line-clamp-2 text-[9px] leading-3.5 text-muted-foreground">{note}</p>
+        <p className="mt-0.5 line-clamp-2 text-[9px] leading-3.5 text-muted-foreground">
+          {note}
+        </p>
         {!run && (
           <Button
             variant="ghost"
@@ -457,7 +488,8 @@ const FRAME_CANVAS_STATES: Array<{
     value: 'base',
     label: 'Base only',
     nodeCount: 1,
-    description: 'The root can still be replaced because it has no descendants.',
+    description:
+      'The root can still be replaced because it has no descendants.',
   },
   {
     value: 'one-branch',
@@ -469,16 +501,32 @@ const FRAME_CANVAS_STATES: Array<{
     value: 'branching',
     label: 'Branching',
     nodeCount: 5,
-    description: 'Compare independent optical paths and keep extending approved decisions.',
+    description:
+      'Compare independent optical paths and keep extending approved decisions.',
   },
 ];
 
 const FRAME_RECIPE_CONTEXT: Record<
   RecipeNodeId,
-  { label: string; eyebrow: string; nextType: FrameLayerType; childCount: number }
+  {
+    label: string;
+    eyebrow: string;
+    nextType: FrameLayerType;
+    childCount: number;
+  }
 > = {
-  base: { label: 'Clockmaker at work', eyebrow: 'Root frame', nextType: 'lens', childCount: 2 },
-  cooke: { label: 'Cooke S4 · 40 mm', eyebrow: 'Lens branch A', nextType: 'light', childCount: 1 },
+  base: {
+    label: 'Clockmaker at work',
+    eyebrow: 'Root frame',
+    nextType: 'lens',
+    childCount: 2,
+  },
+  cooke: {
+    label: 'Cooke S4 · 40 mm',
+    eyebrow: 'Lens branch A',
+    nextType: 'light',
+    childCount: 1,
+  },
   'cooke-light': {
     label: 'Tungsten practical',
     eyebrow: 'Light iteration',
@@ -527,7 +575,9 @@ function FrameRecipeNode({
   children?: ReactNode;
 }) {
   const inheritedCount = layers.filter((layer) => layer.inherited).length;
-  const visibleLayers = compact ? layers.filter((layer) => !layer.inherited) : layers;
+  const visibleLayers = compact
+    ? layers.filter((layer) => !layer.inherited)
+    : layers;
 
   return (
     <article
@@ -545,12 +595,20 @@ function FrameRecipeNode({
         onClick={onSelect}
         className="relative block aspect-[2.15/1] w-full overflow-hidden rounded-t-[11px] bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
       >
-        <NextImage src={image} alt={title} fill unoptimized className="object-cover" />
+        <NextImage
+          src={image}
+          alt={title}
+          fill
+          unoptimized
+          className="object-cover"
+        />
         <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent px-3 pb-2 pt-9 text-white">
           <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">
             {eyebrow}
           </span>
-          <span className="mt-0.5 block truncate text-[12px] font-medium">{title}</span>
+          <span className="mt-0.5 block truncate text-[12px] font-medium">
+            {title}
+          </span>
         </span>
         {selected && (
           <span className="absolute right-2 top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[8px] uppercase text-black shadow">
@@ -585,9 +643,12 @@ function FrameRecipeNode({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
-                  {layer.label}{layer.inherited ? ' · inherited' : ''}
+                  {layer.label}
+                  {layer.inherited ? ' · inherited' : ''}
                 </span>
-                <span className="block truncate text-[9px] font-medium">{layer.value}</span>
+                <span className="block truncate text-[9px] font-medium">
+                  {layer.value}
+                </span>
               </span>
               <ChevronDown className="size-3 -rotate-90 text-muted-foreground/50" />
             </button>
@@ -600,14 +661,62 @@ function FrameRecipeNode({
 }
 
 const fallbackHistory: HistoryRun[] = [
-  ['sample-0', 'Soft industrial product portrait on warm mineral paper', 'FLUX.2 [max]', 2, 18],
-  ['sample-1', 'Retro-futurist desktop machine, quiet studio light', 'FLUX.2 [max]', 2, 1_440],
-  ['sample-2', 'Compact field recorder with tactile orange controls', 'FLUX.2 [pro]', 4, 1_560],
-  ['sample-3', 'Brutalist perfume bottle with smoked glass and sharp caustics', 'FLUX.2 [flex]', 2, 2_940],
-  ['sample-4', 'Wayfinding icons for an alpine research station', 'FLUX.2 [klein]', 4, 4_320],
-  ['sample-5', 'Editorial still life in moss green, chalk and anodized aluminum', 'FLUX.2 [pro]', 2, 5_760],
-  ['sample-6', 'Modular field camera photographed as an archival artifact', 'FLUX.2 [max]', 2, 7_200],
-  ['sample-7', 'Folded-paper terrain system with embossed contour labels', 'FLUX.2 [flex]', 3, 10_080],
+  [
+    'sample-0',
+    'Soft industrial product portrait on warm mineral paper',
+    'FLUX.2 [max]',
+    2,
+    18,
+  ],
+  [
+    'sample-1',
+    'Retro-futurist desktop machine, quiet studio light',
+    'FLUX.2 [max]',
+    2,
+    1_440,
+  ],
+  [
+    'sample-2',
+    'Compact field recorder with tactile orange controls',
+    'FLUX.2 [pro]',
+    4,
+    1_560,
+  ],
+  [
+    'sample-3',
+    'Brutalist perfume bottle with smoked glass and sharp caustics',
+    'FLUX.2 [flex]',
+    2,
+    2_940,
+  ],
+  [
+    'sample-4',
+    'Wayfinding icons for an alpine research station',
+    'FLUX.2 [klein]',
+    4,
+    4_320,
+  ],
+  [
+    'sample-5',
+    'Editorial still life in moss green, chalk and anodized aluminum',
+    'FLUX.2 [pro]',
+    2,
+    5_760,
+  ],
+  [
+    'sample-6',
+    'Modular field camera photographed as an archival artifact',
+    'FLUX.2 [max]',
+    2,
+    7_200,
+  ],
+  [
+    'sample-7',
+    'Folded-paper terrain system with embossed contour labels',
+    'FLUX.2 [flex]',
+    3,
+    10_080,
+  ],
 ].map(([id, prompt, modelId, outputCount, ageMinutes]) => ({
   id: String(id),
   status: 'succeeded' as const,
@@ -637,20 +746,28 @@ export function PlaygroundShell({
   const [prompt, setPrompt] = useState(
     'An elderly clockmaker works alone at a scarred wooden bench, holding a brass gear beside one candle in a nearly black forest workshop. Preserve tactile period tools, smoke and deep nocturnal atmosphere.',
   );
-  const [historyItems, setHistoryItems] = useState<HistoryRun[]>(viewer ? [] : fallbackHistory);
-  const [historyState, setHistoryState] = useState<'loading' | 'synced' | 'error'>(
-    viewer ? 'loading' : 'error',
+  const [historyItems, setHistoryItems] = useState<HistoryRun[]>(
+    viewer ? [] : fallbackHistory,
   );
-  const [realtimeState, setRealtimeState] = useState<'connecting' | 'live' | 'fallback'>(
-    viewer ? 'connecting' : 'fallback',
-  );
+  const [historyState, setHistoryState] = useState<
+    'loading' | 'synced' | 'error'
+  >(viewer ? 'loading' : 'error');
+  const [realtimeState, setRealtimeState] = useState<
+    'connecting' | 'live' | 'fallback'
+  >(viewer ? 'connecting' : 'fallback');
   const [isRunning, setIsRunning] = useState(false);
-  const [runMessage, setRunMessage] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
+  const [runMessage, setRunMessage] = useState<{
+    tone: 'info' | 'error';
+    text: string;
+  } | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [model, setModel] = useState<BflModel>('FLUX.2 [max]');
-  const [aspect, setAspect] = useState<(typeof aspectOptions)[number]['value']>('4:3');
+  const [aspect, setAspect] =
+    useState<(typeof aspectOptions)[number]['value']>('4:3');
   const [outputs, setOutputs] = useState('2');
-  const [outputFormat, setOutputFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+  const [outputFormat, setOutputFormat] = useState<'png' | 'jpeg' | 'webp'>(
+    'png',
+  );
   const [safety, setSafety] = useState('2');
   const [promptUpsampling, setPromptUpsampling] = useState(true);
   const [seed, setSeed] = useState<number | null>(null);
@@ -669,8 +786,10 @@ export function PlaygroundShell({
   const [frameLayerPrompt, setFrameLayerPrompt] = useState(
     FRAME_LAYER_PRESETS.lens[0].prompt,
   );
-  const [selectedRecipeNode, setSelectedRecipeNode] = useState<RecipeNodeId | null>('base');
-  const [frameCanvasState, setFrameCanvasState] = useState<FrameCanvasState>('branching');
+  const [selectedRecipeNode, setSelectedRecipeNode] =
+    useState<RecipeNodeId | null>('base');
+  const [frameCanvasState, setFrameCanvasState] =
+    useState<FrameCanvasState>('branching');
   const [frameCanvasZoom, setFrameCanvasZoom] = useState(85);
   const [frameCanvasCompact, setFrameCanvasCompact] = useState(false);
   const [frameStackFullscreen, setFrameStackFullscreen] = useState(false);
@@ -691,12 +810,17 @@ export function PlaygroundShell({
   }, []);
 
   useEffect(() => {
-    const syncFullscreen = () => setFrameStackFullscreen(document.fullscreenElement === frameStackRef.current);
+    const syncFullscreen = () =>
+      setFrameStackFullscreen(
+        document.fullscreenElement === frameStackRef.current,
+      );
     document.addEventListener('fullscreenchange', syncFullscreen);
-    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+    return () =>
+      document.removeEventListener('fullscreenchange', syncFullscreen);
   }, []);
 
-  const dimensions = aspectOptions.find((option) => option.value === aspect) ?? aspectOptions[1];
+  const dimensions =
+    aspectOptions.find((option) => option.value === aspect) ?? aspectOptions[1];
   const selected = inspectorCopy[selectedNode];
   const activePollsRef = useRef<Set<string>>(new Set());
   const pollRunRef = useRef<(id: string) => void>(() => {});
@@ -717,12 +841,19 @@ export function PlaygroundShell({
       // Resume polling for any run still in flight — a run started in another
       // tab (or before a reload) keeps progressing as long as anyone watches.
       for (const run of data.runs) {
-        if (run.origin === 'live' && ['queued', 'running'].includes(run.status)) {
+        if (
+          run.origin === 'live' &&
+          ['queued', 'running'].includes(run.status)
+        ) {
           pollRunRef.current(run.id);
         }
       }
     } catch {
-      setHistoryItems((current) => (current.length ? current : fallbackHistory));
+      // Authenticated projects must fail honestly: never leak the signed-out
+      // sample history into a private empty project when its API is offline.
+      setHistoryItems((current) =>
+        current.length ? current : viewer ? [] : fallbackHistory,
+      );
       setHistoryState('error');
     }
   }, [viewer]);
@@ -741,7 +872,9 @@ export function PlaygroundShell({
     const connect = () => {
       if (disposed) return;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      socket = new WebSocket(`${protocol}//${window.location.host}/api/realtime`);
+      socket = new WebSocket(
+        `${protocol}//${window.location.host}/api/realtime`,
+      );
       socket.onopen = () => {
         setRealtimeState('live');
         void refreshHistory();
@@ -797,9 +930,12 @@ export function PlaygroundShell({
 
     const tick = async () => {
       try {
-        const response = await fetch(`/api/generations/${encodeURIComponent(id)}`, {
-          cache: 'no-store',
-        });
+        const response = await fetch(
+          `/api/generations/${encodeURIComponent(id)}`,
+          {
+            cache: 'no-store',
+          },
+        );
         if (response.status === 401 || response.status === 404) {
           activePollsRef.current.delete(id);
           return;
@@ -846,7 +982,17 @@ export function PlaygroundShell({
       seed,
       guidance: MODEL_CAPS[model].guidance ? guidance : null,
     }),
-    [prompt, model, dimensions, outputs, outputFormat, safety, promptUpsampling, seed, guidance],
+    [
+      prompt,
+      model,
+      dimensions,
+      outputs,
+      outputFormat,
+      safety,
+      promptUpsampling,
+      seed,
+      guidance,
+    ],
   );
 
   const runWorkflow = useCallback(
@@ -862,8 +1008,13 @@ export function PlaygroundShell({
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ...body, ...branch }),
         });
-        const data = (await response.json()) as { id?: string; mode?: string; error?: string };
-        if (!response.ok || !data.id) throw new Error(data.error || 'Could not create the run.');
+        const data = (await response.json()) as {
+          id?: string;
+          mode?: string;
+          error?: string;
+        };
+        if (!response.ok || !data.id)
+          throw new Error(data.error || 'Could not create the run.');
         setLastRunAt(Date.now());
         if (!branch) {
           setBranchingRunId(data.id);
@@ -873,7 +1024,13 @@ export function PlaygroundShell({
         }
         setHistoryOpen(true);
         setHighlightRunId(data.id);
-        window.setTimeout(() => setHighlightRunId((current) => (current === data.id ? null : current)), 6_000);
+        window.setTimeout(
+          () =>
+            setHighlightRunId((current) =>
+              current === data.id ? null : current,
+            ),
+          6_000,
+        );
         await refreshHistory();
         setRunMessage(
           data.mode === 'preview'
@@ -894,7 +1051,10 @@ export function PlaygroundShell({
       } catch (error) {
         setRunMessage({
           tone: 'error',
-          text: error instanceof Error ? error.message : 'Could not create the run.',
+          text:
+            error instanceof Error
+              ? error.message
+              : 'Could not create the run.',
         });
       } finally {
         setIsRunning(false);
@@ -906,30 +1066,41 @@ export function PlaygroundShell({
     runWorkflowRef.current = () => void runWorkflow();
   }, [runWorkflow]);
 
-  const applyRunToInspector = useCallback((run: HistoryRun, options?: { varySeed?: boolean }) => {
-    const payload = payloadFromRun(run);
-    setPrompt(payload.prompt);
-    setModel(payload.model);
-    const matchedAspect = aspectOptions.find(
-      (option) => option.width === payload.width && option.height === payload.height,
-    );
-    if (matchedAspect) setAspect(matchedAspect.value);
-    setOutputs(String(Math.min(4, Math.max(1, payload.outputs))));
-    setOutputFormat(payload.outputFormat);
-    setSafety(String(payload.safetyTolerance));
-    setPromptUpsampling(payload.promptUpsampling);
-    setSeed(options?.varySeed ? randomSeed() : payload.seed);
-    if (payload.guidance != null) setGuidance(payload.guidance);
-    setSelectedNode('model');
-    setDetailRunId(null);
-    setRunMessage({ tone: 'info', text: 'Parameters loaded from the selected run.' });
-  }, []);
+  const applyRunToInspector = useCallback(
+    (run: HistoryRun, options?: { varySeed?: boolean }) => {
+      const payload = payloadFromRun(run);
+      setPrompt(payload.prompt);
+      setModel(payload.model);
+      const matchedAspect = aspectOptions.find(
+        (option) =>
+          option.width === payload.width && option.height === payload.height,
+      );
+      if (matchedAspect) setAspect(matchedAspect.value);
+      setOutputs(String(Math.min(4, Math.max(1, payload.outputs))));
+      setOutputFormat(payload.outputFormat);
+      setSafety(String(payload.safetyTolerance));
+      setPromptUpsampling(payload.promptUpsampling);
+      setSeed(options?.varySeed ? randomSeed() : payload.seed);
+      if (payload.guidance != null) setGuidance(payload.guidance);
+      setSelectedNode('model');
+      setDetailRunId(null);
+      setRunMessage({
+        tone: 'info',
+        text: 'Parameters loaded from the selected run.',
+      });
+    },
+    [],
+  );
 
   const rerunFromRun = useCallback(
-    (run: HistoryRun, options?: { varySeed?: boolean; safetyBump?: boolean }) => {
+    (
+      run: HistoryRun,
+      options?: { varySeed?: boolean; safetyBump?: boolean },
+    ) => {
       const payload = payloadFromRun(run);
       if (options?.varySeed) payload.seed = randomSeed();
-      if (options?.safetyBump) payload.safetyTolerance = Math.min(6, payload.safetyTolerance + 1);
+      if (options?.safetyBump)
+        payload.safetyTolerance = Math.min(6, payload.safetyTolerance + 1);
       applyRunToInspector(run, { varySeed: options?.varySeed });
       if (options?.safetyBump) setSafety(String(payload.safetyTolerance));
       setDetailRunId(null);
@@ -988,7 +1159,10 @@ export function PlaygroundShell({
       await navigator.clipboard.writeText(text);
       setRunMessage({ tone: 'info', text: note });
     } catch {
-      setRunMessage({ tone: 'error', text: 'Clipboard is unavailable in this browser.' });
+      setRunMessage({
+        tone: 'error',
+        text: 'Clipboard is unavailable in this browser.',
+      });
     }
   }, []);
 
@@ -1000,7 +1174,10 @@ export function PlaygroundShell({
     model: null,
     generate: null,
   });
-  const [edgePaths, setEdgePaths] = useState<{ promptModel: string; modelGenerate: string }>({
+  const [edgePaths, setEdgePaths] = useState<{
+    promptModel: string;
+    modelGenerate: string;
+  }>({
     promptModel: '',
     modelGenerate: '',
   });
@@ -1036,12 +1213,22 @@ export function PlaygroundShell({
   }, [measureEdges]);
 
   const estimatedCost = useMemo(
-    () => estimateRunCostUsd(model, dimensions.width, dimensions.height, Number(outputs)),
+    () =>
+      estimateRunCostUsd(
+        model,
+        dimensions.width,
+        dimensions.height,
+        Number(outputs),
+      ),
     [model, dimensions, outputs],
   );
-  const anyRunActive = historyItems.some((item) => ['queued', 'running'].includes(item.status));
+  const anyRunActive = historyItems.some((item) =>
+    ['queued', 'running'].includes(item.status),
+  );
   const branchRoot =
-    (branchingRunId ? historyItems.find((item) => item.id === branchingRunId) : null) ??
+    (branchingRunId
+      ? historyItems.find((item) => item.id === branchingRunId)
+      : null) ??
     historyItems.find(
       (item) =>
         item.assets.length > 0 &&
@@ -1056,7 +1243,9 @@ export function PlaygroundShell({
   );
   const activeFrame =
     (activeFrameRunId
-      ? historyItems.find((item) => item.id === activeFrameRunId && item.assets.length > 0)
+      ? historyItems.find(
+          (item) => item.id === activeFrameRunId && item.assets.length > 0,
+        )
       : null) ?? branchRoot;
   const activeFrameLabel =
     activeFrame && typeof activeFrame.parameters.variationLabel === 'string'
@@ -1095,13 +1284,18 @@ export function PlaygroundShell({
   };
 
   const chooseFrameLayerPreset = (value: string) => {
-    const preset = FRAME_LAYER_PRESETS[frameLayerType].find((entry) => entry.label === value);
+    const preset = FRAME_LAYER_PRESETS[frameLayerType].find(
+      (entry) => entry.label === value,
+    );
     if (!preset) return;
     setFrameLayerLabel(preset.label);
     setFrameLayerPrompt(preset.prompt);
   };
 
-  const prepareRecipeNode = (nodeId: RecipeNodeId, nextType: FrameLayerType) => {
+  const prepareRecipeNode = (
+    nodeId: RecipeNodeId,
+    nextType: FrameLayerType,
+  ) => {
     setSelectedRecipeNode(nodeId);
     if (branchRoot) setActiveFrameRunId(branchRoot.id);
     chooseFrameLayerType(nextType);
@@ -1120,7 +1314,8 @@ export function PlaygroundShell({
           ? 'cooke'
           : 'base';
     setSelectedRecipeNode(nextSelection);
-    if (nextSelection) chooseFrameLayerType(FRAME_RECIPE_CONTEXT[nextSelection].nextType);
+    if (nextSelection)
+      chooseFrameLayerType(FRAME_RECIPE_CONTEXT[nextSelection].nextType);
   };
 
   const toggleFrameStackFullscreen = async () => {
@@ -1134,18 +1329,25 @@ export function PlaygroundShell({
   const selectedRecipeContext = selectedRecipeNode
     ? FRAME_RECIPE_CONTEXT[selectedRecipeNode]
     : null;
-  const frameStateMeta = FRAME_CANVAS_STATES.find((entry) => entry.value === frameCanvasState)!;
+  const frameStateMeta = FRAME_CANVAS_STATES.find(
+    (entry) => entry.value === frameCanvasState,
+  )!;
   const showBaseNode = frameCanvasState !== 'empty';
-  const showCookeNode = frameCanvasState === 'one-branch' || frameCanvasState === 'branching';
+  const showCookeNode =
+    frameCanvasState === 'one-branch' || frameCanvasState === 'branching';
   const showFullBranching = frameCanvasState === 'branching';
   const rootDescendantCount =
-    frameCanvasState === 'branching' ? 4 : frameCanvasState === 'one-branch' ? 1 : 0;
+    frameCanvasState === 'branching'
+      ? 4
+      : frameCanvasState === 'one-branch'
+        ? 1
+        : 0;
   const selectedDescendantCount =
     selectedRecipeNode === 'base'
       ? rootDescendantCount
       : frameCanvasState === 'one-branch' && selectedRecipeNode === 'cooke'
         ? 0
-        : selectedRecipeContext?.childCount ?? 0;
+        : (selectedRecipeContext?.childCount ?? 0);
 
   if (linkedSceneIds) {
     return (
@@ -1168,8 +1370,12 @@ export function PlaygroundShell({
               onClick={() => setCommandOpen(true)}
             >
               <Search className="size-3.5" />
-              <span className="min-w-0 flex-1 truncate">Type command or search…</span>
-              <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">⌘ K</kbd>
+              <span className="min-w-0 flex-1 truncate">
+                Type command or search…
+              </span>
+              <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                ⌘ K
+              </kbd>
             </button>
           }
           end={
@@ -1196,7 +1402,13 @@ export function PlaygroundShell({
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<Button variant="ghost" size="icon-sm" aria-label="Workspace settings" />}
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Workspace settings"
+                    />
+                  }
                 >
                   <Settings2 />
                 </DropdownMenuTrigger>
@@ -1217,7 +1429,11 @@ export function PlaygroundShell({
                   <DropdownMenuItem
                     onClick={() =>
                       void copyToClipboard(
-                        JSON.stringify({ workflow: 'branchline/v1', ...buildPayload() }, null, 2),
+                        JSON.stringify(
+                          { workflow: 'branchline/v1', ...buildPayload() },
+                          null,
+                          2,
+                        ),
                         'Workflow JSON copied to clipboard.',
                       )
                     }
@@ -1259,7 +1475,9 @@ export function PlaygroundShell({
             <div className="flex h-[var(--app-header-height)] items-center justify-between border-b px-4">
               <div>
                 <SystemLabel>{selected.label}</SystemLabel>
-                <p className="mt-0.5 text-[13px] font-medium leading-4">{selected.title}</p>
+                <p className="mt-0.5 text-[13px] font-medium leading-4">
+                  {selected.title}
+                </p>
               </div>
               <IconTooltip label="Open advanced parameters">
                 <Button
@@ -1283,9 +1501,18 @@ export function PlaygroundShell({
                       label="Size"
                       value={`${aspect} · ${dimensions.width}×${dimensions.height}`}
                     />
-                    <SummaryRow label="Outputs" value={`${outputs} · ${outputFormat.toUpperCase()}`} />
-                    <SummaryRow label="Seed" value={seed == null ? 'Random' : String(seed)} />
-                    <SummaryRow label="Estimate" value={`~${formatUsd(estimatedCost)}`} />
+                    <SummaryRow
+                      label="Outputs"
+                      value={`${outputs} · ${outputFormat.toUpperCase()}`}
+                    />
+                    <SummaryRow
+                      label="Seed"
+                      value={seed == null ? 'Random' : String(seed)}
+                    />
+                    <SummaryRow
+                      label="Estimate"
+                      value={`~${formatUsd(estimatedCost)}`}
+                    />
                   </div>
                   <Button
                     variant="outline"
@@ -1303,30 +1530,36 @@ export function PlaygroundShell({
                   selectedNode === 'generate' && 'hidden',
                 )}
               >
-              <InspectorLabel>Model</InspectorLabel>
-              <Select
-                value={model}
-                onValueChange={(value) => value && isKnownModel(value) && setModel(value)}
-              >
-                <SelectTrigger className="mb-4 h-9! w-full bg-playground-surface-elevated text-[13px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  <SelectGroup>
-                    <SelectLabel>Image generation</SelectLabel>
-                    {modelOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="py-2">
-                        <span className="flex flex-col">
-                          <span className="font-medium">{option.value}</span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {option.description}
+                <InspectorLabel>Model</InspectorLabel>
+                <Select
+                  value={model}
+                  onValueChange={(value) =>
+                    value && isKnownModel(value) && setModel(value)
+                  }
+                >
+                  <SelectTrigger className="mb-4 h-9! w-full bg-playground-surface-elevated text-[13px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    <SelectGroup>
+                      <SelectLabel>Image generation</SelectLabel>
+                      {modelOptions.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          className="py-2"
+                        >
+                          <span className="flex flex-col">
+                            <span className="font-medium">{option.value}</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {option.description}
+                            </span>
                           </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div
@@ -1335,154 +1568,175 @@ export function PlaygroundShell({
                   selectedNode === 'generate' && 'hidden',
                 )}
               >
-              <InspectorLabel>Prompt</InspectorLabel>
-              <div className="relative mb-5">
-                <Textarea
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  className="min-h-[120px] resize-none bg-playground-surface-elevated pb-10 text-sm leading-5"
-                />
-                <span className="absolute bottom-2 left-3 font-mono text-[10px] text-muted-foreground">
-                  ⌘ ↵ to run
-                </span>
-                <span className="absolute bottom-2 right-2 font-mono text-[10px] text-muted-foreground">
-                  {prompt.length.toLocaleString()} / 10,000
-                </span>
-              </div>
+                <InspectorLabel>Prompt</InspectorLabel>
+                <div className="relative mb-5">
+                  <Textarea
+                    value={prompt}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    className="min-h-[120px] resize-none bg-playground-surface-elevated pb-10 text-sm leading-5"
+                  />
+                  <span className="absolute bottom-2 left-3 font-mono text-[10px] text-muted-foreground">
+                    ⌘ ↵ to run
+                  </span>
+                  <span className="absolute bottom-2 right-2 font-mono text-[10px] text-muted-foreground">
+                    {prompt.length.toLocaleString()} / 10,000
+                  </span>
+                </div>
               </div>
 
               <div className="order-3">
-              <InspectorLabel>Parameters</InspectorLabel>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <AspectParameter
-                  label="Aspect ratio"
-                  value={aspect}
-                  onValueChange={(value) => setAspect(value as typeof aspect)}
-                />
-                <ParameterSelect
-                  label="Outputs"
-                  value={outputs}
-                  options={['1', '2', '3', '4']}
-                  onValueChange={setOutputs}
-                />
-                <ParameterSelect
-                  label="Safety"
-                  value={safety}
-                  options={['0', '1', '2', '3', '4', '5', '6']}
-                  onValueChange={setSafety}
-                />
-                <ParameterSelect
-                  label="Format"
-                  value={outputFormat.toUpperCase()}
-                  options={['PNG', 'JPEG', 'WEBP']}
-                  onValueChange={(value) =>
-                    setOutputFormat(value.toLowerCase() as typeof outputFormat)
-                  }
-                />
-              </div>
-
-              <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-2.5">
-                <CollapsibleTrigger className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <span>{advancedOpen ? 'Hide advanced' : 'Advanced parameters'}</span>
-                  <ChevronDown
-                    className={cn('size-3.5 transition-transform', advancedOpen && 'rotate-180')}
+                <InspectorLabel>Parameters</InspectorLabel>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <AspectParameter
+                    label="Aspect ratio"
+                    value={aspect}
+                    onValueChange={(value) => setAspect(value as typeof aspect)}
                   />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-2">
-                  <div className="space-y-3 rounded-md border bg-playground-surface-elevated p-3 shadow-xs">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[12px] font-medium">Prompt upsampling</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          Expand intent before inference
-                        </p>
-                      </div>
-                      <Switch
-                        size="sm"
-                        checked={promptUpsampling}
-                        onCheckedChange={setPromptUpsampling}
-                      />
-                    </div>
-                    <Separator />
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between">
+                  <ParameterSelect
+                    label="Outputs"
+                    value={outputs}
+                    options={['1', '2', '3', '4']}
+                    onValueChange={setOutputs}
+                  />
+                  <ParameterSelect
+                    label="Safety"
+                    value={safety}
+                    options={['0', '1', '2', '3', '4', '5', '6']}
+                    onValueChange={setSafety}
+                  />
+                  <ParameterSelect
+                    label="Format"
+                    value={outputFormat.toUpperCase()}
+                    options={['PNG', 'JPEG', 'WEBP']}
+                    onValueChange={(value) =>
+                      setOutputFormat(
+                        value.toLowerCase() as typeof outputFormat,
+                      )
+                    }
+                  />
+                </div>
+
+                <Collapsible
+                  open={advancedOpen}
+                  onOpenChange={setAdvancedOpen}
+                  className="mt-2.5"
+                >
+                  <CollapsibleTrigger className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground">
+                    <span>
+                      {advancedOpen ? 'Hide advanced' : 'Advanced parameters'}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'size-3.5 transition-transform',
+                        advancedOpen && 'rotate-180',
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    <div className="space-y-3 rounded-md border bg-playground-surface-elevated p-3 shadow-xs">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-[12px] font-medium">Seed</p>
+                          <p className="text-[12px] font-medium">
+                            Prompt upsampling
+                          </p>
                           <p className="text-[10px] text-muted-foreground">
-                            {seed == null
-                              ? 'Random on every run'
-                              : `Fixed — outputs get seed +0…+${Number(outputs) - 1}`}
+                            Expand intent before inference
                           </p>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <IconTooltip label="Roll a new fixed seed">
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label="Roll a new fixed seed"
-                              onClick={() => setSeed(randomSeed())}
-                            >
-                              <Dices />
-                            </Button>
-                          </IconTooltip>
-                          {seed != null && (
-                            <IconTooltip label="Back to random">
+                        <Switch
+                          size="sm"
+                          checked={promptUpsampling}
+                          onCheckedChange={setPromptUpsampling}
+                        />
+                      </div>
+                      <Separator />
+                      <div>
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <div>
+                            <p className="text-[12px] font-medium">Seed</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {seed == null
+                                ? 'Random on every run'
+                                : `Fixed — outputs get seed +0…+${Number(outputs) - 1}`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <IconTooltip label="Roll a new fixed seed">
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
-                                aria-label="Back to random seed"
-                                onClick={() => setSeed(null)}
+                                aria-label="Roll a new fixed seed"
+                                onClick={() => setSeed(randomSeed())}
                               >
-                                <X />
+                                <Dices />
                               </Button>
                             </IconTooltip>
-                          )}
+                            {seed != null && (
+                              <IconTooltip label="Back to random">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label="Back to random seed"
+                                  onClick={() => setSeed(null)}
+                                >
+                                  <X />
+                                </Button>
+                              </IconTooltip>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <Input
-                        value={seed == null ? '' : String(seed)}
-                        onChange={(event) => {
-                          const raw = event.target.value.replace(/[^0-9]/g, '');
-                          if (!raw) {
-                            setSeed(null);
-                            return;
-                          }
-                          const parsed = Number(raw);
-                          if (Number.isSafeInteger(parsed)) setSeed(Math.min(parsed, 2 ** 32 - 1));
-                        }}
-                        inputMode="numeric"
-                        placeholder="Random"
-                        className="h-8 bg-background font-mono text-[12px]"
-                      />
-                    </div>
-                    <Separator />
-                    {MODEL_CAPS[model].guidance ? (
-                      <div>
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-[12px] font-medium">Guidance</span>
-                          <span className="font-mono text-[10px] text-muted-foreground">
-                            {guidance.toFixed(1)}
-                          </span>
-                        </div>
-                        <Slider
-                          value={[guidance]}
-                          min={1.5}
-                          max={5}
-                          step={0.1}
-                          onValueChange={(value) =>
-                            Array.isArray(value) && typeof value[0] === 'number' && setGuidance(value[0])
-                          }
+                        <Input
+                          value={seed == null ? '' : String(seed)}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(
+                              /[^0-9]/g,
+                              '',
+                            );
+                            if (!raw) {
+                              setSeed(null);
+                              return;
+                            }
+                            const parsed = Number(raw);
+                            if (Number.isSafeInteger(parsed))
+                              setSeed(Math.min(parsed, 2 ** 32 - 1));
+                          }}
+                          inputMode="numeric"
+                          placeholder="Random"
+                          className="h-8 bg-background font-mono text-[12px]"
                         />
                       </div>
-                    ) : (
-                      <p className="text-[10px] leading-relaxed text-muted-foreground">
-                        Guidance is only exposed by FLUX.2 [flex]; {model} manages it internally, so
-                        the control is hidden.
-                      </p>
-                    )}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+                      <Separator />
+                      {MODEL_CAPS[model].guidance ? (
+                        <div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-[12px] font-medium">
+                              Guidance
+                            </span>
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              {guidance.toFixed(1)}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[guidance]}
+                            min={1.5}
+                            max={5}
+                            step={0.1}
+                            onValueChange={(value) =>
+                              Array.isArray(value) &&
+                              typeof value[0] === 'number' &&
+                              setGuidance(value[0])
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-[10px] leading-relaxed text-muted-foreground">
+                          Guidance is only exposed by FLUX.2 [flex]; {model}{' '}
+                          manages it internally, so the control is hidden.
+                        </p>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
 
@@ -1497,7 +1751,9 @@ export function PlaygroundShell({
                 <p
                   className={cn(
                     'mb-2 text-[11px] leading-4',
-                    runMessage.tone === 'error' ? 'text-destructive' : 'text-muted-foreground',
+                    runMessage.tone === 'error'
+                      ? 'text-destructive'
+                      : 'text-muted-foreground',
                   )}
                 >
                   {runMessage.text}
@@ -1532,7 +1788,10 @@ export function PlaygroundShell({
                 <div className="flex items-center gap-1.5">
                   <Layers3 className="size-3.5" />
                   <span className="text-[13px] font-medium">Frame Stack</span>
-                  <Badge variant="outline" className="h-5 font-mono text-[8px] uppercase">
+                  <Badge
+                    variant="outline"
+                    className="h-5 font-mono text-[8px] uppercase"
+                  >
                     node context
                   </Badge>
                 </div>
@@ -1544,22 +1803,33 @@ export function PlaygroundShell({
               <Select
                 value={frameCanvasState}
                 onValueChange={(value) => {
-                  if (FRAME_CANVAS_STATES.some((entry) => entry.value === value)) {
+                  if (
+                    FRAME_CANVAS_STATES.some((entry) => entry.value === value)
+                  ) {
                     changeFrameCanvasState(value as FrameCanvasState);
                   }
                 }}
               >
                 <SelectTrigger className="h-8! w-44 bg-background text-[11px]">
-                  <span className="font-mono text-[8px] uppercase text-muted-foreground">State</span>
-                  <span className="flex flex-1 text-left">{frameStateMeta.label}</span>
+                  <span className="font-mono text-[8px] uppercase text-muted-foreground">
+                    State
+                  </span>
+                  <span className="flex flex-1 text-left">
+                    {frameStateMeta.label}
+                  </span>
                 </SelectTrigger>
                 <SelectContent align="start">
                   {FRAME_CANVAS_STATES.map((entry) => (
-                    <SelectItem key={entry.value} value={entry.value} className="py-2">
+                    <SelectItem
+                      key={entry.value}
+                      value={entry.value}
+                      className="py-2"
+                    >
                       <span className="flex flex-col">
                         <span>{entry.label}</span>
                         <span className="text-[9px] text-muted-foreground">
-                          {entry.nodeCount} node{entry.nodeCount === 1 ? '' : 's'}
+                          {entry.nodeCount} node
+                          {entry.nodeCount === 1 ? '' : 's'}
                         </span>
                       </span>
                     </SelectItem>
@@ -1571,10 +1841,20 @@ export function PlaygroundShell({
               </span>
 
               <div className="ml-auto flex items-center gap-1">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setApiPayloadOpen(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setApiPayloadOpen(true)}
+                >
                   <Code2 /> API
                 </Button>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setHistoryOpen(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setHistoryOpen(true)}
+                >
                   <History /> History
                 </Button>
                 <Separator orientation="vertical" className="mx-1 h-5" />
@@ -1583,7 +1863,9 @@ export function PlaygroundShell({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Zoom out"
-                    onClick={() => setFrameCanvasZoom((value) => Math.max(55, value - 10))}
+                    onClick={() =>
+                      setFrameCanvasZoom((value) => Math.max(55, value - 10))
+                    }
                   >
                     <ZoomOut />
                   </Button>
@@ -1596,7 +1878,9 @@ export function PlaygroundShell({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Zoom in"
-                    onClick={() => setFrameCanvasZoom((value) => Math.min(115, value + 10))}
+                    onClick={() =>
+                      setFrameCanvasZoom((value) => Math.min(115, value + 10))
+                    }
                   >
                     <ZoomIn />
                   </Button>
@@ -1606,26 +1890,48 @@ export function PlaygroundShell({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Fit graph"
-                    onClick={() => setFrameCanvasZoom(frameCanvasState === 'branching' ? 75 : 90)}
+                    onClick={() =>
+                      setFrameCanvasZoom(
+                        frameCanvasState === 'branching' ? 75 : 90,
+                      )
+                    }
                   >
                     <RotateCcw />
                   </Button>
                 </IconTooltip>
-                <IconTooltip label={frameCanvasCompact ? 'Show full recipes' : 'Compact node recipes'}>
+                <IconTooltip
+                  label={
+                    frameCanvasCompact
+                      ? 'Show full recipes'
+                      : 'Compact node recipes'
+                  }
+                >
                   <Button
                     variant={frameCanvasCompact ? 'secondary' : 'ghost'}
                     size="icon-sm"
-                    aria-label={frameCanvasCompact ? 'Show full recipes' : 'Compact node recipes'}
+                    aria-label={
+                      frameCanvasCompact
+                        ? 'Show full recipes'
+                        : 'Compact node recipes'
+                    }
                     onClick={() => setFrameCanvasCompact((value) => !value)}
                   >
                     <SquareStack />
                   </Button>
                 </IconTooltip>
-                <IconTooltip label={frameStackFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}>
+                <IconTooltip
+                  label={
+                    frameStackFullscreen ? 'Exit fullscreen' : 'Open fullscreen'
+                  }
+                >
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={frameStackFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+                    aria-label={
+                      frameStackFullscreen
+                        ? 'Exit fullscreen'
+                        : 'Open fullscreen'
+                    }
                     onClick={() => void toggleFrameStackFullscreen()}
                   >
                     {frameStackFullscreen ? <Minimize2 /> : <Maximize2 />}
@@ -1639,7 +1945,8 @@ export function PlaygroundShell({
                 <div
                   className={cn(
                     'sticky left-4 top-3 z-40 w-fit max-w-xl rounded-md border bg-background/95 px-3 py-2 text-[10px] shadow-sm',
-                    runMessage.tone === 'error' && 'border-destructive/30 text-destructive',
+                    runMessage.tone === 'error' &&
+                      'border-destructive/30 text-destructive',
                   )}
                 >
                   {runMessage.text}
@@ -1652,7 +1959,9 @@ export function PlaygroundShell({
               >
                 <div className="mb-3 flex items-end justify-between gap-3">
                   <div>
-                    <SystemLabel>Clockmaker exploration · {frameStateMeta.label}</SystemLabel>
+                    <SystemLabel>
+                      Clockmaker exploration · {frameStateMeta.label}
+                    </SystemLabel>
                     <p className="mt-1 text-[12px] font-medium">
                       {frameCanvasState === 'empty'
                         ? 'Generate the root before branching'
@@ -1667,9 +1976,18 @@ export function PlaygroundShell({
                     </p>
                   </div>
                   <div className="flex items-center gap-3 font-mono text-[8px] uppercase text-muted-foreground">
-                    <span>{frameStateMeta.nodeCount} node{frameStateMeta.nodeCount === 1 ? '' : 's'}</span>
-                    <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-border" /> inherited</span>
-                    <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--brand)]" /> local</span>
+                    <span>
+                      {frameStateMeta.nodeCount} node
+                      {frameStateMeta.nodeCount === 1 ? '' : 's'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="size-1.5 rounded-full bg-border" />{' '}
+                      inherited
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="size-1.5 rounded-full bg-[var(--brand)]" />{' '}
+                      local
+                    </span>
                   </div>
                 </div>
 
@@ -1680,10 +1998,13 @@ export function PlaygroundShell({
                         <span className="mx-auto grid size-12 place-items-center rounded-xl bg-muted text-muted-foreground">
                           <ImageIcon className="size-5" />
                         </span>
-                        <p className="mt-4 text-[14px] font-medium">Start with one root frame</p>
+                        <p className="mt-4 text-[14px] font-medium">
+                          Start with one root frame
+                        </p>
                         <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                          Define the scene prompt and render settings in the context dock below. The
-                          canvas becomes branchable only after that first frame exists.
+                          Define the scene prompt and render settings in the
+                          context dock below. The canvas becomes branchable only
+                          after that first frame exists.
                         </p>
                         <Button
                           size="sm"
@@ -1691,7 +2012,11 @@ export function PlaygroundShell({
                           onClick={() => void runWorkflow()}
                           disabled={isRunning || prompt.trim().length < 3}
                         >
-                          {isRunning ? <Loader2 className="animate-spin" /> : <Play />}
+                          {isRunning ? (
+                            <Loader2 className="animate-spin" />
+                          ) : (
+                            <Play />
+                          )}
                           Generate root frame
                         </Button>
                       </div>
@@ -1705,16 +2030,39 @@ export function PlaygroundShell({
                         aria-hidden
                       >
                         {frameCanvasState === 'one-branch' && (
-                          <path d="M 610 410 C 660 410, 700 410, 750 410" className="graph-edge graph-edge-active" />
+                          <path
+                            d="M 610 410 C 660 410, 700 410, 750 410"
+                            className="graph-edge graph-edge-active"
+                          />
                         )}
                         {showFullBranching && (
                           <>
-                            <path d="M 334 410 C 372 410, 376 180, 425 180" className="graph-edge" />
-                            <path d="M 334 410 C 372 410, 376 620, 425 620" className="graph-edge" />
-                            <path d="M 735 180 C 770 180, 786 180, 825 180" className="graph-edge graph-edge-active" />
-                            <path d="M 735 620 C 770 620, 786 620, 825 620" className="graph-edge graph-edge-active" />
-                            <path d="M 1135 180 C 1168 180, 1180 180, 1212 180" className="graph-edge" strokeDasharray="4 4" />
-                            <path d="M 1135 620 C 1168 620, 1180 620, 1212 620" className="graph-edge" strokeDasharray="4 4" />
+                            <path
+                              d="M 334 410 C 372 410, 376 180, 425 180"
+                              className="graph-edge"
+                            />
+                            <path
+                              d="M 334 410 C 372 410, 376 620, 425 620"
+                              className="graph-edge"
+                            />
+                            <path
+                              d="M 735 180 C 770 180, 786 180, 825 180"
+                              className="graph-edge graph-edge-active"
+                            />
+                            <path
+                              d="M 735 620 C 770 620, 786 620, 825 620"
+                              className="graph-edge graph-edge-active"
+                            />
+                            <path
+                              d="M 1135 180 C 1168 180, 1180 180, 1212 180"
+                              className="graph-edge"
+                              strokeDasharray="4 4"
+                            />
+                            <path
+                              d="M 1135 620 C 1168 620, 1180 620, 1212 620"
+                              className="graph-edge"
+                              strokeDasharray="4 4"
+                            />
                           </>
                         )}
                       </svg>
@@ -1728,10 +2076,13 @@ export function PlaygroundShell({
                               : frameCanvasState === 'one-branch'
                                 ? 'left-[300px]'
                                 : 'left-6',
-                            selectedRecipeNode === 'base' && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                            selectedRecipeNode === 'base' &&
+                              'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
                           )}
                         >
-                          {showCookeNode && <span className="absolute -right-1.5 top-20 size-3 rounded-full border-2 border-background bg-[var(--brand)]" />}
+                          {showCookeNode && (
+                            <span className="absolute -right-1.5 top-20 size-3 rounded-full border-2 border-background bg-[var(--brand)]" />
+                          )}
                           <button
                             type="button"
                             onClick={() => selectRecipeNode('base')}
@@ -1745,8 +2096,12 @@ export function PlaygroundShell({
                               className="object-cover"
                             />
                             <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-9 text-white">
-                              <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">00 · root frame</span>
-                              <span className="mt-0.5 block text-[12px] font-medium">Clockmaker at work</span>
+                              <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">
+                                00 · root frame
+                              </span>
+                              <span className="mt-0.5 block text-[12px] font-medium">
+                                Clockmaker at work
+                              </span>
                             </span>
                             {selectedRecipeNode === 'base' && (
                               <span className="absolute right-2 top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[8px] uppercase text-black shadow">
@@ -1757,10 +2112,14 @@ export function PlaygroundShell({
                           <div className="p-2.5">
                             <div className="flex items-center justify-between gap-2">
                               <SystemLabel>Base prompt</SystemLabel>
-                              <span className={cn(
-                                'rounded px-1.5 py-0.5 font-mono text-[8px] uppercase',
-                                rootDescendantCount > 0 ? 'bg-muted text-muted-foreground' : 'bg-[var(--brand-soft)] text-[var(--brand)]',
-                              )}>
+                              <span
+                                className={cn(
+                                  'rounded px-1.5 py-0.5 font-mono text-[8px] uppercase',
+                                  rootDescendantCount > 0
+                                    ? 'bg-muted text-muted-foreground'
+                                    : 'bg-[var(--brand-soft)] text-[var(--brand)]',
+                                )}
+                              >
                                 {rootDescendantCount > 0
                                   ? `${rootDescendantCount} descendant${rootDescendantCount === 1 ? '' : 's'} · locked`
                                   : 'mutable root'}
@@ -1772,16 +2131,44 @@ export function PlaygroundShell({
                               </p>
                             )}
                             <div className="mt-2 flex flex-wrap items-center gap-1">
-                              <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{model}</span>
-                              <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{aspect}</span>
-                              <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>seed {seed ?? 'random'}</span>
+                              <span
+                                className={cn(
+                                  parameterChipClass,
+                                  'h-6 text-[8px]',
+                                )}
+                              >
+                                {model}
+                              </span>
+                              <span
+                                className={cn(
+                                  parameterChipClass,
+                                  'h-6 text-[8px]',
+                                )}
+                              >
+                                {aspect}
+                              </span>
+                              <span
+                                className={cn(
+                                  parameterChipClass,
+                                  'h-6 text-[8px]',
+                                )}
+                              >
+                                seed {seed ?? 'random'}
+                              </span>
                             </div>
                           </div>
                         </article>
                       )}
 
                       {showCookeNode && (
-                        <div className={cn('absolute w-[310px]', frameCanvasState === 'one-branch' ? 'left-[750px] top-[240px]' : 'left-[425px] top-6')}>
+                        <div
+                          className={cn(
+                            'absolute w-[310px]',
+                            frameCanvasState === 'one-branch'
+                              ? 'left-[750px] top-[240px]'
+                              : 'left-[425px] top-6',
+                          )}
+                        >
                           <FrameRecipeNode
                             eyebrow="01 · lens branch A"
                             title="Cooke S4 · 40 mm"
@@ -1791,9 +2178,23 @@ export function PlaygroundShell({
                             onSelect={() => selectRecipeNode('cooke')}
                             compact={frameCanvasCompact}
                             layers={[
-                              { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                              { type: 'camera', label: 'Camera', value: 'Locked medium bench', inherited: true },
-                              { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm' },
+                              {
+                                type: 'base',
+                                label: 'Scene',
+                                value: 'Clockmaker at work',
+                                inherited: true,
+                              },
+                              {
+                                type: 'camera',
+                                label: 'Camera',
+                                value: 'Locked medium bench',
+                                inherited: true,
+                              },
+                              {
+                                type: 'lens',
+                                label: 'Lens',
+                                value: 'Cooke S4 · 40 mm',
+                              },
                             ]}
                           />
                         </div>
@@ -1811,10 +2212,28 @@ export function PlaygroundShell({
                               onSelect={() => selectRecipeNode('cooke-light')}
                               compact={frameCanvasCompact}
                               layers={[
-                                { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                                { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm', inherited: true },
-                                { type: 'light', label: 'Light', value: 'Tungsten practical' },
-                                { type: 'color', label: 'Color', value: 'Warm mineral' },
+                                {
+                                  type: 'base',
+                                  label: 'Scene',
+                                  value: 'Clockmaker at work',
+                                  inherited: true,
+                                },
+                                {
+                                  type: 'lens',
+                                  label: 'Lens',
+                                  value: 'Cooke S4 · 40 mm',
+                                  inherited: true,
+                                },
+                                {
+                                  type: 'light',
+                                  label: 'Light',
+                                  value: 'Tungsten practical',
+                                },
+                                {
+                                  type: 'color',
+                                  label: 'Color',
+                                  value: 'Warm mineral',
+                                },
                               ]}
                             />
                           </div>
@@ -1836,9 +2255,23 @@ export function PlaygroundShell({
                               onSelect={() => selectRecipeNode('zeiss')}
                               compact={frameCanvasCompact}
                               layers={[
-                                { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                                { type: 'camera', label: 'Camera', value: 'Intimate bench portrait', inherited: true },
-                                { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm' },
+                                {
+                                  type: 'base',
+                                  label: 'Scene',
+                                  value: 'Clockmaker at work',
+                                  inherited: true,
+                                },
+                                {
+                                  type: 'camera',
+                                  label: 'Camera',
+                                  value: 'Intimate bench portrait',
+                                  inherited: true,
+                                },
+                                {
+                                  type: 'lens',
+                                  label: 'Lens',
+                                  value: 'Zeiss Super Speed · 85 mm',
+                                },
                               ]}
                             />
                           </div>
@@ -1852,10 +2285,28 @@ export function PlaygroundShell({
                               onSelect={() => selectRecipeNode('zeiss-light')}
                               compact={frameCanvasCompact}
                               layers={[
-                                { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                                { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm', inherited: true },
-                                { type: 'light', label: 'Light', value: 'Blue-hour ambient' },
-                                { type: 'color', label: 'Color', value: 'Cyan / amber split' },
+                                {
+                                  type: 'base',
+                                  label: 'Scene',
+                                  value: 'Clockmaker at work',
+                                  inherited: true,
+                                },
+                                {
+                                  type: 'lens',
+                                  label: 'Lens',
+                                  value: 'Zeiss Super Speed · 85 mm',
+                                  inherited: true,
+                                },
+                                {
+                                  type: 'light',
+                                  label: 'Light',
+                                  value: 'Blue-hour ambient',
+                                },
+                                {
+                                  type: 'color',
+                                  label: 'Color',
+                                  value: 'Cyan / amber split',
+                                },
                               ]}
                             />
                           </div>
@@ -1878,13 +2329,20 @@ export function PlaygroundShell({
             <div className="relative z-40 shrink-0 border-t bg-background/96 px-3 py-2.5 shadow-[0_-12px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
               <div className="mx-auto flex max-w-[1600px] items-end gap-2">
                 <div className="min-w-44 max-w-56 flex-1">
-                  <SystemLabel>{selectedRecipeContext ? selectedRecipeContext.eyebrow : 'Canvas is empty'}</SystemLabel>
+                  <SystemLabel>
+                    {selectedRecipeContext
+                      ? selectedRecipeContext.eyebrow
+                      : 'Canvas is empty'}
+                  </SystemLabel>
                   <p className="mt-1 truncate text-[12px] font-medium">
-                    {selectedRecipeContext ? selectedRecipeContext.label : 'Define the root frame'}
+                    {selectedRecipeContext
+                      ? selectedRecipeContext.label
+                      : 'Define the root frame'}
                   </p>
                   <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
                     {selectedRecipeContext
-                      ? selectedRecipeNode === 'base' && selectedDescendantCount > 0
+                      ? selectedRecipeNode === 'base' &&
+                        selectedDescendantCount > 0
                         ? `Root locked by ${selectedDescendantCount} descendant${selectedDescendantCount === 1 ? '' : 's'}`
                         : `${selectedDescendantCount} descendant${selectedDescendantCount === 1 ? '' : 's'} · next action is contextual`
                       : 'Prompt and render settings create node 00'}
@@ -1897,13 +2355,19 @@ export function PlaygroundShell({
                       <SystemLabel>Next layer</SystemLabel>
                       <Select
                         value={frameLayerType}
-                        onValueChange={(value) => value && chooseFrameLayerType(value as FrameLayerType)}
+                        onValueChange={(value) =>
+                          value && chooseFrameLayerType(value as FrameLayerType)
+                        }
                       >
                         <SelectTrigger className="mt-1 h-8! w-full bg-background text-[10px]">
-                          <SelectValue>{FRAME_LAYER_META[frameLayerType].label}</SelectValue>
+                          <SelectValue>
+                            {FRAME_LAYER_META[frameLayerType].label}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent align="start" side="top">
-                          {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((type) => (
+                          {(
+                            Object.keys(FRAME_LAYER_META) as FrameLayerType[]
+                          ).map((type) => (
                             <SelectItem key={type} value={type}>
                               {FRAME_LAYER_META[type].label}
                             </SelectItem>
@@ -1912,8 +2376,15 @@ export function PlaygroundShell({
                       </Select>
                     </div>
                     <div className="w-48">
-                      <SystemLabel>{FRAME_LAYER_META[frameLayerType].label} preset</SystemLabel>
-                      <Select value={frameLayerLabel} onValueChange={(value) => value && chooseFrameLayerPreset(value)}>
+                      <SystemLabel>
+                        {FRAME_LAYER_META[frameLayerType].label} preset
+                      </SystemLabel>
+                      <Select
+                        value={frameLayerLabel}
+                        onValueChange={(value) =>
+                          value && chooseFrameLayerPreset(value)
+                        }
+                      >
                         <SelectTrigger className="mt-1 h-8! w-full bg-background text-[10px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -1927,29 +2398,56 @@ export function PlaygroundShell({
                       </Select>
                     </div>
                     <Popover>
-                      <PopoverTrigger render={<Button variant="outline" size="sm" className="h-8"><WandSparkles /> Direction</Button>} />
-                      <PopoverContent align="start" side="top" className="w-[360px] p-3">
-                        <SystemLabel>{FRAME_LAYER_META[frameLayerType].label} direction</SystemLabel>
+                      <PopoverTrigger
+                        render={
+                          <Button variant="outline" size="sm" className="h-8">
+                            <WandSparkles /> Direction
+                          </Button>
+                        }
+                      />
+                      <PopoverContent
+                        align="start"
+                        side="top"
+                        className="w-[360px] p-3"
+                      >
+                        <SystemLabel>
+                          {FRAME_LAYER_META[frameLayerType].label} direction
+                        </SystemLabel>
                         <Input
                           value={frameLayerLabel}
-                          onChange={(event) => setFrameLayerLabel(event.target.value)}
+                          onChange={(event) =>
+                            setFrameLayerLabel(event.target.value)
+                          }
                           className="mt-2 h-8 bg-background text-[11px]"
                         />
                         <Textarea
                           value={frameLayerPrompt}
-                          onChange={(event) => setFrameLayerPrompt(event.target.value)}
+                          onChange={(event) =>
+                            setFrameLayerPrompt(event.target.value)
+                          }
                           className="mt-2 min-h-28 resize-none bg-background text-[11px] leading-4"
                         />
                         <p className="mt-2 text-[9px] leading-3.5 text-muted-foreground">
-                          Everything above this node is inherited. This field describes only the new decision.
+                          Everything above this node is inherited. This field
+                          describes only the new decision.
                         </p>
                       </PopoverContent>
                     </Popover>
                   </>
                 ) : (
                   <Popover>
-                    <PopoverTrigger render={<Button variant="outline" size="sm" className="h-8"><WandSparkles /> Base prompt</Button>} />
-                    <PopoverContent align="start" side="top" className="w-[380px] p-3">
+                    <PopoverTrigger
+                      render={
+                        <Button variant="outline" size="sm" className="h-8">
+                          <WandSparkles /> Base prompt
+                        </Button>
+                      }
+                    />
+                    <PopoverContent
+                      align="start"
+                      side="top"
+                      className="w-[380px] p-3"
+                    >
                       <SystemLabel>Root frame prompt</SystemLabel>
                       <Textarea
                         value={prompt}
@@ -1962,38 +2460,77 @@ export function PlaygroundShell({
 
                 <div className="w-36">
                   <SystemLabel>Model</SystemLabel>
-                  <Select value={model} onValueChange={(value) => value && isKnownModel(value) && setModel(value)}>
+                  <Select
+                    value={model}
+                    onValueChange={(value) =>
+                      value && isKnownModel(value) && setModel(value)
+                    }
+                  >
                     <SelectTrigger className="mt-1 h-8! w-full bg-background text-[10px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent align="start" side="top">
                       {modelOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.value}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.value}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <AspectParameter label="Aspect" value={aspect} onValueChange={(value) => setAspect(value as typeof aspect)} />
-                <ParameterSelect label="Outputs" value={outputs} options={['1', '2', '3', '4']} onValueChange={setOutputs} />
+                <AspectParameter
+                  label="Aspect"
+                  value={aspect}
+                  onValueChange={(value) => setAspect(value as typeof aspect)}
+                />
+                <ParameterSelect
+                  label="Outputs"
+                  value={outputs}
+                  options={['1', '2', '3', '4']}
+                  onValueChange={setOutputs}
+                />
 
                 <Popover>
-                  <PopoverTrigger render={<Button variant="outline" size="sm" className="h-8"><SlidersHorizontal /> Params</Button>} />
+                  <PopoverTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="h-8">
+                        <SlidersHorizontal /> Params
+                      </Button>
+                    }
+                  />
                   <PopoverContent align="end" side="top" className="w-72 p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[11px] font-medium">Prompt upsampling</p>
-                        <p className="text-[9px] text-muted-foreground">Expand intent before inference</p>
+                        <p className="text-[11px] font-medium">
+                          Prompt upsampling
+                        </p>
+                        <p className="text-[9px] text-muted-foreground">
+                          Expand intent before inference
+                        </p>
                       </div>
-                      <Switch size="sm" checked={promptUpsampling} onCheckedChange={setPromptUpsampling} />
+                      <Switch
+                        size="sm"
+                        checked={promptUpsampling}
+                        onCheckedChange={setPromptUpsampling}
+                      />
                     </div>
                     <Separator className="my-3" />
                     <div className="grid grid-cols-2 gap-2">
-                      <ParameterSelect label="Safety" value={safety} options={['0', '1', '2', '3', '4', '5', '6']} onValueChange={setSafety} />
+                      <ParameterSelect
+                        label="Safety"
+                        value={safety}
+                        options={['0', '1', '2', '3', '4', '5', '6']}
+                        onValueChange={setSafety}
+                      />
                       <ParameterSelect
                         label="Format"
                         value={outputFormat.toUpperCase()}
                         options={['PNG', 'JPEG', 'WEBP']}
-                        onValueChange={(value) => setOutputFormat(value.toLowerCase() as typeof outputFormat)}
+                        onValueChange={(value) =>
+                          setOutputFormat(
+                            value.toLowerCase() as typeof outputFormat,
+                          )
+                        }
                       />
                     </div>
                     <SystemLabel className="mt-3">Seed</SystemLabel>
@@ -2002,27 +2539,47 @@ export function PlaygroundShell({
                         value={seed == null ? '' : String(seed)}
                         onChange={(event) => {
                           const raw = event.target.value.replace(/[^0-9]/g, '');
-                          setSeed(raw ? Math.min(Number(raw), 2 ** 32 - 1) : null);
+                          setSeed(
+                            raw ? Math.min(Number(raw), 2 ** 32 - 1) : null,
+                          );
                         }}
                         inputMode="numeric"
                         placeholder="Random"
                         className="h-8 bg-background font-mono text-[10px]"
                       />
-                      <Button variant="outline" size="icon-sm" onClick={() => setSeed(randomSeed())}><Dices /></Button>
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        onClick={() => setSeed(randomSeed())}
+                      >
+                        <Dices />
+                      </Button>
                     </div>
                   </PopoverContent>
                 </Popover>
 
-                {selectedRecipeNode === 'base' && selectedDescendantCount > 0 && (
-                  <div className="flex h-8 items-center gap-1.5 rounded-md border border-dashed bg-muted/40 px-2 text-[9px] text-muted-foreground" title="Replacing the root would invalidate every descendant">
-                    <CircleX className="size-3" /> Root locked
-                  </div>
-                )}
-                {selectedRecipeNode === 'base' && selectedDescendantCount === 0 && frameCanvasState === 'base' && (
-                  <Button variant="ghost" size="sm" className="h-8" onClick={() => void runWorkflow()} disabled={isRunning}>
-                    <RefreshCw /> Replace root
-                  </Button>
-                )}
+                {selectedRecipeNode === 'base' &&
+                  selectedDescendantCount > 0 && (
+                    <div
+                      className="flex h-8 items-center gap-1.5 rounded-md border border-dashed bg-muted/40 px-2 text-[9px] text-muted-foreground"
+                      title="Replacing the root would invalidate every descendant"
+                    >
+                      <CircleX className="size-3" /> Root locked
+                    </div>
+                  )}
+                {selectedRecipeNode === 'base' &&
+                  selectedDescendantCount === 0 &&
+                  frameCanvasState === 'base' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => void runWorkflow()}
+                      disabled={isRunning}
+                    >
+                      <RefreshCw /> Replace root
+                    </Button>
+                  )}
 
                 <Button
                   size="sm"
@@ -2035,13 +2592,25 @@ export function PlaygroundShell({
                     createFrameVariation(
                       activeFrame,
                       frameLayerType,
-                      frameLayerLabel.trim() || FRAME_LAYER_META[frameLayerType].label,
+                      frameLayerLabel.trim() ||
+                        FRAME_LAYER_META[frameLayerType].label,
                       frameLayerPrompt.trim(),
                     );
                   }}
-                  disabled={isRunning || (!selectedRecipeContext ? prompt.trim().length < 3 : frameLayerPrompt.trim().length < 3)}
+                  disabled={
+                    isRunning ||
+                    (!selectedRecipeContext
+                      ? prompt.trim().length < 3
+                      : frameLayerPrompt.trim().length < 3)
+                  }
                 >
-                  {isRunning ? <Loader2 className="animate-spin" /> : selectedRecipeContext ? <GitBranch /> : <Play />}
+                  {isRunning ? (
+                    <Loader2 className="animate-spin" />
+                  ) : selectedRecipeContext ? (
+                    <GitBranch />
+                  ) : (
+                    <Play />
+                  )}
                   {selectedRecipeContext
                     ? selectedRecipeNode === 'base'
                       ? `Add ${FRAME_LAYER_META[frameLayerType].label.toLowerCase()} branch`
@@ -2062,7 +2631,9 @@ export function PlaygroundShell({
                 FRAME STACK
               </Badge>
               <span className="text-[11px] text-muted-foreground">
-                {lastRunAt ? `Last run ${formatAge(lastRunAt)}` : 'Draft — not run yet'}
+                {lastRunAt
+                  ? `Last run ${formatAge(lastRunAt)}`
+                  : 'Draft — not run yet'}
               </span>
             </div>
             <Button
@@ -2079,54 +2650,65 @@ export function PlaygroundShell({
               ref={fieldRef}
               className="absolute inset-y-0 left-1/2 h-full w-full max-w-[1120px] -translate-x-1/2"
             >
-            <svg className="pointer-events-none absolute inset-0 size-full" aria-hidden="true">
-              {edgePaths.promptModel && <path d={edgePaths.promptModel} className="graph-edge" />}
-              {edgePaths.modelGenerate && (
-                <path
-                  d={edgePaths.modelGenerate}
-                  className={cn('graph-edge', (isRunning || anyRunActive) && 'graph-edge-active')}
-                />
-              )}
-            </svg>
+              <svg
+                className="pointer-events-none absolute inset-0 size-full"
+                aria-hidden="true"
+              >
+                {edgePaths.promptModel && (
+                  <path d={edgePaths.promptModel} className="graph-edge" />
+                )}
+                {edgePaths.modelGenerate && (
+                  <path
+                    d={edgePaths.modelGenerate}
+                    className={cn(
+                      'graph-edge',
+                      (isRunning || anyRunActive) && 'graph-edge-active',
+                    )}
+                  />
+                )}
+              </svg>
 
-            {nodes.map((node) => {
-              const Icon = node.icon;
-              const active = selectedNode === node.id;
-              return (
-                <button
-                  key={node.id}
-                  ref={(element) => {
-                    nodeRefs.current[node.id] = element;
-                  }}
-                  onClick={() => setSelectedNode(node.id)}
-                  className={cn(
-                    surfaceClass,
-                    'absolute z-10 w-[21%] min-w-44 max-w-52 p-4 text-left shadow-[var(--floating-shadow)] transition-all hover:-translate-y-0.5',
-                    node.position,
-                    active && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
-                  )}
-                >
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {node.eyebrow}
-                    </span>
-                    <span className="grid size-6 place-items-center rounded-md bg-muted">
-                      <Icon className="size-3.5" />
-                    </span>
-                  </div>
-                  <p className="text-[15px] font-medium leading-5">{nodeMeta[node.id].title}</p>
-                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                    {nodeMeta[node.id].meta}
-                  </p>
-                  {node.id !== 'generate' && (
-                    <span className="absolute -right-1.5 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-[var(--brand)]" />
-                  )}
-                  {node.id !== 'prompt' && (
-                    <span className="absolute -left-1.5 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-border" />
-                  )}
-                </button>
-              );
-            })}
+              {nodes.map((node) => {
+                const Icon = node.icon;
+                const active = selectedNode === node.id;
+                return (
+                  <button
+                    key={node.id}
+                    ref={(element) => {
+                      nodeRefs.current[node.id] = element;
+                    }}
+                    onClick={() => setSelectedNode(node.id)}
+                    className={cn(
+                      surfaceClass,
+                      'absolute z-10 w-[21%] min-w-44 max-w-52 p-4 text-left shadow-[var(--floating-shadow)] transition-all hover:-translate-y-0.5',
+                      node.position,
+                      active &&
+                        'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                    )}
+                  >
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {node.eyebrow}
+                      </span>
+                      <span className="grid size-6 place-items-center rounded-md bg-muted">
+                        <Icon className="size-3.5" />
+                      </span>
+                    </div>
+                    <p className="text-[15px] font-medium leading-5">
+                      {nodeMeta[node.id].title}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                      {nodeMeta[node.id].meta}
+                    </p>
+                    {node.id !== 'generate' && (
+                      <span className="absolute -right-1.5 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-[var(--brand)]" />
+                    )}
+                    {node.id !== 'prompt' && (
+                      <span className="absolute -left-1.5 top-1/2 size-3 -translate-y-1/2 rounded-full border-2 border-background bg-border" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="absolute inset-x-4 bottom-4 top-[32%] z-10 overflow-auto rounded-xl border bg-background/92 p-3 shadow-[var(--floating-shadow)] backdrop-blur-md">
@@ -2137,15 +2719,23 @@ export function PlaygroundShell({
                     <SystemLabel>Frame stack</SystemLabel>
                   </div>
                   <p className="mt-1 max-w-2xl text-[11px] text-muted-foreground">
-                    Start from one approved image. Add one camera, lens, light or polish layer at a
-                    time; every generated frame can become the parent of the next decision.
+                    Start from one approved image. Add one camera, lens, light
+                    or polish layer at a time; every generated frame can become
+                    the parent of the next decision.
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-[8px] uppercase"
+                  >
                     {frameLayerRuns.length} saved layers
                   </Badge>
-                  <Button variant="outline" size="xs" onClick={() => setApiPayloadOpen(true)}>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setApiPayloadOpen(true)}
+                  >
                     <Code2 /> API payload
                   </Button>
                 </div>
@@ -2154,12 +2744,18 @@ export function PlaygroundShell({
               <div className="mt-3 grid grid-cols-[0.72fr_1.05fr_1.45fr] items-stretch gap-3">
                 <div className="flex flex-col">
                   <div className="mb-1.5 flex items-center gap-1.5">
-                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">1</span>
+                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">
+                      1
+                    </span>
                     <SystemLabel>Base image</SystemLabel>
                   </div>
                   <FrameBranchCard
                     eyebrow="Locked story beat"
-                    label={branchRoot ? branchRoot.prompt.slice(0, 52) : 'Establish the source frame'}
+                    label={
+                      branchRoot
+                        ? branchRoot.prompt.slice(0, 52)
+                        : 'Establish the source frame'
+                    }
                     note="This image anchors subjects, geography and production design. It remains untouched while modifiers branch from it."
                     image="/scenes/ads-art/scene-01.webp"
                     run={branchRoot}
@@ -2170,41 +2766,52 @@ export function PlaygroundShell({
                   />
                   {branchRoot && (
                     <Button
-                      variant={activeFrame?.id === branchRoot.id ? 'default' : 'outline'}
+                      variant={
+                        activeFrame?.id === branchRoot.id
+                          ? 'default'
+                          : 'outline'
+                      }
                       size="xs"
                       className="mt-2 w-full"
                       onClick={() => setActiveFrameRunId(branchRoot.id)}
                     >
                       <GitBranch />
-                      {activeFrame?.id === branchRoot.id ? 'Current source' : 'Continue from base'}
+                      {activeFrame?.id === branchRoot.id
+                        ? 'Current source'
+                        : 'Continue from base'}
                     </Button>
                   )}
                 </div>
 
                 <div className="flex flex-col border-l pl-3">
                   <div className="mb-1.5 flex items-center gap-1.5">
-                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">2</span>
+                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">
+                      2
+                    </span>
                     <SystemLabel>Add prompt layer</SystemLabel>
                   </div>
                   <div className="grid grid-cols-4 gap-1">
-                    {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((type) => {
-                      const meta = FRAME_LAYER_META[type];
-                      const Icon = meta.icon;
-                      return (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => chooseFrameLayerType(type)}
-                          className={cn(
-                            'flex min-w-0 flex-col items-center gap-1 rounded-md border px-1.5 py-2 text-[9px] outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                            frameLayerType === type && 'border-[var(--brand)] bg-[var(--brand-soft)]',
-                          )}
-                        >
-                          <Icon className="size-3.5" />
-                          <span className="truncate">{meta.label}</span>
-                        </button>
-                      );
-                    })}
+                    {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map(
+                      (type) => {
+                        const meta = FRAME_LAYER_META[type];
+                        const Icon = meta.icon;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => chooseFrameLayerType(type)}
+                            className={cn(
+                              'flex min-w-0 flex-col items-center gap-1 rounded-md border px-1.5 py-2 text-[9px] outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                              frameLayerType === type &&
+                                'border-[var(--brand)] bg-[var(--brand-soft)]',
+                            )}
+                          >
+                            <Icon className="size-3.5" />
+                            <span className="truncate">{meta.label}</span>
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                   <Select
                     value={frameLayerLabel}
@@ -2238,7 +2845,9 @@ export function PlaygroundShell({
                   />
                   <Textarea
                     value={frameLayerPrompt}
-                    onChange={(event) => setFrameLayerPrompt(event.target.value)}
+                    onChange={(event) =>
+                      setFrameLayerPrompt(event.target.value)
+                    }
                     maxLength={800}
                     className="mt-2 min-h-20 resize-none bg-background text-[11px] leading-4"
                     placeholder="Describe only the camera, lens, light or finishing decision…"
@@ -2246,31 +2855,45 @@ export function PlaygroundShell({
                   <div className="mt-2 rounded-md bg-muted/55 px-2 py-1.5 text-[9px] leading-3.5 text-muted-foreground">
                     Source:{' '}
                     <span className="font-medium text-foreground">
-                      {activeFrame ? activeFrameLabel : 'Generate a base image first'}
+                      {activeFrame
+                        ? activeFrameLabel
+                        : 'Generate a base image first'}
                     </span>
                   </div>
                   <Button
                     size="sm"
                     className="mt-2 w-full"
-                    disabled={!activeFrame?.assets[0] || isRunning || frameLayerPrompt.trim().length < 3}
+                    disabled={
+                      !activeFrame?.assets[0] ||
+                      isRunning ||
+                      frameLayerPrompt.trim().length < 3
+                    }
                     onClick={() =>
                       createFrameVariation(
                         activeFrame,
                         frameLayerType,
-                        frameLayerLabel.trim() || FRAME_LAYER_META[frameLayerType].label,
+                        frameLayerLabel.trim() ||
+                          FRAME_LAYER_META[frameLayerType].label,
                         frameLayerPrompt.trim(),
                       )
                     }
                   >
-                    {isRunning ? <Loader2 className="animate-spin" /> : <Plus />}
-                    Add {FRAME_LAYER_META[frameLayerType].label.toLowerCase()} layer
+                    {isRunning ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Plus />
+                    )}
+                    Add {FRAME_LAYER_META[frameLayerType].label.toLowerCase()}{' '}
+                    layer
                   </Button>
                 </div>
 
                 <div className="flex min-w-0 flex-col border-l pl-3">
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5">
-                      <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">3</span>
+                      <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">
+                        3
+                      </span>
                       <SystemLabel>Saved branches</SystemLabel>
                     </span>
                     <span className="font-mono text-[8px] uppercase text-muted-foreground">
@@ -2280,7 +2903,9 @@ export function PlaygroundShell({
                   {frameLayerRuns.length ? (
                     <div className="grid flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1">
                       {frameLayerRuns.slice(0, 8).map((run) => {
-                        const type = String(run.parameters.variationType) as FrameLayerType;
+                        const type = String(
+                          run.parameters.variationType,
+                        ) as FrameLayerType;
                         const meta = FRAME_LAYER_META[type];
                         const Icon = meta?.icon ?? Lightbulb;
                         const asset = run.assets[0];
@@ -2288,7 +2913,7 @@ export function PlaygroundShell({
                         const layerLabel =
                           typeof run.parameters.variationLabel === 'string'
                             ? run.parameters.variationLabel
-                            : meta?.label ?? 'Prompt layer';
+                            : (meta?.label ?? 'Prompt layer');
                         const layerPrompt =
                           typeof run.parameters.variationPrompt === 'string'
                             ? run.parameters.variationPrompt
@@ -2298,7 +2923,8 @@ export function PlaygroundShell({
                             key={run.id}
                             className={cn(
                               'overflow-hidden rounded-lg border bg-background transition-colors',
-                              selected && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                              selected &&
+                                'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
                             )}
                           >
                             <button
@@ -2307,10 +2933,18 @@ export function PlaygroundShell({
                               className="relative block aspect-[2.4/1] w-full overflow-hidden bg-muted text-left"
                             >
                               {asset ? (
-                                <NextImage src={asset.url} alt="" fill unoptimized className="object-cover" />
+                                <NextImage
+                                  src={asset.url}
+                                  alt=""
+                                  fill
+                                  unoptimized
+                                  className="object-cover"
+                                />
                               ) : (
                                 <span className="grid size-full place-items-center text-muted-foreground">
-                                  {['queued', 'running'].includes(run.status) ? (
+                                  {['queued', 'running'].includes(
+                                    run.status,
+                                  ) ? (
                                     <Loader2 className="size-4 animate-spin" />
                                   ) : (
                                     <ImageIcon className="size-4" />
@@ -2335,7 +2969,10 @@ export function PlaygroundShell({
                                 disabled={!asset}
                                 onClick={() => setActiveFrameRunId(run.id)}
                               >
-                                <GitBranch /> {selected ? 'Current source' : 'Continue from here'}
+                                <GitBranch />{' '}
+                                {selected
+                                  ? 'Current source'
+                                  : 'Continue from here'}
                               </Button>
                             </div>
                           </article>
@@ -2346,10 +2983,13 @@ export function PlaygroundShell({
                     <div className="grid flex-1 place-items-center rounded-lg border border-dashed p-5 text-center">
                       <div>
                         <Layers3 className="mx-auto size-5 text-muted-foreground" />
-                        <p className="mt-2 text-[11px] font-medium">No modifier layers yet</p>
+                        <p className="mt-2 text-[11px] font-medium">
+                          No modifier layers yet
+                        </p>
                         <p className="mt-1 max-w-xs text-[9px] leading-4 text-muted-foreground">
-                          Add a lens to the base image, then use that result as the parent for light,
-                          camera or a final prompt-polish pass.
+                          Add a lens to the base image, then use that result as
+                          the parent for light, camera or a final prompt-polish
+                          pass.
                         </p>
                       </div>
                     </div>
@@ -2369,7 +3009,9 @@ export function PlaygroundShell({
             highlightId={highlightRunId}
             onRefresh={refreshHistory}
             onOpenRun={setDetailRunId}
-            onCopyPrompt={(run) => void copyToClipboard(run.prompt, 'Prompt copied to clipboard.')}
+            onCopyPrompt={(run) =>
+              void copyToClipboard(run.prompt, 'Prompt copied to clipboard.')
+            }
             onReuse={(run) => applyRunToInspector(run)}
           />
         </div>
@@ -2439,7 +3081,9 @@ export function PlaygroundShell({
                       }}
                     >
                       <SquareStack />
-                      <span className="min-w-0 flex-1 truncate">{item.prompt}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.prompt}
+                      </span>
                       <span className="ml-2 font-mono text-[10px] uppercase text-muted-foreground">
                         {item.origin === 'sample' ? 'example' : item.status}
                       </span>
@@ -2487,11 +3131,13 @@ function buildLinkedTakeTree(takes: TakeDto[]): LinkedTakeNode[] {
   const roots: LinkedTakeNode[] = [];
   for (const node of nodes.values()) {
     const refinedFrom = node.run?.parameters.refinedFrom;
-    const parent = typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
+    const parent =
+      typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
     if (parent && parent !== node) parent.children.push(node);
     else roots.push(node);
   }
-  const byAge = (a: LinkedTakeNode, b: LinkedTakeNode) => a.createdAt - b.createdAt;
+  const byAge = (a: LinkedTakeNode, b: LinkedTakeNode) =>
+    a.createdAt - b.createdAt;
   for (const node of nodes.values()) node.children.sort(byAge);
   return roots.sort(byAge);
 }
@@ -2500,7 +3146,10 @@ function linkedSubtreeWidth(node: LinkedTakeNode): number {
   if (!node.children.length) return LINKED_TAKE_W;
   return Math.max(
     LINKED_TAKE_W,
-    node.children.reduce((total, child) => total + linkedSubtreeWidth(child), 0) +
+    node.children.reduce(
+      (total, child) => total + linkedSubtreeWidth(child),
+      0,
+    ) +
       LINKED_TAKE_GAP * (node.children.length - 1),
   );
 }
@@ -2547,11 +3196,17 @@ function LinkedTakeCard({
           />
         ) : (
           <span className="grid size-full place-items-center text-muted-foreground">
-            {inFlight ? <Loader2 className="size-5 animate-spin" /> : <ImageIcon className="size-5" />}
+            {inFlight ? (
+              <Loader2 className="size-5 animate-spin" />
+            ) : (
+              <ImageIcon className="size-5" />
+            )}
           </span>
         )}
         <span className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent px-2.5 pb-2 pt-10 text-white">
-          <span className="font-mono text-[8px] uppercase tracking-[0.13em]">{label}</span>
+          <span className="font-mono text-[8px] uppercase tracking-[0.13em]">
+            {label}
+          </span>
           {active && (
             <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 font-mono text-[8px] uppercase text-white">
               video source
@@ -2576,8 +3231,14 @@ function LinkedTakeCard({
           />
         </span>
         <span className="mt-1 flex items-center justify-between gap-2 font-mono text-[8px] uppercase text-muted-foreground">
-          <span className="truncate">{node.run?.modelId ?? 'pending model'}</span>
-          <span>{typeof seed === 'number' ? `seed ${seed}` : node.run?.status ?? 'saved'}</span>
+          <span className="truncate">
+            {node.run?.modelId ?? 'pending model'}
+          </span>
+          <span>
+            {typeof seed === 'number'
+              ? `seed ${seed}`
+              : (node.run?.status ?? 'saved')}
+          </span>
         </span>
       </span>
     </button>
@@ -2601,7 +3262,9 @@ function LinkedTakeBranch({
   const childWidths = node.children.map(linkedSubtreeWidth);
   const childCenters = childWidths.map(
     (childWidth, childIndex) =>
-      childWidths.slice(0, childIndex).reduce((total, value) => total + value, 0) +
+      childWidths
+        .slice(0, childIndex)
+        .reduce((total, value) => total + value, 0) +
       childIndex * LINKED_TAKE_GAP +
       childWidth / 2,
   );
@@ -2631,7 +3294,8 @@ function LinkedTakeBranch({
                 d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${LINKED_EDGE_H - bend}, ${childCenters[childIndex]} ${LINKED_EDGE_H}`}
                 className={cn(
                   'graph-edge',
-                  child.generationId === activeGenerationId && 'graph-edge-active',
+                  child.generationId === activeGenerationId &&
+                    'graph-edge-active',
                 )}
               />
             ))}
@@ -2666,19 +3330,33 @@ function LinkedSceneFrameStack({
   signInPath: string;
 }) {
   const [storyboard, setStoryboard] = useState<StoryboardDto | null>(null);
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [message, setMessage] = useState<{ tone: 'info' | 'error'; text: string } | null>(null);
-  const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'activate' | 'branch' | 'root' | null>(null);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>(
+    'loading',
+  );
+  const [message, setMessage] = useState<{
+    tone: 'info' | 'error';
+    text: string;
+  } | null>(null);
+  const [selectedGenerationId, setSelectedGenerationId] = useState<
+    string | null
+  >(null);
+  const [busyAction, setBusyAction] = useState<
+    'activate' | 'branch' | 'root' | null
+  >(null);
   const [zoom, setZoom] = useState(90);
   const [fullscreen, setFullscreen] = useState(false);
   const [layerType, setLayerType] = useState<FrameLayerType>('lens');
-  const [layerLabel, setLayerLabel] = useState(FRAME_LAYER_PRESETS.lens[0].label);
-  const [layerPrompt, setLayerPrompt] = useState(FRAME_LAYER_PRESETS.lens[0].prompt);
+  const [layerLabel, setLayerLabel] = useState(
+    FRAME_LAYER_PRESETS.lens[0].label,
+  );
+  const [layerPrompt, setLayerPrompt] = useState(
+    FRAME_LAYER_PRESETS.lens[0].prompt,
+  );
   const canvasRef = useRef<HTMLElement | null>(null);
   const frameStackSyncedRef = useRef(false);
 
-  const scene = storyboard?.scenes.find((entry) => entry.id === sceneId) ?? null;
+  const scene =
+    storyboard?.scenes.find((entry) => entry.id === sceneId) ?? null;
   const selectedTake =
     scene?.takes.find((take) => take.generationId === selectedGenerationId) ??
     scene?.takes.find((take) => take.generationId === scene.generationId) ??
@@ -2686,7 +3364,10 @@ function LinkedSceneFrameStack({
     null;
   const roots = scene ? buildLinkedTakeTree(scene.takes) : [];
   const labels = new Map(
-    (scene?.takes ?? []).map((take, index) => [take.generationId, `T${index + 1}`]),
+    (scene?.takes ?? []).map((take, index) => [
+      take.generationId,
+      `T${index + 1}`,
+    ]),
   );
   const returnHref = `/scenes?storyboardId=${encodeURIComponent(storyboardId)}&sceneId=${encodeURIComponent(sceneId)}`;
 
@@ -2703,27 +3384,37 @@ function LinkedSceneFrameStack({
         );
         if (syncResponse.ok) frameStackSyncedRef.current = true;
       }
-      const response = await fetch(`/api/storyboards/${encodeURIComponent(storyboardId)}`, {
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        `/api/storyboards/${encodeURIComponent(storyboardId)}`,
+        {
+          cache: 'no-store',
+        },
+      );
       const data = (await response.json().catch(() => null)) as {
         storyboard?: StoryboardDto;
         error?: string;
       } | null;
       if (!response.ok || !data?.storyboard) throw new Error(data?.error);
-      const nextScene = data.storyboard.scenes.find((entry) => entry.id === sceneId);
+      const nextScene = data.storyboard.scenes.find(
+        (entry) => entry.id === sceneId,
+      );
       if (!nextScene) throw new Error('Scene not found in this storyboard.');
       setStoryboard(data.storyboard);
       setSelectedGenerationId((current) =>
         current && nextScene.takes.some((take) => take.generationId === current)
           ? current
-          : nextScene.generationId ?? nextScene.takes[0]?.generationId ?? null,
+          : (nextScene.generationId ??
+            nextScene.takes[0]?.generationId ??
+            null),
       );
       setLoadState('ready');
     } catch (error) {
       setMessage({
         tone: 'error',
-        text: error instanceof Error && error.message ? error.message : 'Could not load this scene.',
+        text:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Could not load this scene.',
       });
       setLoadState('error');
     }
@@ -2735,16 +3426,21 @@ function LinkedSceneFrameStack({
   }, [loadStoryboard]);
 
   const hasRunningTake = Boolean(
-    scene?.takes.some((take) => take.run && ['queued', 'running'].includes(take.run.status)),
+    scene?.takes.some(
+      (take) => take.run && ['queued', 'running'].includes(take.run.status),
+    ),
   );
   useEffect(() => {
     if (!hasRunningTake || !scene) return;
     const interval = window.setInterval(() => {
       for (const take of scene.takes) {
         if (take.run && ['queued', 'running'].includes(take.run.status)) {
-          void fetch(`/api/generations/${encodeURIComponent(take.generationId)}`, {
-            cache: 'no-store',
-          });
+          void fetch(
+            `/api/generations/${encodeURIComponent(take.generationId)}`,
+            {
+              cache: 'no-store',
+            },
+          );
         }
       }
       void loadStoryboard();
@@ -2753,9 +3449,11 @@ function LinkedSceneFrameStack({
   }, [hasRunningTake, loadStoryboard, scene]);
 
   useEffect(() => {
-    const syncFullscreen = () => setFullscreen(document.fullscreenElement === canvasRef.current);
+    const syncFullscreen = () =>
+      setFullscreen(document.fullscreenElement === canvasRef.current);
     document.addEventListener('fullscreenchange', syncFullscreen);
-    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+    return () =>
+      document.removeEventListener('fullscreenchange', syncFullscreen);
   }, []);
 
   const chooseLayerType = (nextType: FrameLayerType) => {
@@ -2766,14 +3464,21 @@ function LinkedSceneFrameStack({
   };
 
   const chooseLayerPreset = (value: string) => {
-    const preset = FRAME_LAYER_PRESETS[layerType].find((entry) => entry.label === value);
+    const preset = FRAME_LAYER_PRESETS[layerType].find(
+      (entry) => entry.label === value,
+    );
     if (!preset) return;
     setLayerLabel(preset.label);
     setLayerPrompt(preset.prompt);
   };
 
   const activateSelected = async () => {
-    if (!scene || !selectedTake || selectedTake.generationId === scene.generationId) return;
+    if (
+      !scene ||
+      !selectedTake ||
+      selectedTake.generationId === scene.generationId
+    )
+      return;
     setBusyAction('activate');
     setMessage(null);
     try {
@@ -2782,10 +3487,14 @@ function LinkedSceneFrameStack({
         {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ activeGenerationId: selectedTake.generationId }),
+          body: JSON.stringify({
+            activeGenerationId: selectedTake.generationId,
+          }),
         },
       );
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       if (!response.ok) throw new Error(data?.error);
       setMessage({
         tone: 'info',
@@ -2795,7 +3504,10 @@ function LinkedSceneFrameStack({
     } catch (error) {
       setMessage({
         tone: 'error',
-        text: error instanceof Error && error.message ? error.message : 'Could not update the scene frame.',
+        text:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Could not update the scene frame.',
       });
     } finally {
       setBusyAction(null);
@@ -2838,7 +3550,10 @@ function LinkedSceneFrameStack({
     } catch (error) {
       setMessage({
         tone: 'error',
-        text: error instanceof Error && error.message ? error.message : 'Could not create the variation.',
+        text:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Could not create the variation.',
       });
     } finally {
       setBusyAction(null);
@@ -2857,14 +3572,20 @@ function LinkedSceneFrameStack({
           body: JSON.stringify({}),
         },
       );
-      const data = (await response.json().catch(() => null)) as { id?: string; error?: string } | null;
+      const data = (await response.json().catch(() => null)) as {
+        id?: string;
+        error?: string;
+      } | null;
       if (!response.ok || !data?.id) throw new Error(data?.error);
       setSelectedGenerationId(data.id);
       await loadStoryboard();
     } catch (error) {
       setMessage({
         tone: 'error',
-        text: error instanceof Error && error.message ? error.message : 'Could not render the base frame.',
+        text:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Could not render the base frame.',
       });
     } finally {
       setBusyAction(null);
@@ -2934,12 +3655,16 @@ function LinkedSceneFrameStack({
                 <div className="flex items-center gap-1.5">
                   <Layers3 className="size-3.5" />
                   <span className="text-[13px] font-medium">Frame Stack</span>
-                  <Badge variant="outline" className="h-5 font-mono text-[8px] uppercase">
+                  <Badge
+                    variant="outline"
+                    className="h-5 font-mono text-[8px] uppercase"
+                  >
                     linked scene
                   </Badge>
                 </div>
                 <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
-                  Preview freely; only “Use as video source” changes the frame feeding video.
+                  Preview freely; only “Use as video source” changes the frame
+                  feeding video.
                 </p>
               </div>
               {scene && (
@@ -2947,9 +3672,12 @@ function LinkedSceneFrameStack({
                   <span className="font-mono text-[9px] uppercase text-muted-foreground">
                     Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
                   </span>
-                  <span className="truncate text-[11px] font-medium">{scene.title}</span>
+                  <span className="truncate text-[11px] font-medium">
+                    {scene.title}
+                  </span>
                   <Badge className="bg-[var(--brand-soft)] font-mono text-[8px] uppercase text-[var(--brand)]">
-                    {scene.takes.length} take{scene.takes.length === 1 ? '' : 's'}
+                    {scene.takes.length} take
+                    {scene.takes.length === 1 ? '' : 's'}
                   </Badge>
                 </div>
               )}
@@ -2972,7 +3700,9 @@ function LinkedSceneFrameStack({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Zoom in"
-                    onClick={() => setZoom((value) => Math.min(120, value + 10))}
+                    onClick={() =>
+                      setZoom((value) => Math.min(120, value + 10))
+                    }
                   >
                     <ZoomIn />
                   </Button>
@@ -2982,17 +3712,23 @@ function LinkedSceneFrameStack({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Fit graph"
-                    onClick={() => setZoom(scene && scene.takes.length > 5 ? 70 : 90)}
+                    onClick={() =>
+                      setZoom(scene && scene.takes.length > 5 ? 70 : 90)
+                    }
                   >
                     <RotateCcw />
                   </Button>
                 </IconTooltip>
                 <Separator orientation="vertical" className="mx-1 h-5" />
-                <IconTooltip label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}>
+                <IconTooltip
+                  label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+                >
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+                    aria-label={
+                      fullscreen ? 'Exit fullscreen' : 'Open fullscreen'
+                    }
                     onClick={() => void toggleFullscreen()}
                   >
                     {fullscreen ? <Minimize2 /> : <Maximize2 />}
@@ -3006,7 +3742,8 @@ function LinkedSceneFrameStack({
                 <div
                   className={cn(
                     'sticky left-4 top-3 z-40 w-fit max-w-xl rounded-md border bg-background/95 px-3 py-2 text-[10px] shadow-sm',
-                    message.tone === 'error' && 'border-destructive/30 text-destructive',
+                    message.tone === 'error' &&
+                      'border-destructive/30 text-destructive',
                   )}
                 >
                   {message.text}
@@ -3021,11 +3758,22 @@ function LinkedSceneFrameStack({
                 <div className="absolute inset-0 grid place-items-center px-6">
                   <div className="max-w-sm rounded-xl border bg-background/90 p-6 text-center shadow-sm">
                     <ShieldAlert className="mx-auto size-5 text-destructive" />
-                    <p className="mt-2 text-[12px] font-medium">Frame Stack is unavailable</p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      {viewer ? 'Return to the scene and try again.' : 'Sign in to open a linked scene.'}
+                    <p className="mt-2 text-[12px] font-medium">
+                      Frame Stack is unavailable
                     </p>
-                    <Link href={returnHref} className={buttonVariants({ variant: 'outline', size: 'sm', className: 'mt-3' })}>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {viewer
+                        ? 'Return to the scene and try again.'
+                        : 'Sign in to open a linked scene.'}
+                    </p>
+                    <Link
+                      href={returnHref}
+                      className={buttonVariants({
+                        variant: 'outline',
+                        size: 'sm',
+                        className: 'mt-3',
+                      })}
+                    >
                       <ArrowLeft /> Back to scene
                     </Link>
                   </div>
@@ -3035,9 +3783,12 @@ function LinkedSceneFrameStack({
                 <div className="absolute inset-0 grid place-items-center px-6">
                   <div className="w-[380px] rounded-2xl border border-dashed bg-background/90 p-8 text-center shadow-sm">
                     <ImageIcon className="mx-auto size-6 text-muted-foreground" />
-                    <p className="mt-3 text-[13px] font-medium">This scene has no frame yet</p>
+                    <p className="mt-3 text-[13px] font-medium">
+                      This scene has no frame yet
+                    </p>
                     <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                      Render the root here. Once it exists, every camera, lens and light pass becomes a traceable child node.
+                      Render the root here. Once it exists, every camera, lens
+                      and light pass becomes a traceable child node.
                     </p>
                     <Button
                       size="sm"
@@ -3045,7 +3796,11 @@ function LinkedSceneFrameStack({
                       onClick={() => void renderRoot()}
                       disabled={busyAction !== null}
                     >
-                      {busyAction === 'root' ? <Loader2 className="animate-spin" /> : <Play />}
+                      {busyAction === 'root' ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <Play />
+                      )}
                       Render root frame
                     </Button>
                   </div>
@@ -3056,14 +3811,19 @@ function LinkedSceneFrameStack({
                   className="flex min-h-full min-w-full w-max items-start justify-center px-12 py-10 transition-[zoom] duration-200"
                   style={{ zoom: zoom / 100 } as CSSProperties}
                 >
-                  <div className="flex items-start" style={{ gap: LINKED_TAKE_GAP * 1.5 }}>
+                  <div
+                    className="flex items-start"
+                    style={{ gap: LINKED_TAKE_GAP * 1.5 }}
+                  >
                     {roots.map((root) => (
                       <LinkedTakeBranch
                         key={root.id}
                         node={root}
                         labels={labels}
                         activeGenerationId={scene.generationId}
-                        selectedGenerationId={selectedTake?.generationId ?? null}
+                        selectedGenerationId={
+                          selectedTake?.generationId ?? null
+                        }
                         onSelect={setSelectedGenerationId}
                       />
                     ))}
@@ -3083,17 +3843,23 @@ function LinkedSceneFrameStack({
                           active
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                        <Badge
+                          variant="outline"
+                          className="font-mono text-[8px] uppercase"
+                        >
                           preview only
                         </Badge>
                       )}
                     </div>
                     <p className="mt-1 truncate text-[12px] font-medium">
                       {labels.get(selectedTake.generationId) ?? 'Take'} ·{' '}
-                      {typeof selectedInstruction === 'string' ? selectedInstruction : 'Base frame'}
+                      {typeof selectedInstruction === 'string'
+                        ? selectedInstruction
+                        : 'Base frame'}
                     </p>
                     <p className="mt-1 text-[9px] leading-4 text-muted-foreground">
-                      {selectedTake.run?.modelId ?? 'Pending model'} · {selectedTake.run?.status ?? 'saved'}
+                      {selectedTake.run?.modelId ?? 'Pending model'} ·{' '}
+                      {selectedTake.run?.status ?? 'saved'}
                     </p>
                   </div>
 
@@ -3102,30 +3868,45 @@ function LinkedSceneFrameStack({
                       <div>
                         <SystemLabel>Branch from selected take</SystemLabel>
                         <p className="mt-0.5 text-[9px] text-muted-foreground">
-                          One local decision; composition and all prior decisions are inherited.
+                          One local decision; composition and all prior
+                          decisions are inherited.
                         </p>
                       </div>
-                      <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[8px] uppercase"
+                      >
                         parent {labels.get(selectedTake.generationId) ?? 'take'}
                       </Badge>
                     </div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-[112px_180px_minmax(0,1fr)]">
                       <Select
                         value={layerType}
-                        onValueChange={(value) => value && chooseLayerType(value as FrameLayerType)}
+                        onValueChange={(value) =>
+                          value && chooseLayerType(value as FrameLayerType)
+                        }
                       >
                         <SelectTrigger className="h-8! bg-background text-[10px]">
-                          <SelectValue>{FRAME_LAYER_META[layerType].label}</SelectValue>
+                          <SelectValue>
+                            {FRAME_LAYER_META[layerType].label}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent align="start" side="top">
-                          {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((type) => (
+                          {(
+                            Object.keys(FRAME_LAYER_META) as FrameLayerType[]
+                          ).map((type) => (
                             <SelectItem key={type} value={type}>
                               {FRAME_LAYER_META[type].label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Select value={layerLabel} onValueChange={(value) => value && chooseLayerPreset(value)}>
+                      <Select
+                        value={layerLabel}
+                        onValueChange={(value) =>
+                          value && chooseLayerPreset(value)
+                        }
+                      >
                         <SelectTrigger className="h-8! bg-background text-[10px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -3140,7 +3921,9 @@ function LinkedSceneFrameStack({
                       <div className="flex min-w-0 gap-2">
                         <Input
                           value={layerPrompt}
-                          onChange={(event) => setLayerPrompt(event.target.value)}
+                          onChange={(event) =>
+                            setLayerPrompt(event.target.value)
+                          }
                           className="h-8 min-w-0 bg-background text-[10px]"
                           aria-label="Variation direction"
                         />
@@ -3154,7 +3937,11 @@ function LinkedSceneFrameStack({
                             layerPrompt.trim().length < 3
                           }
                         >
-                          {busyAction === 'branch' ? <Loader2 className="animate-spin" /> : <GitBranch />}
+                          {busyAction === 'branch' ? (
+                            <Loader2 className="animate-spin" />
+                          ) : (
+                            <GitBranch />
+                          )}
                           Create child
                         </Button>
                       </div>
@@ -3165,11 +3952,17 @@ function LinkedSceneFrameStack({
                     <div className="min-w-0">
                       <SystemLabel>Video source</SystemLabel>
                       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                        Existing clips stay attached. New drafts start from the active frame.
+                        Existing clips stay attached. New drafts start from the
+                        active frame.
                       </p>
                     </div>
                     {selectedIsActive ? (
-                      <Button variant="outline" size="sm" className="h-8 shrink-0" disabled>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        disabled
+                      >
                         <Check /> Current video source
                       </Button>
                     ) : (
@@ -3179,7 +3972,11 @@ function LinkedSceneFrameStack({
                         onClick={() => void activateSelected()}
                         disabled={busyAction !== null || !selectedHasFrame}
                       >
-                        {busyAction === 'activate' ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+                        {busyAction === 'activate' ? (
+                          <Loader2 className="animate-spin" />
+                        ) : (
+                          <Clapperboard />
+                        )}
                         Use as video source
                       </Button>
                     )}
@@ -3194,7 +3991,13 @@ function LinkedSceneFrameStack({
   );
 }
 
-function IconTooltip({ label, children }: { label: string; children: ReactNode }) {
+function IconTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <Tooltip>
       <TooltipTrigger render={children as ReactElement} />
@@ -3220,7 +4023,9 @@ function ParameterSelect({
 }) {
   return (
     <Select value={value} onValueChange={(next) => next && onValueChange(next)}>
-      <SelectTrigger className={cn(parameterChipClass, 'h-7! w-auto py-0 pr-1.5')}>
+      <SelectTrigger
+        className={cn(parameterChipClass, 'h-7! w-auto py-0 pr-1.5')}
+      >
         <span className="text-muted-foreground">{label}</span>
         <SelectValue className="font-mono text-foreground" />
       </SelectTrigger>
@@ -3262,13 +4067,22 @@ function AspectParameter({
           </ParameterChip>
         }
       />
-      <PopoverContent align="start" side="bottom" className="w-[296px] gap-0 p-3">
+      <PopoverContent
+        align="start"
+        side="bottom"
+        className="w-[296px] gap-0 p-3"
+      >
         <div className="mb-2 flex items-center gap-2">
           <div>
             <p className="text-[12px] font-medium">Aspect ratio</p>
-            <span className="font-mono text-[10px] text-muted-foreground">aspect_ratio</span>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              aspect_ratio
+            </span>
           </div>
-          <Badge variant="outline" className="ml-auto h-5 rounded-md font-mono text-[9px]">
+          <Badge
+            variant="outline"
+            className="ml-auto h-5 rounded-md font-mono text-[9px]"
+          >
             ~1 MP
           </Badge>
         </div>
@@ -3292,7 +4106,11 @@ function AspectParameter({
             <SelectGroup>
               <SelectLabel>Preset ratios</SelectLabel>
               {aspectOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value} className="py-1.5">
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  className="py-1.5"
+                >
                   <span className="flex h-4 w-6 items-center justify-center">
                     <span
                       className="rounded-[2px] border border-foreground/30 bg-muted"
@@ -3340,7 +4158,9 @@ function StatusBadge({ status, origin }: { status: string; origin: string }) {
       variant="outline"
       className={cn(
         'h-5 rounded-md px-1.5 font-mono text-[9px] uppercase',
-        origin === 'sample' ? 'text-muted-foreground' : statusBadgeStyles[status],
+        origin === 'sample'
+          ? 'text-muted-foreground'
+          : statusBadgeStyles[status],
       )}
     >
       {label}
@@ -3357,16 +4177,21 @@ function OutputCell({
   outputIndex: number;
   className?: string;
 }) {
-  const job = run.jobs.find((candidate) => candidate.outputIndex === outputIndex);
+  const job = run.jobs.find(
+    (candidate) => candidate.outputIndex === outputIndex,
+  );
   const asset = job
-    ? (run.assets.find((candidate) => candidate.jobId === job.id) ?? run.assets[outputIndex])
+    ? (run.assets.find((candidate) => candidate.jobId === job.id) ??
+      run.assets[outputIndex])
     : run.assets[outputIndex];
-  const jobStatus = job?.status ?? (run.status === 'succeeded' ? 'succeeded' : run.status);
+  const jobStatus =
+    job?.status ?? (run.status === 'succeeded' ? 'succeeded' : run.status);
   // Sample runs have no stored assets; show the bundled example imagery.
   const sampleImage =
     run.origin === 'sample'
       ? sampleOutputImages[
-          ((Number(run.id.replace(/\D/g, '')) || 0) + outputIndex) % sampleOutputImages.length
+          ((Number(run.id.replace(/\D/g, '')) || 0) + outputIndex) %
+            sampleOutputImages.length
         ]
       : null;
 
@@ -3445,8 +4270,10 @@ function HistoryPanel({
   const [filter, setFilter] = useState('all');
   const visibleItems = items.filter((item) => {
     if (filter === 'all') return true;
-    if (filter === 'running') return ['running', 'queued'].includes(item.status);
-    if (filter === 'attention') return ['failed', 'partial', 'moderated'].includes(item.status);
+    if (filter === 'running')
+      return ['running', 'queued'].includes(item.status);
+    if (filter === 'attention')
+      return ['failed', 'partial', 'moderated'].includes(item.status);
     if (filter === 'sample') return item.origin === 'sample';
     return item.status === filter;
   });
@@ -3475,7 +4302,13 @@ function HistoryPanel({
             )}
           >
             <Cloud className="size-3" />{' '}
-            {!viewer ? 'SAMPLES' : state === 'synced' ? 'SYNCED' : state === 'error' ? 'OFFLINE' : 'SYNCING'}
+            {!viewer
+              ? 'SAMPLES'
+              : state === 'synced'
+                ? 'SYNCED'
+                : state === 'error'
+                  ? 'OFFLINE'
+                  : 'SYNCING'}
           </span>
           <Button
             className="2xl:hidden"
@@ -3508,7 +4341,10 @@ function HistoryPanel({
         <div className="mb-3 flex items-center justify-between px-1">
           <SystemLabel>Recent runs</SystemLabel>
           <div className="flex items-center gap-1">
-            <Select value={filter} onValueChange={(next) => next && setFilter(next)}>
+            <Select
+              value={filter}
+              onValueChange={(next) => next && setFilter(next)}
+            >
               <SelectTrigger
                 size="sm"
                 className="h-6! w-[110px] border-0 bg-transparent px-1.5 text-[10px] shadow-none"
@@ -3531,7 +4367,9 @@ function HistoryPanel({
                 onClick={() => void onRefresh()}
                 aria-label="Refresh history"
               >
-                <RefreshCw className={cn(state === 'loading' && 'animate-spin')} />
+                <RefreshCw
+                  className={cn(state === 'loading' && 'animate-spin')}
+                />
               </Button>
             </IconTooltip>
           </div>
@@ -3540,21 +4378,24 @@ function HistoryPanel({
           {items.length === 0 && state === 'loading' && (
             <div className="grid min-h-36 place-items-center rounded-lg border border-dashed text-[11px] text-muted-foreground">
               <span className="flex items-center gap-2">
-                <Loader2 className="size-3.5 animate-spin" /> Loading shared runs…
+                <Loader2 className="size-3.5 animate-spin" /> Loading shared
+                runs…
               </span>
             </div>
           )}
           {items.length === 0 && state === 'error' && (
             <div className="rounded-lg border border-dashed p-4 text-[11px] leading-relaxed text-muted-foreground">
-              Shared history could not connect. The canvas still works locally; retry when the
-              server is available.
+              Shared history could not connect. The canvas still works locally;
+              retry when the server is available.
             </div>
           )}
           {items.length === 0 && state === 'synced' && (
             <div className="rounded-lg border border-dashed p-4 text-[11px] leading-relaxed text-muted-foreground">
               No runs yet. Describe an image in the inspector and press{' '}
-              <kbd className="rounded border bg-muted px-1 font-mono text-[10px]">⌘ ↵</kbd> to create
-              your first shared generation.
+              <kbd className="rounded border bg-muted px-1 font-mono text-[10px]">
+                ⌘ ↵
+              </kbd>{' '}
+              to create your first shared generation.
             </div>
           )}
           {items.length > 0 && visibleItems.length === 0 && (
@@ -3568,7 +4409,8 @@ function HistoryPanel({
               className={cn(
                 surfaceClass,
                 'relative bg-playground-surface p-3 transition-colors hover:border-foreground/25 focus-within:border-foreground/25',
-                highlightId === item.id && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                highlightId === item.id &&
+                  'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
               )}
             >
               <button
@@ -3578,87 +4420,99 @@ function HistoryPanel({
                 className="absolute inset-0 z-0 cursor-pointer rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <div className="pointer-events-none relative z-10">
-              <div className="mb-2 flex gap-1">
-                {Array.from({ length: Math.min(4, item.outputCount) }, (_, outputIndex) => (
-                  <OutputCell
-                    key={outputIndex}
-                    run={item}
-                    outputIndex={outputIndex}
-                    className="h-14 flex-1"
-                  />
-                ))}
-              </div>
-              <p className="line-clamp-2 text-[12px] font-medium leading-[17px]">{item.prompt}</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                <span>{item.modelId}</span>
-                <span>·</span>
-                <span>{item.outputCount} outputs</span>
-                <span>·</span>
-                <span>{formatCost(item.costCredits)}</span>
-                {typeof item.parameters.seed === 'number' && (
-                  <>
-                    <span>·</span>
-                    <span>seed {item.parameters.seed}</span>
-                  </>
-                )}
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">
-                  {formatAge(item.createdAt)}
-                </span>
-                <div className="pointer-events-auto flex items-center gap-1">
-                  <StatusBadge status={item.status} origin={item.origin} />
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={<Button variant="ghost" size="icon-xs" aria-label="Run actions" />}
-                    >
-                      <Ellipsis />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => onOpenRun(item.id)}>
-                        <ImageIcon /> Open run
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onCopyPrompt(item)}>
-                        <Copy /> Copy prompt
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onReuse(item)}>
-                        <SquareStack /> Reuse parameters
-                      </DropdownMenuItem>
-                      {item.assets.length > 0 && (
-                        <>
-                          <DropdownMenuSeparator />
-                          {item.assets.map((asset, assetIndex) => (
-                            <DropdownMenuItem
-                              key={asset.id}
-                              render={
-                                <a
-                                  href={asset.url}
-                                  download={`branchline-${item.id.slice(0, 8)}-${assetIndex + 1}`}
-                                  aria-label={`Download output ${assetIndex + 1}`}
-                                >
-                                  <Download /> Download output {assetIndex + 1}
-                                </a>
-                              }
-                            />
-                          ))}
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-              {item.errorMessage && item.origin !== 'sample' && (
-                <p
-                  className={cn(
-                    'mt-2 rounded px-2 py-1.5 text-[10px] leading-relaxed',
-                    item.status === 'moderated' || item.status === 'partial'
-                      ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300'
-                      : 'bg-muted text-muted-foreground',
+                <div className="mb-2 flex gap-1">
+                  {Array.from(
+                    { length: Math.min(4, item.outputCount) },
+                    (_, outputIndex) => (
+                      <OutputCell
+                        key={outputIndex}
+                        run={item}
+                        outputIndex={outputIndex}
+                        className="h-14 flex-1"
+                      />
+                    ),
                   )}
-                >
-                  {item.errorMessage}
+                </div>
+                <p className="line-clamp-2 text-[12px] font-medium leading-[17px]">
+                  {item.prompt}
                 </p>
-              )}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                  <span>{item.modelId}</span>
+                  <span>·</span>
+                  <span>{item.outputCount} outputs</span>
+                  <span>·</span>
+                  <span>{formatCost(item.costCredits)}</span>
+                  {typeof item.parameters.seed === 'number' && (
+                    <>
+                      <span>·</span>
+                      <span>seed {item.parameters.seed}</span>
+                    </>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatAge(item.createdAt)}
+                  </span>
+                  <div className="pointer-events-auto flex items-center gap-1">
+                    <StatusBadge status={item.status} origin={item.origin} />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label="Run actions"
+                          />
+                        }
+                      >
+                        <Ellipsis />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => onOpenRun(item.id)}>
+                          <ImageIcon /> Open run
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onCopyPrompt(item)}>
+                          <Copy /> Copy prompt
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onReuse(item)}>
+                          <SquareStack /> Reuse parameters
+                        </DropdownMenuItem>
+                        {item.assets.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            {item.assets.map((asset, assetIndex) => (
+                              <DropdownMenuItem
+                                key={asset.id}
+                                render={
+                                  <a
+                                    href={asset.url}
+                                    download={`branchline-${item.id.slice(0, 8)}-${assetIndex + 1}`}
+                                    aria-label={`Download output ${assetIndex + 1}`}
+                                  >
+                                    <Download /> Download output{' '}
+                                    {assetIndex + 1}
+                                  </a>
+                                }
+                              />
+                            ))}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+                {item.errorMessage && item.origin !== 'sample' && (
+                  <p
+                    className={cn(
+                      'mt-2 rounded px-2 py-1.5 text-[10px] leading-relaxed',
+                      item.status === 'moderated' || item.status === 'partial'
+                        ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {item.errorMessage}
+                  </p>
+                )}
               </div>
             </article>
           ))}
@@ -3728,7 +4582,9 @@ function SaveLookControl({
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle',
+  );
 
   const save = async () => {
     if (!name.trim() || state === 'saving') return;
@@ -3766,7 +4622,10 @@ function SaveLookControl({
     >
       <PopoverTrigger
         render={
-          <button type="button" className="flex items-center gap-1 hover:text-foreground">
+          <button
+            type="button"
+            className="flex items-center gap-1 hover:text-foreground"
+          >
             <Palette className="size-3" /> Save as Look
           </button>
         }
@@ -3774,8 +4633,8 @@ function SaveLookControl({
       <PopoverContent align="end" className="w-72 p-3">
         <p className="text-[12px] font-medium">Save as Look</p>
         <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
-          Prompt, seed and this frame become a reusable style any Scenes board applies in one
-          click.
+          Prompt, seed and this frame become a reusable style any Scenes board
+          applies in one click.
         </p>
         <Input
           value={name}
@@ -3793,7 +4652,11 @@ function SaveLookControl({
             {run.modelId}
             {seed != null && ` · seed ${seed}`}
           </span>
-          <Button size="xs" onClick={() => void save()} disabled={!name.trim() || state === 'saving'}>
+          <Button
+            size="xs"
+            onClick={() => void save()}
+            disabled={!name.trim() || state === 'saving'}
+          >
             {state === 'saving' ? (
               <Loader2 className="animate-spin" />
             ) : state === 'saved' ? (
@@ -3805,7 +4668,9 @@ function SaveLookControl({
           </Button>
         </div>
         {state === 'error' && (
-          <p className="mt-1.5 text-[10px] text-destructive">Could not save — try again.</p>
+          <p className="mt-1.5 text-[10px] text-destructive">
+            Could not save — try again.
+          </p>
         )}
       </PopoverContent>
     </Popover>
@@ -3823,7 +4688,10 @@ function RunDetailDialog({
   onOpenChange: (open: boolean) => void;
   onCopy: (text: string, note: string) => Promise<void>;
   onReuse: (run: HistoryRun) => void;
-  onRerun: (run: HistoryRun, options?: { varySeed?: boolean; safetyBump?: boolean }) => void;
+  onRerun: (
+    run: HistoryRun,
+    options?: { varySeed?: boolean; safetyBump?: boolean },
+  ) => void;
 }) {
   const payload = payloadFromRun(run);
   const isSample = run.origin === 'sample';
@@ -3834,8 +4702,12 @@ function RunDetailDialog({
         <DialogHeader>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={run.status} origin={run.origin} />
-            <span className="font-mono text-[11px] text-muted-foreground">{run.modelId}</span>
-            <span className="text-[11px] text-muted-foreground">· {formatAge(run.createdAt)}</span>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {run.modelId}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              · {formatAge(run.createdAt)}
+            </span>
           </div>
           <DialogTitle className="text-left text-[14px] font-medium leading-5">
             {run.prompt}
@@ -3844,18 +4716,25 @@ function RunDetailDialog({
 
         <div className={cn('grid gap-2', gridColumns)}>
           {Array.from({ length: run.outputCount }, (_, outputIndex) => {
-            const job = run.jobs.find((candidate) => candidate.outputIndex === outputIndex);
+            const job = run.jobs.find(
+              (candidate) => candidate.outputIndex === outputIndex,
+            );
             const asset = job
               ? (run.assets.find((candidate) => candidate.jobId === job.id) ??
                 run.assets[outputIndex])
               : run.assets[outputIndex];
             return (
               <div key={outputIndex} className="space-y-1">
-                <OutputCell run={run} outputIndex={outputIndex} className="min-h-32 w-full" />
+                <OutputCell
+                  run={run}
+                  outputIndex={outputIndex}
+                  className="min-h-32 w-full"
+                />
                 <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
                   <span>
                     #{outputIndex + 1}
-                    {payload.seed != null && ` · seed ${(payload.seed + outputIndex) % 2 ** 32}`}
+                    {payload.seed != null &&
+                      ` · seed ${(payload.seed + outputIndex) % 2 ** 32}`}
                   </span>
                   {asset && (
                     <span className="flex items-center gap-2.5">
@@ -3864,7 +4743,9 @@ function RunDetailDialog({
                           run={run}
                           assetId={asset.id}
                           seed={
-                            payload.seed != null ? (payload.seed + outputIndex) % 2 ** 32 : null
+                            payload.seed != null
+                              ? (payload.seed + outputIndex) % 2 ** 32
+                              : null
                           }
                         />
                       )}
@@ -3908,11 +4789,19 @@ function RunDetailDialog({
             <p>{run.errorMessage}</p>
             <div className="flex flex-wrap gap-2">
               {run.status === 'moderated' || run.status === 'partial' ? (
-                <Button variant="outline" size="xs" onClick={() => onRerun(run, { safetyBump: true })}>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => onRerun(run, { safetyBump: true })}
+                >
                   <RotateCcw /> Retry at safety +1
                 </Button>
               ) : (
-                <Button variant="outline" size="xs" onClick={() => onRerun(run)}>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => onRerun(run)}
+                >
                   <RotateCcw /> Re-run
                 </Button>
               )}
@@ -3922,22 +4811,38 @@ function RunDetailDialog({
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border bg-muted/30 p-3 sm:grid-cols-3">
           <ReceiptRow label="Model" value={run.modelId} />
-          <ReceiptRow label="Size" value={`${payload.width}×${payload.height}`} />
-          <ReceiptRow label="Format" value={payload.outputFormat.toUpperCase()} />
+          <ReceiptRow
+            label="Size"
+            value={`${payload.width}×${payload.height}`}
+          />
+          <ReceiptRow
+            label="Format"
+            value={payload.outputFormat.toUpperCase()}
+          />
           <ReceiptRow
             label="Seed"
-            value={payload.seed == null ? 'Random' : `${payload.seed} (+i per output)`}
+            value={
+              payload.seed == null
+                ? 'Random'
+                : `${payload.seed} (+i per output)`
+            }
           />
           <ReceiptRow
             label="Guidance"
             value={payload.guidance == null ? '—' : payload.guidance.toFixed(1)}
           />
           <ReceiptRow label="Safety" value={String(payload.safetyTolerance)} />
-          <ReceiptRow label="Upsampling" value={payload.promptUpsampling ? 'On' : 'Off'} />
+          <ReceiptRow
+            label="Upsampling"
+            value={payload.promptUpsampling ? 'On' : 'Off'}
+          />
           <ReceiptRow label="Outputs" value={String(run.outputCount)} />
           <ReceiptRow label="Cost" value={formatCost(run.costCredits)} />
           {run.latencyMs != null && (
-            <ReceiptRow label="Observed time" value={`${(run.latencyMs / 1000).toFixed(1)}s`} />
+            <ReceiptRow
+              label="Observed time"
+              value={`${(run.latencyMs / 1000).toFixed(1)}s`}
+            />
           )}
         </div>
 
@@ -3949,7 +4854,10 @@ function RunDetailDialog({
           <CopyButton
             label="Copy JSON"
             onCopy={() =>
-              onCopy(JSON.stringify(buildBflBody(payload), null, 2), 'Request JSON copied.')
+              onCopy(
+                JSON.stringify(buildBflBody(payload), null, 2),
+                'Request JSON copied.',
+              )
             }
           />
           <CopyButton
@@ -3964,7 +4872,11 @@ function RunDetailDialog({
               <RotateCcw /> Re-run same seed
             </Button>
           )}
-          <Button variant="outline" size="xs" onClick={() => onRerun(run, { varySeed: true })}>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => onRerun(run, { varySeed: true })}
+          >
             <Dices /> Vary seed & run
           </Button>
         </div>
@@ -3985,13 +4897,21 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 function ReceiptRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
       <p className="truncate text-[12px] font-medium">{value}</p>
     </div>
   );
 }
 
-function CopyButton({ label, onCopy }: { label: string; onCopy: () => Promise<void> }) {
+function CopyButton({
+  label,
+  onCopy,
+}: {
+  label: string;
+  onCopy: () => Promise<void>;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
