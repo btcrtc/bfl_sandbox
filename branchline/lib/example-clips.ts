@@ -14,6 +14,7 @@ export const EXAMPLE_DRAFT_CLIPS = [
   { sceneIndex: 0, path: '/scenes/ads-art/scene-01-draft.mp4', durationSec: 6 },
   { sceneIndex: 1, path: '/scenes/ads-art/scene-02-draft.mp4', durationSec: 6 },
   { sceneIndex: 2, path: '/scenes/ads-art/scene-03-draft.mp4', durationSec: 5 },
+  { sceneIndex: 3, path: '/scenes/ads-art/scene-04-draft.mp4', durationSec: 6 },
 ] as const;
 
 type SceneRef = {
