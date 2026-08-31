@@ -1595,6 +1595,7 @@ function SceneNode({
         {clipAsset ? (
           <video
             src={clipAsset.url}
+            poster={stillAsset?.url}
             muted
             playsInline
             preload="metadata"
@@ -2061,7 +2062,13 @@ function SceneStage({
     const clipAsset = clip?.run?.assets[0];
     if (clipAsset) {
       content = (
-        <video controls preload="metadata" src={clipAsset.url} className="size-full bg-black">
+        <video
+          controls
+          preload="metadata"
+          src={clipAsset.url}
+          poster={scene.run?.assets[0]?.url}
+          className="size-full bg-black"
+        >
           <track kind="captions" label="Captions unavailable" />
         </video>
       );
@@ -2590,6 +2597,7 @@ function TimelineBlock({
         {clipAsset ? (
           <video
             src={clipAsset.url}
+            poster={asset?.url}
             muted
             playsInline
             preload="metadata"
@@ -3093,6 +3101,7 @@ function ReelDetail({
               <video
                 key={playingItem.id}
                 src={playingItem.clipUrl}
+                poster={playingItem.url || undefined}
                 autoPlay
                 muted
                 playsInline
@@ -3114,6 +3123,7 @@ function ReelDetail({
           ) : previewItem.clipUrl ? (
             <video
               src={previewItem.clipUrl}
+              poster={previewItem.url || undefined}
               muted
               playsInline
               preload="metadata"
