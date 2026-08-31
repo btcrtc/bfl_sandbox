@@ -12,6 +12,7 @@ import {
   Dices,
   Expand,
   Film,
+  GitBranch,
   ImagePlus,
   Images,
   Lightbulb,
@@ -72,6 +73,7 @@ import {
 } from '@/lib/pricing';
 import { cn } from '@/lib/utils';
 import type { HistoryRun } from '@/db/history';
+import type { GenerationUsage } from '@/app/api/generations/usage/route';
 import type {
   ClipDto,
   SceneDto,
@@ -461,7 +463,7 @@ export function ScenesShell({
           } | null;
           throw new Error(data?.error);
         }
-        void loadStoryboard(activeId);
+        await loadStoryboard(activeId);
       } catch (error) {
         setNotice({
           tone: 'error',
@@ -844,13 +846,6 @@ export function ScenesShell({
                       videoEnabled={videoEnabled}
                       totalSeconds={totalSeconds}
                       compact={density === 'compact'}
-                      busyScenes={generatingScenes}
-                      onSelectTake={(sceneId, generationId) =>
-                        void patchScene(sceneId, {
-                          activeGenerationId: generationId,
-                        })
-                      }
-                      onNewTake={(sceneId) => void generateScene(sceneId)}
                     />
 
                     <div className="mt-5">
@@ -873,7 +868,7 @@ export function ScenesShell({
                           videoEnabled={videoEnabled}
                           busyStill={generatingScenes.has(selectedScene.id)}
                           busyVideo={videoBusyScenes.has(selectedScene.id) || assembling}
-                          onPatch={(patch) => void patchScene(selectedScene.id, patch)}
+                          onPatch={(patch) => patchScene(selectedScene.id, patch)}
                           onRenderStill={() => void generateScene(selectedScene.id)}
                           onRefine={(instruction) =>
                             void generateScene(selectedScene.id, instruction)
@@ -1358,9 +1353,6 @@ function SequenceStrip({
   videoEnabled,
   totalSeconds,
   compact,
-  busyScenes,
-  onSelectTake,
-  onNewTake,
 }: {
   storyboard: StoryboardDto;
   selection: Selection;
@@ -1369,17 +1361,10 @@ function SequenceStrip({
   videoEnabled: boolean;
   totalSeconds: number;
   compact: boolean;
-  busyScenes: Set<string>;
-  onSelectTake: (sceneId: string, generationId: string) => void;
-  onNewTake: (sceneId: string) => void;
 }) {
-  const branchesOpen =
-    selection.kind === 'scene' &&
-    (storyboard.scenes.find((scene) => scene.id === selection.id)?.takes.length ?? 0) > 0;
-
   return (
-    <div className={cn('overflow-x-auto', branchesOpen ? 'pb-24' : 'pb-1')}>
-      <div className="flex min-w-max items-stretch">
+    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-stretch overflow-hidden pb-1">
+      <div className="relative z-20 flex shrink-0 items-stretch bg-playground-surface pr-1 shadow-[12px_0_20px_-18px_rgba(0,0,0,0.55)]">
         <IdeaNode
           idea={storyboard.idea}
           sceneCount={storyboard.scenes.length}
@@ -1387,11 +1372,15 @@ function SequenceStrip({
           onSelect={() => onSelect({ kind: 'idea' })}
           compact={compact}
         />
+        <Connector compact={compact} />
+      </div>
+
+      <div className="min-w-0 overflow-x-auto overflow-y-hidden px-1">
+        <div className="flex min-w-max items-stretch">
         {storyboard.scenes.map((scene) => {
           const selected = selection.kind === 'scene' && selection.id === scene.id;
           return (
             <span key={scene.id} className="contents">
-              <Connector compact={compact} />
               <div className="relative">
                 <SceneNode
                   scene={scene}
@@ -1401,20 +1390,11 @@ function SequenceStrip({
                   onSelect={() => onSelect({ kind: 'scene', id: scene.id })}
                   compact={compact}
                 />
-                {selected && scene.takes.length > 0 && (
-                  <TakeBranches
-                    takes={scene.takes}
-                    activeGenerationId={scene.generationId}
-                    busy={busyScenes.has(scene.id)}
-                    onSelect={(generationId) => onSelectTake(scene.id, generationId)}
-                    onNew={() => onNewTake(scene.id)}
-                  />
-                )}
               </div>
+              <Connector compact={compact} />
             </span>
           );
         })}
-        <Connector dashed={storyboard.scenes.length === 0} compact={compact} />
         <button
           onClick={onAddScene}
           className={cn(
@@ -1426,6 +1406,10 @@ function SequenceStrip({
           <Plus className="size-4" />
         </button>
         <Connector dashed compact={compact} />
+        </div>
+      </div>
+
+      <div className="relative z-20 flex shrink-0 items-stretch bg-playground-surface pl-1 shadow-[-12px_0_20px_-18px_rgba(0,0,0,0.55)]">
         <ReelNode
           totalSeconds={totalSeconds}
           sceneCount={storyboard.scenes.length}
@@ -1433,113 +1417,6 @@ function SequenceStrip({
           onSelect={() => onSelect({ kind: 'reel' })}
           compact={compact}
         />
-      </div>
-    </div>
-  );
-}
-
-// Branches fanning out below the selected scene node: each take is a variant
-// of the shot; clicking one makes it the active still, the dashed tile
-// renders another.
-function TakeBranches({
-  takes,
-  activeGenerationId,
-  busy,
-  onSelect,
-  onNew,
-}: {
-  takes: TakeDto[];
-  activeGenerationId: string | null;
-  busy: boolean;
-  onSelect: (generationId: string) => void;
-  onNew: () => void;
-}) {
-  // Real canvas edges, same language as the playground graph: one bezier per
-  // branch fanning from the node's bottom-center to each take tile.
-  const TILE_W = 64;
-  const TILE_GAP = 6;
-  const EDGE_H = 26;
-  const itemCount = takes.length + 1;
-  const rowWidth = itemCount * TILE_W + (itemCount - 1) * TILE_GAP;
-  const startX = rowWidth / 2;
-  const bend = EDGE_H * 0.62;
-  const edgePath = (index: number) => {
-    const endX = index * (TILE_W + TILE_GAP) + TILE_W / 2;
-    return `M ${startX} 0 C ${startX} ${bend}, ${endX} ${EDGE_H - bend}, ${endX} ${EDGE_H}`;
-  };
-
-  return (
-    <div className="absolute left-1/2 top-full z-10 flex -translate-x-1/2 flex-col items-center">
-      <svg
-        width={rowWidth}
-        height={EDGE_H}
-        viewBox={`0 0 ${rowWidth} ${EDGE_H}`}
-        className="shrink-0"
-        aria-hidden
-      >
-        {takes.map((take, index) => (
-          <path
-            key={take.id}
-            d={edgePath(index)}
-            className={cn(
-              'graph-edge',
-              take.generationId === activeGenerationId && 'graph-edge-active',
-            )}
-          />
-        ))}
-        <path d={edgePath(takes.length)} className="graph-edge" strokeDasharray="3 3" />
-      </svg>
-      <div className="flex items-start" style={{ gap: TILE_GAP }}>
-        {takes.map((take, index) => {
-          const asset = take.run?.assets[0];
-          const active = take.generationId === activeGenerationId;
-          return (
-            <button
-              key={take.id}
-              type="button"
-              onClick={() => !active && onSelect(take.generationId)}
-              className={cn(
-                'relative aspect-video w-16 shrink-0 overflow-hidden rounded border bg-muted shadow-sm outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
-                active
-                  ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
-                  : 'hover:-translate-y-0.5 hover:border-foreground/30',
-              )}
-              aria-label={`Take ${index + 1}${active ? ' (active)' : ''}`}
-              aria-pressed={active}
-            >
-              {asset ? (
-                <NextImage
-                  src={asset.url}
-                  alt={`Take ${index + 1}`}
-                  width={128}
-                  height={72}
-                  unoptimized
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="grid size-full place-items-center text-muted-foreground">
-                  {take.run && ['queued', 'running'].includes(take.run.status) ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <ShieldAlert className="size-3" />
-                  )}
-                </span>
-              )}
-              <span className="absolute bottom-0 left-0 rounded-tr bg-background/85 px-0.5 font-mono text-[8px] backdrop-blur">
-                T{index + 1}
-              </span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onNew}
-          disabled={busy}
-          className="grid aspect-video w-16 shrink-0 place-items-center rounded border border-dashed bg-background/60 text-muted-foreground shadow-sm outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
-          aria-label="Render a new take"
-        >
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3.5" />}
-        </button>
       </div>
     </div>
   );
@@ -1977,7 +1854,7 @@ function SceneDetail({
   videoEnabled: boolean;
   busyStill: boolean;
   busyVideo: boolean;
-  onPatch: (patch: Record<string, unknown>) => void;
+  onPatch: (patch: Record<string, unknown>) => Promise<void>;
   onRenderStill: () => void;
   onRefine: (instruction: string) => void;
   onDraftClip: () => void;
@@ -1989,6 +1866,7 @@ function SceneDetail({
   const fhd = latestClip(scene, ['fhd']);
   const defaultTab: StageTab = fhd ? 'fhd' : hd ? 'hd' : draft ? 'draft' : 'still';
   const [tab, setTab] = useState<StageTab>(defaultTab);
+  const [frameTrackOpen, setFrameTrackOpen] = useState(false);
 
   const stillRunning = runStepState(scene.run) === 'active';
   const draftRunning = clipStepState(draft) === 'active';
@@ -2006,6 +1884,7 @@ function SceneDetail({
   const stage = STAGE_COPY[tab];
 
   return (
+    <>
     <Surface className="p-4 lg:p-5">
       <div className="grid gap-4 lg:grid-cols-[142px_minmax(0,1.2fr)_minmax(330px,0.8fr)] lg:gap-5">
         <StageRail value={tab} onChange={setTab} states={stageStates} />
@@ -2019,27 +1898,8 @@ function SceneDetail({
             fhd={fhd}
             effectiveSeed={effectiveSeed}
             isFinalScene={isFinalScene}
+            onOpenFrameTrack={hasStill ? () => setFrameTrackOpen(true) : undefined}
           />
-          {tab === 'still' && hasStill && (
-            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border bg-background/55 px-3 py-2.5">
-              <div className="min-w-0">
-                <SystemLabel>Frame source</SystemLabel>
-                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                  Explore every take as a branch, then choose which frame feeds the next video draft.
-                </p>
-              </div>
-              <Link
-                href={`/playground?storyboardId=${encodeURIComponent(storyboardId)}&sceneId=${encodeURIComponent(scene.id)}`}
-                className={buttonVariants({
-                  variant: 'outline',
-                  size: 'sm',
-                  className: 'h-8 shrink-0',
-                })}
-              >
-                <Images /> Open Frame Stack
-              </Link>
-            </div>
-          )}
           {tab === 'still' && scene.takes.length > 0 && (
             <TakesTree
               takes={scene.takes}
@@ -2084,7 +1944,7 @@ function SceneDetail({
             defaultValue={scene.title}
             onBlur={(event) => {
               const value = event.target.value.trim();
-              if (value && value !== scene.title) onPatch({ title: value });
+              if (value && value !== scene.title) void onPatch({ title: value });
             }}
             className="mt-1 h-8 border-0 bg-transparent px-0 text-[15px] font-medium shadow-none focus-visible:ring-1"
             aria-label="Scene title"
@@ -2108,7 +1968,7 @@ function SceneDetail({
                 defaultValue={scene.prompt}
                 onBlur={(event) => {
                   if (event.target.value.trim() !== scene.prompt) {
-                    onPatch({ prompt: event.target.value });
+                    void onPatch({ prompt: event.target.value });
                   }
                 }}
                 placeholder="Describe this frame — subject, setting, camera, lens and light…"
@@ -2142,7 +2002,9 @@ function SceneDetail({
                 defaultValue={scene.videoPrompt ?? ''}
                 onBlur={(event) => {
                   const value = event.target.value.trim();
-                  if (value !== (scene.videoPrompt ?? '')) onPatch({ videoPrompt: value || null });
+                  if (value !== (scene.videoPrompt ?? '')) {
+                    void onPatch({ videoPrompt: value || null });
+                  }
                 }}
                 placeholder="Describe only what changes: performance, camera move, environmental motion, timing and sound."
                 className="mt-2 min-h-40 resize-none border-primary/20 bg-primary/[0.025] text-[13px] leading-5"
@@ -2253,6 +2115,14 @@ function SceneDetail({
         </div>
       </div>
     </Surface>
+    <FrameTrackDialog
+      open={frameTrackOpen}
+      onOpenChange={setFrameTrackOpen}
+      storyboardId={storyboardId}
+      scene={scene}
+      onSetActive={(generationId) => onPatch({ activeGenerationId: generationId })}
+    />
+    </>
   );
 }
 
@@ -2264,6 +2134,7 @@ function SceneStage({
   fhd,
   effectiveSeed,
   isFinalScene,
+  onOpenFrameTrack,
 }: {
   tab: StageTab;
   scene: SceneDto;
@@ -2272,6 +2143,7 @@ function SceneStage({
   fhd: ClipDto | null;
   effectiveSeed: number | null;
   isFinalScene: boolean;
+  onOpenFrameTrack?: () => void;
 }) {
   const clip = tab === 'draft' ? draft : tab === 'hd' ? hd : tab === 'fhd' ? fhd : null;
   const stillAsset = scene.run?.assets[0];
@@ -2365,6 +2237,16 @@ function SceneStage({
       <div className="relative aspect-video overflow-hidden rounded-md border bg-muted">
         {content}
         {isFinalScene && (stillAsset || clip?.run?.assets[0]) && <EndCardLogo />}
+        {tab === 'still' && stillAsset && onOpenFrameTrack && (
+          <button
+            type="button"
+            onClick={onOpenFrameTrack}
+            className="absolute right-2 top-2 z-30 flex h-8 items-center gap-1.5 rounded-md border border-white/20 bg-black/65 px-2.5 text-[10px] font-medium text-white shadow-lg backdrop-blur-md transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            aria-label="Open Frame Track"
+          >
+            <GitBranch className="size-3.5" /> Frame Track
+          </button>
+        )}
       </div>
       <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
         {meta}
@@ -2795,6 +2677,388 @@ function TakesTree({
         scene&apos;s active frame.
       </p>
     </div>
+  );
+}
+
+const FRAME_TRACK_TILE_W = 190;
+const FRAME_TRACK_GAP = 28;
+const FRAME_TRACK_EDGE_H = 38;
+
+function frameTrackSubtreeWidth(node: TakeNode): number {
+  if (!node.children.length) return FRAME_TRACK_TILE_W;
+  return Math.max(
+    FRAME_TRACK_TILE_W,
+    node.children.reduce((total, child) => total + frameTrackSubtreeWidth(child), 0) +
+      FRAME_TRACK_GAP * (node.children.length - 1),
+  );
+}
+
+function FrameTrackTake({
+  node,
+  label,
+  active,
+  selected,
+  usage,
+  onSelect,
+}: {
+  node: TakeNode;
+  label: string;
+  active: boolean;
+  selected: boolean;
+  usage: GenerationUsage[];
+  onSelect: () => void;
+}) {
+  const asset = node.run?.assets[0];
+  const instruction = node.run?.parameters.instruction;
+  const boardCount = new Set(usage.map((entry) => entry.storyboardId)).size;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'group w-[190px] overflow-hidden rounded-xl border bg-background text-left shadow-sm outline-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring/50',
+        active ? 'border-[var(--brand)]' : 'hover:border-foreground/30',
+        selected && 'ring-2 ring-foreground/20',
+        active && selected && 'ring-[var(--brand-soft)]',
+      )}
+      aria-label={`Preview ${label}${active ? ', active in scene' : ''}`}
+      aria-pressed={selected}
+    >
+      <span className="relative block aspect-video overflow-hidden bg-muted">
+        {asset ? (
+          <NextImage
+            src={asset.url}
+            alt={`${label} frame`}
+            fill
+            unoptimized
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          />
+        ) : (
+          <span className="grid size-full place-items-center text-muted-foreground">
+            {node.run && ['queued', 'running'].includes(node.run.status) ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Images className="size-4" />
+            )}
+          </span>
+        )}
+        <span className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-8 text-white">
+          <span className="font-mono text-[8px] uppercase tracking-wider">{label}</span>
+          {active && (
+            <span className="rounded-full bg-[var(--brand)] px-1.5 py-0.5 font-mono text-[7px] uppercase">
+              in scene
+            </span>
+          )}
+        </span>
+      </span>
+      <span className="block p-2">
+        <span className="block truncate text-[10px] font-medium">
+          {typeof instruction === 'string' ? instruction : 'Base frame'}
+        </span>
+        <span className="mt-1 flex items-center justify-between gap-2 font-mono text-[8px] uppercase text-muted-foreground">
+          <span>{node.run?.status ?? 'saved'}</span>
+          <span>{boardCount} board{boardCount === 1 ? '' : 's'}</span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function FrameTrackBranch({
+  node,
+  labels,
+  activeGenerationId,
+  selectedGenerationId,
+  usage,
+  onSelect,
+}: {
+  node: TakeNode;
+  labels: Map<string, string>;
+  activeGenerationId: string | null;
+  selectedGenerationId: string | null;
+  usage: Record<string, GenerationUsage[]>;
+  onSelect: (generationId: string) => void;
+}) {
+  const width = frameTrackSubtreeWidth(node);
+  const childWidths = node.children.map(frameTrackSubtreeWidth);
+  const childCenters = childWidths.map(
+    (childWidth, childIndex) =>
+      childWidths.slice(0, childIndex).reduce((total, value) => total + value, 0) +
+      childIndex * FRAME_TRACK_GAP +
+      childWidth / 2,
+  );
+  const bend = FRAME_TRACK_EDGE_H * 0.62;
+  return (
+    <div style={{ width }} className="flex shrink-0 flex-col items-center">
+      <FrameTrackTake
+        node={node}
+        label={labels.get(node.generationId) ?? 'T?'}
+        active={node.generationId === activeGenerationId}
+        selected={node.generationId === selectedGenerationId}
+        usage={usage[node.generationId] ?? []}
+        onSelect={() => onSelect(node.generationId)}
+      />
+      {node.children.length > 0 && (
+        <>
+          <svg
+            width={width}
+            height={FRAME_TRACK_EDGE_H}
+            viewBox={`0 0 ${width} ${FRAME_TRACK_EDGE_H}`}
+            className="shrink-0"
+            aria-hidden
+          >
+            {node.children.map((child, childIndex) => (
+              <path
+                key={child.id}
+                d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${FRAME_TRACK_EDGE_H - bend}, ${childCenters[childIndex]} ${FRAME_TRACK_EDGE_H}`}
+                className={cn(
+                  'graph-edge',
+                  child.generationId === activeGenerationId && 'graph-edge-active',
+                )}
+              />
+            ))}
+          </svg>
+          <div className="flex items-start" style={{ gap: FRAME_TRACK_GAP }}>
+            {node.children.map((child) => (
+              <FrameTrackBranch
+                key={child.id}
+                node={child}
+                labels={labels}
+                activeGenerationId={activeGenerationId}
+                selectedGenerationId={selectedGenerationId}
+                usage={usage}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FrameTrackDialog({
+  open,
+  onOpenChange,
+  storyboardId,
+  scene,
+  onSetActive,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  storyboardId: string;
+  scene: SceneDto;
+  onSetActive: (generationId: string) => Promise<void>;
+}) {
+  const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(
+    scene.generationId,
+  );
+  const [usage, setUsage] = useState<Record<string, GenerationUsage[]>>({});
+  const [usageState, setUsageState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [applying, setApplying] = useState(false);
+  const roots = buildTakeTree(scene.takes);
+  const labels = new Map(
+    scene.takes
+      .slice()
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((take, index) => [take.generationId, `T${index + 1}`]),
+  );
+  const selectedTake =
+    scene.takes.find((take) => take.generationId === selectedGenerationId) ??
+    scene.takes.find((take) => take.generationId === scene.generationId) ??
+    scene.takes[0] ??
+    null;
+  const selectedUsage = selectedTake ? (usage[selectedTake.generationId] ?? []) : [];
+  const selectedAsset = selectedTake?.run?.assets[0];
+  const selectedActive = Boolean(
+    selectedTake && scene.generationId === selectedTake.generationId,
+  );
+  const fullPageHref = `/playground?storyboardId=${encodeURIComponent(storyboardId)}&sceneId=${encodeURIComponent(scene.id)}`;
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setSelectedGenerationId(scene.generationId ?? scene.takes[0]?.generationId ?? null);
+      setUsageState('loading');
+      const ids = scene.takes.map((take) => take.generationId).join(',');
+      void fetch(`/api/generations/usage?ids=${encodeURIComponent(ids)}`, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error();
+          return (await response.json()) as { usage: Record<string, GenerationUsage[]> };
+        })
+        .then((data) => {
+          setUsage(data.usage);
+          setUsageState('ready');
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          setUsageState('error');
+        });
+    }, 0);
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [open, scene.generationId, scene.takes]);
+
+  const applySelectedFrame = async () => {
+    if (!selectedTake || selectedActive || !selectedAsset) return;
+    setApplying(true);
+    try {
+      await onSetActive(selectedTake.generationId);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="h-[calc(100svh-2rem)] w-[calc(100%-2rem)] max-w-[1500px]! grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0!">
+        <DialogHeader className="border-b px-5 py-4 pr-14">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <DialogTitle>Frame Track · Scene {String(scene.sceneIndex + 1).padStart(2, '0')}</DialogTitle>
+                <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                  {scene.takes.length} take{scene.takes.length === 1 ? '' : 's'}
+                </Badge>
+              </div>
+              <DialogDescription className="mt-1 text-[11px]">
+                Preview a branch here, or open the full Frame Stack to keep building it.
+              </DialogDescription>
+            </div>
+            <Link
+              href={fullPageHref}
+              className={buttonVariants({ variant: 'outline', size: 'sm', className: 'h-8' })}
+            >
+              <Maximize2 /> Open full Frame Stack
+            </Link>
+          </div>
+        </DialogHeader>
+
+        <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_340px]">
+          <div className="relative min-h-0 overflow-auto bg-[var(--canvas)]">
+            <div className="pointer-events-none absolute inset-0 graph-grid opacity-60" />
+            <div className="relative flex min-h-full min-w-max items-start justify-center p-10">
+              <div className="flex items-start" style={{ gap: FRAME_TRACK_GAP }}>
+                {roots.map((root) => (
+                  <FrameTrackBranch
+                    key={root.id}
+                    node={root}
+                    labels={labels}
+                    activeGenerationId={scene.generationId}
+                    selectedGenerationId={selectedTake?.generationId ?? null}
+                    usage={usage}
+                    onSelect={setSelectedGenerationId}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <aside className="min-h-0 overflow-y-auto border-l bg-background p-4">
+            <div className="flex items-center justify-between gap-2">
+              <SystemLabel>Selected frame</SystemLabel>
+              <Badge
+                variant={selectedActive ? 'default' : 'outline'}
+                className={cn(
+                  'font-mono text-[8px] uppercase',
+                  selectedActive && 'bg-[var(--brand-soft)] text-[var(--brand)]',
+                )}
+              >
+                {selectedActive ? 'active in scene' : 'preview only'}
+              </Badge>
+            </div>
+            <div className="relative mt-2 aspect-video overflow-hidden rounded-lg border bg-muted">
+              {selectedAsset ? (
+                <NextImage
+                  src={selectedAsset.url}
+                  alt="Selected frame"
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              ) : (
+                <span className="grid size-full place-items-center text-muted-foreground">
+                  <Images className="size-5" />
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-[12px] font-medium">
+              {selectedTake ? (labels.get(selectedTake.generationId) ?? 'Take') : 'No take'}
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+              {typeof selectedTake?.run?.parameters.instruction === 'string'
+                ? selectedTake.run.parameters.instruction
+                : scene.prompt}
+            </p>
+
+            <div className="mt-4 border-t pt-4">
+              <div className="flex items-center justify-between gap-2">
+                <SystemLabel>Used by boards</SystemLabel>
+                <span className="font-mono text-[8px] uppercase text-muted-foreground">
+                  {new Set(selectedUsage.map((entry) => entry.storyboardId)).size} linked
+                </span>
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {usageState === 'loading' && (
+                  <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Loader2 className="size-3 animate-spin" /> Resolving dependencies…
+                  </p>
+                )}
+                {usageState === 'error' && (
+                  <p className="text-[10px] text-destructive">Could not load frame dependencies.</p>
+                )}
+                {usageState === 'ready' && selectedUsage.length === 0 && (
+                  <p className="rounded-md border border-dashed p-2.5 text-[10px] text-muted-foreground">
+                    Not used by another board yet.
+                  </p>
+                )}
+                {selectedUsage.map((entry) => (
+                  <div key={`${entry.kind}:${entry.storyboardId}:${entry.sceneId}`} className="rounded-md border bg-muted/25 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[10px] font-medium">{entry.storyboardTitle}</span>
+                      <Badge variant="outline" className="font-mono text-[7px] uppercase">
+                        {entry.active ? 'active' : entry.kind === 'reference' ? 'reference' : 'take'}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 truncate font-mono text-[8px] uppercase text-muted-foreground">
+                      {entry.sceneIndex == null
+                        ? 'Board reference'
+                        : `Scene ${String(entry.sceneIndex + 1).padStart(2, '0')} · ${entry.sceneTitle}`}
+                      {entry.storyboardId === storyboardId ? ' · this board' : ''}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t bg-background px-4 py-3">
+          <p className="max-w-xl text-[10px] leading-4 text-muted-foreground">
+            Changing the active frame only affects future video drafts. Existing clips remain attached to their original source.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void applySelectedFrame()}
+              disabled={selectedActive || !selectedAsset || applying}
+            >
+              {applying ? <Loader2 className="animate-spin" /> : <Check />}
+              {selectedActive ? 'In this scene' : 'Use in this scene'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
