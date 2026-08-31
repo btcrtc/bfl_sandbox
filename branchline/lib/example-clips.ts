@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import { getDb } from '@/db/index';
 import {
@@ -7,6 +7,7 @@ import {
   generations,
   storyboardClips,
   storyboardScenes,
+  storyboardSubtitles,
   storyboards,
 } from '@/db/schema';
 import { EXAMPLE_BOARD } from '@/lib/example-board';
@@ -40,6 +41,19 @@ export const EXAMPLE_DRAFT_CLIPS = [
     path: '/scenes/ads-art/scene-10-draft.mp4',
     durationSec: 15,
     syncScene: true,
+    syncVideoPrompt: true,
+    trimStartMs: 8_000,
+    trimEndMs: null,
+    clearLegacySubtitle: '[Das neue Werk erwacht.]',
+  },
+  {
+    sceneIndex: 8,
+    sourceSceneIndex: 9,
+    durationSec: 15,
+    syncScene: true,
+    syncVideoPrompt: true,
+    trimStartMs: 0,
+    trimEndMs: 8_000,
   },
 ] as const;
 
@@ -50,6 +64,8 @@ type SceneRef = {
   prompt: string;
   videoPrompt: string | null;
   durationSec: number;
+  trimStartMs: number;
+  trimEndMs: number | null;
   seed: number | null;
 };
 
@@ -64,7 +80,11 @@ export async function registerBundledExampleClips(input: {
 }) {
   const db = getDb();
   const existingDrafts = await db
-    .select({ sceneId: storyboardClips.sceneId })
+    .select({
+      id: storyboardClips.id,
+      sceneId: storyboardClips.sceneId,
+      generationId: storyboardClips.generationId,
+    })
     .from(storyboardClips)
     .where(
       and(
@@ -73,35 +93,90 @@ export async function registerBundledExampleClips(input: {
       ),
     );
   const occupiedSceneIds = new Set(existingDrafts.map((clip) => clip.sceneId));
+  const draftBySceneId = new Map(
+    existingDrafts.map((clip) => [clip.sceneId, clip]),
+  );
   const attached: Array<{ sceneId: string; clipId: string }> = [];
   const updatedScenes: string[] = [];
   const now = Date.now();
 
   for (const draft of EXAMPLE_DRAFT_CLIPS) {
-    const scene = input.scenes.find((candidate) => candidate.sceneIndex === draft.sceneIndex);
+    const scene = input.scenes.find(
+      (candidate) => candidate.sceneIndex === draft.sceneIndex,
+    );
     const expected = EXAMPLE_BOARD.scenes[draft.sceneIndex];
     if (!scene || scene.title !== expected.title) continue;
 
     const syncVideoPrompt = 'syncVideoPrompt' in draft && draft.syncVideoPrompt;
+    const syncTrim = 'trimStartMs' in draft;
     const canonicalVideoPrompt = expected.videoPrompt.trim();
     const shouldSyncScene =
       'syncScene' in draft &&
       draft.syncScene &&
       (scene.durationSec !== draft.durationSec ||
-        (syncVideoPrompt && scene.videoPrompt?.trim() !== canonicalVideoPrompt));
+        (syncVideoPrompt &&
+          scene.videoPrompt?.trim() !== canonicalVideoPrompt) ||
+        (syncTrim &&
+          (scene.trimStartMs !== draft.trimStartMs ||
+            scene.trimEndMs !== draft.trimEndMs)));
     if (shouldSyncScene) {
       await db
         .update(storyboardScenes)
         .set({
           durationSec: draft.durationSec,
           ...(syncVideoPrompt ? { videoPrompt: canonicalVideoPrompt } : {}),
+          ...(syncTrim
+            ? { trimStartMs: draft.trimStartMs, trimEndMs: draft.trimEndMs }
+            : {}),
           updatedAt: now + draft.sceneIndex,
         })
         .where(eq(storyboardScenes.id, scene.id));
       updatedScenes.push(scene.id);
     }
 
+    if ('clearLegacySubtitle' in draft) {
+      await db
+        .delete(storyboardSubtitles)
+        .where(
+          and(
+            eq(storyboardSubtitles.sceneId, scene.id),
+            isNull(storyboardSubtitles.clipId),
+            eq(storyboardSubtitles.text, draft.clearLegacySubtitle),
+          ),
+        );
+    }
+
     if (occupiedSceneIds.has(scene.id)) continue;
+
+    if ('sourceSceneIndex' in draft) {
+      const sourceScene = input.scenes.find(
+        (candidate) => candidate.sceneIndex === draft.sourceSceneIndex,
+      );
+      const sourceClip = sourceScene
+        ? draftBySceneId.get(sourceScene.id)
+        : null;
+      if (!sourceClip) continue;
+
+      const clipId = crypto.randomUUID();
+      await db.insert(storyboardClips).values({
+        id: clipId,
+        storyboardId: input.storyboardId,
+        sceneId: scene.id,
+        tier: 'draft',
+        generationId: sourceClip.generationId,
+        sourceClipId: sourceClip.id,
+        createdAt: now + draft.sceneIndex,
+      });
+      occupiedSceneIds.add(scene.id);
+      const linkedClip = {
+        id: clipId,
+        sceneId: scene.id,
+        generationId: sourceClip.generationId,
+      };
+      draftBySceneId.set(scene.id, linkedClip);
+      attached.push({ sceneId: scene.id, clipId });
+      continue;
+    }
 
     const generationId = crypto.randomUUID();
     const jobId = crypto.randomUUID();
@@ -163,6 +238,12 @@ export async function registerBundledExampleClips(input: {
         createdAt,
       }),
     ]);
+    occupiedSceneIds.add(scene.id);
+    draftBySceneId.set(scene.id, {
+      id: clipId,
+      sceneId: scene.id,
+      generationId,
+    });
     attached.push({ sceneId: scene.id, clipId });
   }
 

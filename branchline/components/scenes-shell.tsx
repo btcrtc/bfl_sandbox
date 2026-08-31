@@ -122,13 +122,19 @@ const BUNDLED_DRAFT_SCENE_TITLES = new Set([
   'The new work',
   'What was seen',
   'Time captured',
+  'It looks back',
   'The work awakens',
 ]);
 const BUNDLED_DRAFT_DURATION_OVERRIDES = new Map([
   ['The new work', 15],
   ['What was seen', 15],
   ['Time captured', 15],
+  ['It looks back', 15],
   ['The work awakens', 15],
+]);
+const BUNDLED_DRAFT_TRIM_OVERRIDES = new Map<string, TrimRange>([
+  ['It looks back', { startMs: 0, endMs: 8_000 }],
+  ['The work awakens', { startMs: 8_000, endMs: 15_000 }],
 ]);
 
 type TrimRange = { startMs: number; endMs: number };
@@ -331,9 +337,18 @@ export function ScenesShell({
         (scene) =>
           (BUNDLED_DRAFT_SCENE_TITLES.has(scene.title) &&
             !scene.clips.some((clip) => clip.tier === 'draft')) ||
-          BUNDLED_DRAFT_DURATION_OVERRIDES.get(scene.title) !== undefined &&
+          (BUNDLED_DRAFT_DURATION_OVERRIDES.get(scene.title) !== undefined &&
             BUNDLED_DRAFT_DURATION_OVERRIDES.get(scene.title) !==
-              scene.durationSec,
+              scene.durationSec) ||
+          (() => {
+            const expectedTrim = BUNDLED_DRAFT_TRIM_OVERRIDES.get(scene.title);
+            if (!expectedTrim) return false;
+            const actualTrim = sceneTrimRange(scene);
+            return (
+              actualTrim.startMs !== expectedTrim.startMs ||
+              actualTrim.endMs !== expectedTrim.endMs
+            );
+          })(),
       );
       if (
         needsBundledDraft &&
@@ -1038,7 +1053,9 @@ export function ScenesShell({
                           onRefine={(instruction) =>
                             void generateScene(selectedScene.id, instruction)
                           }
-                          onSyncFrameStack={() => syncSceneFrameStack(selectedScene.id)}
+                          onSyncFrameStack={() =>
+                            syncSceneFrameStack(selectedScene.id)
+                          }
                           onDraftClip={() => void draftClip(selectedScene.id)}
                           onEnhance={(tier) =>
                             void enhanceClip(selectedScene.id, tier)
@@ -2885,7 +2902,10 @@ function frameTrackSubtreeWidth(node: TakeNode): number {
   if (!node.children.length) return FRAME_TRACK_TILE_W;
   return Math.max(
     FRAME_TRACK_TILE_W,
-    node.children.reduce((total, child) => total + frameTrackSubtreeWidth(child), 0) +
+    node.children.reduce(
+      (total, child) => total + frameTrackSubtreeWidth(child),
+      0,
+    ) +
       FRAME_TRACK_GAP * (node.children.length - 1),
   );
 }
@@ -3884,10 +3904,22 @@ function ReelDetail({
   const [muted, setMuted] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const playerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const playerVideoRefs = useRef(new Map<string, HTMLVideoElement>());
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
-  const mediaAdvanceRef = useRef(false);
+  const mediaAdvanceRef = useRef<string | null>(null);
   const playingItem =
     playlist && playPos < playlist.length ? playlist[playPos] : null;
+  const playlistVideoSources = (playlist ?? []).reduce<
+    Array<{ url: string; poster: string }>
+  >((sources, item) => {
+    if (
+      item.clipUrl &&
+      !sources.some((source) => source.url === item.clipUrl)
+    ) {
+      sources.push({ url: item.clipUrl, poster: item.url });
+    }
+    return sources;
+  }, []);
 
   const applyTrimPreview = (scene: SceneDto, trim: TrimRange | null) => {
     setTrimDrafts((current) => {
@@ -3931,10 +3963,6 @@ function ReelDetail({
   }, [playlist, playPos]);
 
   useEffect(() => {
-    mediaAdvanceRef.current = false;
-  }, [playingItem?.id, playingItem?.trimEndSec, playingItem?.trimStartSec]);
-
-  useEffect(() => {
     if (!playingItem || playingItem.clipUrl || isPaused) return;
     const interval = window.setInterval(() => {
       setElapsed((current) => {
@@ -3950,9 +3978,16 @@ function ReelDetail({
   }, [isPaused, playingItem]);
 
   useEffect(() => {
-    const video = playerVideoRef.current;
+    const activeUrl = playingItem?.clipUrl ?? null;
+    const video = activeUrl
+      ? (playerVideoRefs.current.get(activeUrl) ?? null)
+      : null;
+    playerVideoRef.current = video;
+    for (const [url, candidate] of playerVideoRefs.current) {
+      candidate.muted = url === activeUrl ? muted : true;
+      if (url !== activeUrl) candidate.pause();
+    }
     if (!video || !playingItem?.clipUrl) return;
-    video.muted = muted;
     if (
       video.currentTime < playingItem.trimStartSec ||
       video.currentTime >= playingItem.trimEndSec
@@ -4076,6 +4111,7 @@ function ReelDetail({
     setPlayPos(0);
     setElapsed(0);
     setIsPaused(false);
+    mediaAdvanceRef.current = null;
     setPlaylist(items);
   };
 
@@ -4091,6 +4127,7 @@ function ReelDetail({
     setPlayPos(index);
     setElapsed(0);
     setIsPaused(false);
+    mediaAdvanceRef.current = null;
   };
   const currentSceneIndex = playingItem
     ? storyboard.scenes.findIndex((scene) => scene.id === playingItem.id)
@@ -4100,27 +4137,51 @@ function ReelDetail({
     setPlayPos(0);
     setElapsed(0);
     setIsPaused(false);
+    mediaAdvanceRef.current = null;
   };
 
   const previousSegment = () => {
     if (!playlist) return;
+    mediaAdvanceRef.current = null;
     setElapsed(0);
     setIsPaused(false);
     setPlayPos((position) => Math.max(0, position - 1));
   };
 
-  const nextSegment = () => {
+  const nextSegment = (manual = true) => {
     if (!playlist) return;
+    if (manual) mediaAdvanceRef.current = null;
     setElapsed(0);
     setIsPaused(false);
     setPlayPos((position) => position + 1);
   };
 
   const advanceFromMedia = () => {
-    if (mediaAdvanceRef.current) return;
-    mediaAdvanceRef.current = true;
-    playerVideoRef.current?.pause();
-    nextSegment();
+    if (!playingItem || mediaAdvanceRef.current === playingItem.id) return;
+    mediaAdvanceRef.current = playingItem.id;
+    const nextItem = playlist?.[playPos + 1];
+    const seamlessContinuation = Boolean(
+      playingItem?.clipUrl &&
+      nextItem?.clipUrl === playingItem.clipUrl &&
+      Math.abs(nextItem.trimStartSec - playingItem.trimEndSec) <= 0.15,
+    );
+    if (!seamlessContinuation) {
+      const nextVideo = nextItem?.clipUrl
+        ? playerVideoRefs.current.get(nextItem.clipUrl)
+        : null;
+      if (nextVideo && nextItem) {
+        nextVideo.muted = true;
+        if (
+          nextVideo.currentTime < nextItem.trimStartSec ||
+          nextVideo.currentTime >= nextItem.trimEndSec
+        ) {
+          nextVideo.currentTime = nextItem.trimStartSec;
+        }
+        void nextVideo.play().catch(() => undefined);
+      }
+      playerVideoRef.current?.pause();
+    }
+    nextSegment(false);
   };
 
   const updateVideoClock = (video: HTMLVideoElement) => {
@@ -4225,45 +4286,68 @@ function ReelDetail({
             className="relative aspect-video w-full overflow-hidden rounded-lg border bg-black shadow-sm"
           >
             {playingItem ? (
-              playingItem.clipUrl ? (
-                <video
-                  ref={playerVideoRef}
-                  key={`${playingItem.id}:${playingItem.trimStartSec}:${playingItem.trimEndSec}`}
-                  src={playingItem.clipUrl}
-                  poster={playingItem.url || undefined}
-                  autoPlay
-                  muted={muted}
-                  playsInline
-                  onLoadedMetadata={(event) => {
-                    event.currentTarget.currentTime = Math.min(
-                      playingItem.trimStartSec,
-                      event.currentTarget.duration ||
-                        playingItem.sourceDurationSec,
-                    );
-                  }}
-                  onTimeUpdate={(event) =>
-                    updateVideoClock(event.currentTarget)
-                  }
-                  onEnded={advanceFromMedia}
-                  onError={advanceFromMedia}
-                  className="size-full bg-black object-cover"
-                >
-                  <track
-                    kind="captions"
-                    label="Captions are rendered as an editable overlay"
+              <>
+                {playlistVideoSources.map((source) => {
+                  const sourceItem = playlist?.find(
+                    (item) => item.clipUrl === source.url,
+                  );
+                  const active = source.url === playingItem.clipUrl;
+                  return (
+                    <video
+                      ref={(node) => {
+                        if (node) playerVideoRefs.current.set(source.url, node);
+                        else playerVideoRefs.current.delete(source.url);
+                      }}
+                      key={source.url}
+                      src={source.url}
+                      poster={source.poster || undefined}
+                      preload="auto"
+                      muted={active ? muted : true}
+                      playsInline
+                      aria-hidden={!active}
+                      onLoadedMetadata={(event) => {
+                        if (!sourceItem) return;
+                        event.currentTarget.currentTime = Math.min(
+                          sourceItem.trimStartSec,
+                          event.currentTarget.duration ||
+                            sourceItem.sourceDurationSec,
+                        );
+                      }}
+                      onTimeUpdate={(event) => {
+                        if (active) updateVideoClock(event.currentTarget);
+                      }}
+                      onEnded={() => {
+                        if (active) advanceFromMedia();
+                      }}
+                      onError={() => {
+                        if (active) advanceFromMedia();
+                      }}
+                      className={cn(
+                        'absolute inset-0 size-full bg-black object-contain',
+                        active
+                          ? 'z-[1] opacity-100'
+                          : 'pointer-events-none z-0 opacity-0',
+                      )}
+                    >
+                      <track
+                        kind="captions"
+                        label="Captions are rendered as an editable overlay"
+                      />
+                    </video>
+                  );
+                })}
+                {!playingItem.clipUrl && (
+                  <NextImage
+                    key={playingItem.id}
+                    src={playingItem.url}
+                    alt={playingItem.title}
+                    width={1344}
+                    height={768}
+                    unoptimized
+                    className="relative z-[1] size-full object-contain"
                   />
-                </video>
-              ) : (
-                <NextImage
-                  key={playingItem.id}
-                  src={playingItem.url}
-                  alt={playingItem.title}
-                  width={1344}
-                  height={768}
-                  unoptimized
-                  className="size-full object-cover"
-                />
-              )
+                )}
+              </>
             ) : previewItem.clipUrl ? (
               <video
                 src={previewItem.clipUrl}
@@ -4278,7 +4362,7 @@ function ReelDetail({
                       previewItem.sourceDurationSec,
                   );
                 }}
-                className="size-full bg-black object-cover"
+                className="size-full bg-black object-contain"
               />
             ) : (
               <NextImage
@@ -4287,7 +4371,7 @@ function ReelDetail({
                 width={1344}
                 height={768}
                 unoptimized
-                className="size-full object-cover"
+                className="size-full object-contain"
               />
             )}
             {!playingItem && (
@@ -4340,7 +4424,7 @@ function ReelDetail({
                 </button>
                 <button
                   type="button"
-                  onClick={nextSegment}
+                  onClick={() => nextSegment()}
                   disabled={!playingItem}
                   className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded bg-white/10 backdrop-blur transition-colors hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white/60 disabled:opacity-35"
                   aria-label="Next segment"

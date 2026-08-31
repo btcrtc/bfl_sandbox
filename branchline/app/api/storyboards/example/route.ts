@@ -12,7 +12,11 @@ import {
   storyboardSubtitles,
   storyboardTakes,
 } from '@/db/schema';
-import { EXAMPLE_BOARD, EXAMPLE_STILL, type ExampleScene } from '@/lib/example-board';
+import {
+  EXAMPLE_BOARD,
+  EXAMPLE_STILL,
+  type ExampleScene,
+} from '@/lib/example-board';
 import { registerBundledExampleClips } from '@/lib/example-clips';
 
 // A finished-looking board for first contact: the layout reads instantly
@@ -84,9 +88,16 @@ async function registerExampleStill(input: {
 
 export async function POST() {
   const user = await getChatGPTUser();
-  if (!user) return NextResponse.json({ error: 'Sign in to create a storyboard.' }, { status: 401 });
+  if (!user)
+    return NextResponse.json(
+      { error: 'Sign in to create a storyboard.' },
+      { status: 401 },
+    );
 
-  const workspaceId = await ensurePersonalWorkspace(user.userId, user.displayName);
+  const workspaceId = await ensurePersonalWorkspace(
+    user.userId,
+    user.displayName,
+  );
   const db = getDb();
   const now = Date.now();
   const storyboardId = crypto.randomUUID();
@@ -94,7 +105,13 @@ export async function POST() {
   const generationIds: string[] = [];
   for (const [sceneIndex, scene] of EXAMPLE_BOARD.scenes.entries()) {
     generationIds.push(
-      await registerExampleStill({ workspaceId, userId: user.userId, scene, sceneIndex, now }),
+      await registerExampleStill({
+        workspaceId,
+        userId: user.userId,
+        scene,
+        sceneIndex,
+        now,
+      }),
     );
   }
 
@@ -114,28 +131,36 @@ export async function POST() {
     prompt: scene.prompt,
     videoPrompt: scene.videoPrompt,
     durationSec: scene.durationSec,
+    trimStartMs: 'trimStartMs' in scene ? scene.trimStartMs : 0,
+    trimEndMs: 'trimEndMs' in scene ? scene.trimEndMs : null,
     seed: EXAMPLE_BOARD.seed + sceneIndex,
     generationId: generationIds[sceneIndex],
     createdAt: now,
     updatedAt: now,
   }));
-  const subtitleRows = EXAMPLE_BOARD.scenes.map((scene, sceneIndex) => ({
-    id: crypto.randomUUID(),
-    storyboardId,
-    sceneId: sceneIds[sceneIndex],
-    clipId: null,
-    startMs: 400,
-    endMs: Math.min(scene.durationSec * 1_000 - 250, 3_800),
-    text: scene.subtitle.text,
-    speaker: scene.subtitle.speaker,
-    language: 'de',
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const subtitleRows = EXAMPLE_BOARD.scenes.flatMap((scene, sceneIndex) =>
+    scene.subtitle
+      ? [
+          {
+            id: crypto.randomUUID(),
+            storyboardId,
+            sceneId: sceneIds[sceneIndex],
+            clipId: null,
+            startMs: 400,
+            endMs: Math.min(scene.durationSec * 1_000 - 250, 3_800),
+            text: scene.subtitle.text,
+            speaker: scene.subtitle.speaker,
+            language: 'de',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      : [],
+  );
   // D1 caps bound variables per SQL statement. Ten cinematic frames exceed
   // that cap when emitted as one multi-row insert, so keep each statement
   // deliberately small while retaining a single batched round trip.
-  const chunks = <T,>(rows: T[], size: number) =>
+  const chunks = <T>(rows: T[], size: number) =>
     Array.from({ length: Math.ceil(rows.length / size) }, (_, index) =>
       rows.slice(index * size, index * size + size),
     );
@@ -151,9 +176,15 @@ export async function POST() {
       createdAt: now,
       updatedAt: now,
     }),
-    ...chunks(sceneRows, 4).map((rows) => db.insert(storyboardScenes).values(rows)),
-    ...chunks(takeRows, 8).map((rows) => db.insert(storyboardTakes).values(rows)),
-    ...chunks(subtitleRows, 4).map((rows) => db.insert(storyboardSubtitles).values(rows)),
+    ...chunks(sceneRows, 4).map((rows) =>
+      db.insert(storyboardScenes).values(rows),
+    ),
+    ...chunks(takeRows, 8).map((rows) =>
+      db.insert(storyboardTakes).values(rows),
+    ),
+    ...chunks(subtitleRows, 4).map((rows) =>
+      db.insert(storyboardSubtitles).values(rows),
+    ),
   ]);
 
   await registerBundledExampleClips({

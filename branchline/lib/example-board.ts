@@ -137,8 +137,10 @@ export const EXAMPLE_BOARD = {
         'Very wide night aerial of a modern workshop cantilevered over a forested ridge. Its warm ' +
         'interior is a single watchful rectangle in the immense blue-black valley.',
       videoPrompt:
-        'Six-second very wide aerial creep forward, using the same valley geography established in scene one. Fog crosses the ridge in slow layers and the warm interior light pulses almost imperceptibly. A tiny silhouette inside turns toward the window and becomes still. Preserve the building silhouette, scale and horizon; no camera roll and no cut. Sound: remote wind, a buried electrical hum and the clock pulse now slightly louder.',
-      durationSec: 6,
+        'Single continuous fifteen-second locked aerial of the workshop and valley. Fog crosses the ridge in slow layers while the warm interior holds steady; preserve the building silhouette, scale and horizon with no camera roll and no cut. The first eight seconds carry the final subtitle, then the same uninterrupted shot continues as a clean end card. Sound: remote wind, a buried electrical hum and the clock pulse gradually falling away.',
+      durationSec: 15,
+      trimStartMs: 0,
+      trimEndMs: 8_000,
       still: '/scenes/ads-art/scene-09.webp',
       subtitle: { speaker: null, text: 'Jetzt sieht es uns an.' },
     },
@@ -148,10 +150,12 @@ export const EXAMPLE_BOARD = {
         'Hold on the same remote workshop and valley after the revelation. Fog drifts between the ' +
         'ridges while the lit room remains still, letting the audience decide what is watching.',
       videoPrompt:
-        'Seven-second locked aftermath with only an imperceptible pullback. Fog climbs between the foreground ridges and gradually veils the workshop. The interior light dims until two small warm points remain aligned in the window; hold them motionless for two seconds, then let one point blink mechanically. Keep the effect ambiguous and preserve the exact building and landscape—nothing emerges. Sound: the ticking stops, silence holds, then one quiet intake of air.',
+        'Single continuous fifteen-second locked aerial of the workshop and valley. Fog crosses the ridge in slow layers while the warm interior holds steady; preserve the building silhouette, scale and horizon with no camera roll and no cut. The first eight seconds carry the final subtitle, then the same uninterrupted shot continues as a clean end card. Sound: remote wind, a buried electrical hum and the clock pulse gradually falling away.',
       durationSec: 15,
+      trimStartMs: 8_000,
+      trimEndMs: null,
       still: '/scenes/ads-art/scene-10.webp',
-      subtitle: { speaker: null, text: '[Das neue Werk erwacht.]' },
+      subtitle: null,
     },
   ],
 } as const;
