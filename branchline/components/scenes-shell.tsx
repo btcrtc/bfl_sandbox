@@ -1795,7 +1795,7 @@ function SceneDetail({
             effectiveSeed={effectiveSeed}
           />
           {tab === 'still' && scene.takes.length > 0 && (
-            <TakesRow
+            <TakesTree
               takes={scene.takes}
               activeGenerationId={scene.generationId}
               onSetActive={(generationId) => onPatch({ activeGenerationId: generationId })}
@@ -2190,7 +2190,28 @@ function SceneSeedControl({
 
 // Image-to-image refinement of the active take: describe what to add, remove
 // or change — the current frame rides along as the reference and a new take
-// branches off with the edit applied.
+// branches off with the edit applied. The presets are a director's four
+// questions over a still: what's in the frame, where's the camera, how it's
+// lit, what's in the air.
+const REFINE_PRESETS = [
+  {
+    label: 'Objects in frame',
+    text: 'Seed additional period-true objects into the frame that deepen the story — place them naturally in the existing composition: ',
+  },
+  {
+    label: 'Camera',
+    text: 'Keep the moment and the subjects, move the camera to a different setup — new angle, height and lens: ',
+  },
+  {
+    label: 'Light',
+    text: 'Relight the same frame — change the key source, ratio and color temperature while keeping the blocking: ',
+  },
+  {
+    label: 'Atmosphere',
+    text: 'Shift the weather and atmosphere of the same shot: ',
+  },
+] as const;
+
 function RefineTakeForm({
   busy,
   onRefine,
@@ -2208,6 +2229,18 @@ function RefineTakeForm({
   return (
     <div className="mt-2">
       <SystemLabel>Refine this take</SystemLabel>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {REFINE_PRESETS.map((preset) => (
+          <button
+            key={preset.label}
+            type="button"
+            onClick={() => setInstruction(preset.text)}
+            className={cn(parameterChipClass, 'h-6 text-[10px]')}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
       <div className="mt-1.5 flex items-center gap-1.5">
         <Input
           value={instruction}
@@ -2231,17 +2264,169 @@ function RefineTakeForm({
         </Button>
       </div>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        Keeps the shot, applies your change, lands as a new take (~
-        {formatUsd(SCENE_STILL_ESTIMATE_USD)}).
+        Keeps the shot, applies your change, branches off the active take (~
+        {formatUsd(SCENE_STILL_ESTIMATE_USD)}). Pick a question, finish the sentence.
       </p>
     </div>
   );
 }
 
-// Alternate renders of one scene. Clicking a thumbnail makes that take the
-// scene's active still (the one the strip, timeline and video steps use);
-// the trailing tile renders another take without losing this one.
-function TakesRow({
+// --- take tree ---------------------------------------------------------------
+// Variations of a frame form a real tree: a fresh render is a root, every
+// refinement (seeded objects, camera move, relight…) branches off its parent
+// via the run's refinedFrom link. Layout is computed from data, so the canvas
+// edges always land on their tiles.
+
+const TREE_TILE_W = 96;
+const TREE_GAP = 10;
+const TREE_EDGE_H = 24;
+
+type TakeNode = TakeDto & { children: TakeNode[] };
+
+function buildTakeTree(takes: TakeDto[]): TakeNode[] {
+  const nodes = new Map<string, TakeNode>(
+    takes.map((take) => [take.generationId, { ...take, children: [] }]),
+  );
+  const roots: TakeNode[] = [];
+  for (const node of nodes.values()) {
+    const refinedFrom = node.run?.parameters?.refinedFrom;
+    const parent =
+      typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+  const byAge = (a: TakeNode, b: TakeNode) => a.createdAt - b.createdAt;
+  for (const node of nodes.values()) node.children.sort(byAge);
+  return roots.sort(byAge);
+}
+
+function subtreeWidth(node: TakeNode): number {
+  if (!node.children.length) return TREE_TILE_W;
+  return (
+    node.children.reduce((total, child) => total + subtreeWidth(child), 0) +
+    TREE_GAP * (node.children.length - 1)
+  );
+}
+
+function TakeTile({
+  node,
+  label,
+  active,
+  onSetActive,
+}: {
+  node: TakeNode;
+  label: string;
+  active: boolean;
+  onSetActive: (generationId: string) => void;
+}) {
+  const asset = node.run?.assets[0];
+  const instruction = node.run?.parameters?.instruction;
+  return (
+    <button
+      type="button"
+      onClick={() => !active && onSetActive(node.generationId)}
+      title={typeof instruction === 'string' ? instruction : undefined}
+      className={cn(
+        'relative aspect-video w-24 shrink-0 overflow-hidden rounded border bg-muted outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
+        active
+          ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
+          : 'hover:border-foreground/30',
+      )}
+      aria-label={`${label}${active ? ' (active)' : ''}`}
+      aria-pressed={active}
+    >
+      {asset ? (
+        <NextImage
+          src={asset.url}
+          alt={label}
+          width={192}
+          height={108}
+          unoptimized
+          className="size-full object-cover"
+        />
+      ) : (
+        <span className="grid size-full place-items-center text-muted-foreground">
+          {node.run && ['queued', 'running'].includes(node.run.status) ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <ShieldAlert className="size-3.5" />
+          )}
+        </span>
+      )}
+      <span className="absolute bottom-0.5 left-0.5 rounded bg-background/85 px-1 font-mono text-[9px] backdrop-blur">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function TakeTreeBranch({
+  node,
+  labels,
+  activeGenerationId,
+  onSetActive,
+}: {
+  node: TakeNode;
+  labels: Map<string, string>;
+  activeGenerationId: string | null;
+  onSetActive: (generationId: string) => void;
+}) {
+  const width = subtreeWidth(node);
+  const childWidths = node.children.map(subtreeWidth);
+  const childCenters = childWidths.map(
+    (childWidth, childIndex) =>
+      childWidths.slice(0, childIndex).reduce((total, value) => total + value, 0) +
+      childIndex * TREE_GAP +
+      childWidth / 2,
+  );
+  const bend = TREE_EDGE_H * 0.62;
+
+  return (
+    <div style={{ width }} className="flex shrink-0 flex-col items-center">
+      <TakeTile
+        node={node}
+        label={labels.get(node.generationId) ?? 'T?'}
+        active={node.generationId === activeGenerationId}
+        onSetActive={onSetActive}
+      />
+      {node.children.length > 0 && (
+        <>
+          <svg
+            width={width}
+            height={TREE_EDGE_H}
+            viewBox={`0 0 ${width} ${TREE_EDGE_H}`}
+            className="shrink-0"
+            aria-hidden
+          >
+            {node.children.map((child, childIndex) => (
+              <path
+                key={child.id}
+                d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${TREE_EDGE_H - bend}, ${childCenters[childIndex]} ${TREE_EDGE_H}`}
+                className={cn(
+                  'graph-edge',
+                  child.generationId === activeGenerationId && 'graph-edge-active',
+                )}
+              />
+            ))}
+          </svg>
+          <div className="flex items-start" style={{ gap: TREE_GAP }}>
+            {node.children.map((child) => (
+              <TakeTreeBranch
+                key={child.id}
+                node={child}
+                labels={labels}
+                activeGenerationId={activeGenerationId}
+                onSetActive={onSetActive}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TakesTree({
   takes,
   activeGenerationId,
   onSetActive,
@@ -2254,68 +2439,49 @@ function TakesRow({
   onNewTake: () => void;
   busy: boolean;
 }) {
+  const roots = buildTakeTree(takes);
+  const labels = new Map(
+    takes
+      .slice()
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((take, index) => [take.generationId, `T${index + 1}`]),
+  );
   return (
     <div className="mt-2">
-      <SystemLabel>Takes</SystemLabel>
-      <div className="mt-1.5 flex items-center gap-1.5 overflow-x-auto pb-1">
-        {takes.map((take, index) => {
-          const asset = take.run?.assets[0];
-          const active = take.generationId === activeGenerationId;
-          return (
-            <button
-              key={take.id}
-              type="button"
-              onClick={() => !active && onSetActive(take.generationId)}
-              className={cn(
-                'relative aspect-video w-24 shrink-0 overflow-hidden rounded border bg-muted outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
-                active
-                  ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
-                  : 'hover:border-foreground/30',
-              )}
-              aria-label={`Take ${index + 1}${active ? ' (active)' : ''}`}
-              aria-pressed={active}
-            >
-              {asset ? (
-                <NextImage
-                  src={asset.url}
-                  alt={`Take ${index + 1}`}
-                  width={192}
-                  height={108}
-                  unoptimized
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="grid size-full place-items-center text-muted-foreground">
-                  {take.run && ['queued', 'running'].includes(take.run.status) ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <ShieldAlert className="size-3.5" />
-                  )}
-                </span>
-              )}
-              <span className="absolute bottom-0.5 left-0.5 rounded bg-background/85 px-1 font-mono text-[9px] backdrop-blur">
-                T{index + 1}
+      <SystemLabel>Take tree</SystemLabel>
+      <div className="mt-1.5 overflow-x-auto pb-1">
+        <div className="flex items-start" style={{ gap: TREE_GAP }}>
+          {roots.map((root) => (
+            <TakeTreeBranch
+              key={root.id}
+              node={root}
+              labels={labels}
+              activeGenerationId={activeGenerationId}
+              onSetActive={onSetActive}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={onNewTake}
+            disabled={busy}
+            className="grid aspect-video w-24 shrink-0 place-items-center rounded border border-dashed text-muted-foreground outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+            aria-label="Render a new root take"
+          >
+            {busy ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <span className="flex flex-col items-center gap-0.5">
+                <Plus className="size-3.5" />
+                <span className="font-mono text-[8px] uppercase tracking-wider">New take</span>
               </span>
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          onClick={onNewTake}
-          disabled={busy}
-          className="grid aspect-video w-24 shrink-0 place-items-center rounded border border-dashed text-muted-foreground outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
-          aria-label="Render a new take"
-        >
-          {busy ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <span className="flex flex-col items-center gap-0.5">
-              <Plus className="size-3.5" />
-              <span className="font-mono text-[8px] uppercase tracking-wider">New take</span>
-            </span>
-          )}
-        </button>
+            )}
+          </button>
+        </div>
       </div>
+      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+        A refinement branches off the take it was made from — click any node to make it the
+        scene&apos;s active frame.
+      </p>
     </div>
   );
 }
@@ -2334,11 +2500,13 @@ function clampDuration(value: number) {
 function TimelineBlock({
   scene,
   playing,
+  selected,
   onSelect,
   onTrim,
 }: {
   scene: SceneDto;
   playing: boolean;
+  selected: boolean;
   onSelect: () => void;
   onTrim: (durationSec: number) => void;
 }) {
@@ -2354,7 +2522,9 @@ function TimelineBlock({
     <div
       className={cn(
         'relative h-20 shrink-0 overflow-hidden rounded-md border bg-muted transition-all',
-        playing && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+        playing
+          ? 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
+          : selected && 'border-foreground/50 ring-2 ring-foreground/15',
       )}
       style={{ width: durationSec * TIMELINE_PX_PER_SEC }}
     >
@@ -2477,6 +2647,8 @@ function ReelDetail({
   }> | null>(null);
   const [playPos, setPlayPos] = useState(0);
   const playingItem = playlist && playPos < playlist.length ? playlist[playPos] : null;
+  // Which block on the track is selected for review (independent of playback).
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!playlist) return;
@@ -2515,7 +2687,15 @@ function ReelDetail({
           ]
         : [];
     });
-  const previewItem = playingItem ?? buildPlaylist()[0] ?? null;
+  const playableItems = buildPlaylist();
+  const previewItem =
+    playingItem ??
+    (selectedTrackId ? playableItems.find((item) => item.id === selectedTrackId) : undefined) ??
+    playableItems[0] ??
+    null;
+  const selectedTrackScene = selectedTrackId
+    ? (storyboard.scenes.find((scene) => scene.id === selectedTrackId) ?? null)
+    : null;
 
   const startAnimatic = () => {
     const items = buildPlaylist();
@@ -2752,47 +2932,43 @@ function ReelDetail({
                   key={scene.id}
                   scene={scene}
                   playing={playingItem?.id === scene.id}
-                  onSelect={() => onSelectScene(scene.id)}
+                  selected={selectedTrackId === scene.id}
+                  onSelect={() => setSelectedTrackId(scene.id)}
                   onTrim={(durationSec) => onTrim(scene.id, durationSec)}
                 />
               ))}
             </div>
           </div>
+          {selectedTrackScene && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border bg-background px-2.5 py-1.5">
+              <span className="min-w-0 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {String(selectedTrackScene.sceneIndex + 1).padStart(2, '0')} ·{' '}
+                {selectedTrackScene.title} · {selectedTrackScene.durationSec}s ·{' '}
+                {latestClip(selectedTrackScene, ['fhd', 'hd', 'draft'])?.tier ??
+                  (selectedTrackScene.run?.assets[0] ? 'still' : 'empty')}
+              </span>
+              <span className="ml-auto flex items-center gap-1.5">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => jumpTo(selectedTrackScene.id)}
+                >
+                  <Play /> Play from here
+                </Button>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => onSelectScene(selectedTrackScene.id)}
+                >
+                  Open scene
+                </Button>
+              </span>
+            </div>
+          )}
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Drag a block&apos;s right edge to trim its duration · click a block to open the scene ·
-            click a segment in the player bar to play from there.
+            Click a block to select it for review · drag its right edge to trim · click a segment
+            in the player bar to play from that scene.
           </p>
-        </div>
-      )}
-
-      {storyboard.scenes.length > 0 && (
-        <div className="mt-4 space-y-1.5">
-          {storyboard.scenes.map((scene) => {
-            const steps = sceneSteps(scene);
-            const bestClip = latestClip(scene, ['fhd', 'hd', 'draft']);
-            return (
-              <div
-                key={scene.id}
-                className="flex items-center gap-3 rounded-md border bg-background px-2.5 py-1.5"
-              >
-                <span className="w-16 shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
-                  Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[12px]">{scene.title}</span>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {scene.durationSec}s
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <StepDot label="Still" state={steps.still} />
-                  <StepDot label="Draft clip" state={videoEnabled ? steps.draft : 'idle'} />
-                  <StepDot label="Enhanced" state={videoEnabled ? steps.enhance : 'idle'} />
-                </span>
-                <span className="w-14 text-right font-mono text-[10px] uppercase text-muted-foreground">
-                  {bestClip ? bestClip.tier : steps.still === 'done' ? 'still' : '—'}
-                </span>
-              </div>
-            );
-          })}
         </div>
       )}
 
