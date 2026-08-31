@@ -195,7 +195,7 @@ type BranchRequest = {
   variationPrompt: string;
 };
 
-type FrameLayerType = 'camera' | 'lens' | 'light' | 'refine';
+type FrameLayerType = 'camera' | 'lens' | 'light' | 'color' | 'refine';
 
 const FRAME_LAYER_META: Record<
   FrameLayerType,
@@ -215,6 +215,11 @@ const FRAME_LAYER_META: Record<
     label: 'Light',
     description: 'Motivation, ratio, colour and atmosphere.',
     icon: SunMedium,
+  },
+  color: {
+    label: 'Color',
+    description: 'Palette, contrast curve and color separation.',
+    icon: Palette,
   },
   refine: {
     label: 'Polish',
@@ -261,6 +266,18 @@ const FRAME_LAYER_PRESETS: Record<
       label: 'Blue-hour ambient',
       prompt:
         'Shift the ambient exposure to blue hour with soft cyan skylight, restrained warm practicals and dense, readable shadow detail.',
+    },
+  ],
+  color: [
+    {
+      label: 'Warm mineral',
+      prompt:
+        'Grade toward warm mineral amber, tobacco brown and dense neutral black. Keep skin natural and protect the candle highlight from clipping.',
+    },
+    {
+      label: 'Cyan / amber split',
+      prompt:
+        'Use restrained cyan shadows and amber practical highlights with clean neutral skin, readable blacks and no artificial teal-orange saturation.',
     },
   ],
   refine: [
@@ -407,6 +424,203 @@ function FrameBranchCard({
   );
 }
 
+type RecipeLayer = {
+  type: FrameLayerType | 'base';
+  label: string;
+  value: string;
+  inherited?: boolean;
+};
+
+function RecipeLayerIcon({ type }: { type: RecipeLayer['type'] }) {
+  if (type === 'base') return <ImageIcon className="size-3" />;
+  const Icon = FRAME_LAYER_META[type].icon;
+  return <Icon className="size-3" />;
+}
+
+function FrameRecipeNode({
+  eyebrow,
+  title,
+  note,
+  image,
+  layers,
+  selected,
+  onSelect,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  note: string;
+  image: string;
+  layers: RecipeLayer[];
+  selected: boolean;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <article
+      className={cn(
+        'relative overflow-visible rounded-xl border bg-background shadow-[var(--floating-shadow)] transition-all',
+        selected
+          ? 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
+          : 'hover:-translate-y-0.5 hover:border-foreground/25',
+      )}
+    >
+      <span className="absolute -left-1.5 top-20 size-3 rounded-full border-2 border-background bg-border" />
+      <span className="absolute -right-1.5 top-20 size-3 rounded-full border-2 border-background bg-[var(--brand)]" />
+      <button
+        type="button"
+        onClick={onSelect}
+        className="relative block aspect-[2.15/1] w-full overflow-hidden rounded-t-[11px] bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+      >
+        <NextImage src={image} alt={title} fill unoptimized className="object-cover" />
+        <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent px-3 pb-2 pt-9 text-white">
+          <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">
+            {eyebrow}
+          </span>
+          <span className="mt-0.5 block truncate text-[12px] font-medium">{title}</span>
+        </span>
+        {selected && (
+          <span className="absolute right-2 top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[8px] uppercase text-black shadow">
+            active path
+          </span>
+        )}
+      </button>
+      <div className="p-2.5">
+        <p className="line-clamp-2 min-h-7 text-[9px] leading-3.5 text-muted-foreground">
+          {note}
+        </p>
+        <div className="mt-2 space-y-1">
+          {layers.map((layer, index) => (
+            <button
+              key={`${layer.type}:${layer.value}:${index}`}
+              type="button"
+              onClick={onSelect}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                layer.inherited ? 'border-dashed bg-muted/25' : 'bg-background',
+              )}
+            >
+              <span className="grid size-5 shrink-0 place-items-center rounded bg-muted text-muted-foreground">
+                <RecipeLayerIcon type={layer.type} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-mono text-[7px] uppercase tracking-wider text-muted-foreground">
+                  {layer.label}{layer.inherited ? ' · inherited' : ''}
+                </span>
+                <span className="block truncate text-[9px] font-medium">{layer.value}</span>
+              </span>
+              <ChevronDown className="size-3 -rotate-90 text-muted-foreground/50" />
+            </button>
+          ))}
+        </div>
+        <div className="mt-2">{children}</div>
+      </div>
+    </article>
+  );
+}
+
+function PromptLayerBuilder({
+  sourceLabel,
+  type,
+  label,
+  prompt,
+  disabled,
+  busy,
+  onTypeChange,
+  onPresetChange,
+  onLabelChange,
+  onPromptChange,
+  onRun,
+}: {
+  sourceLabel: string;
+  type: FrameLayerType;
+  label: string;
+  prompt: string;
+  disabled: boolean;
+  busy: boolean;
+  onTypeChange: (type: FrameLayerType) => void;
+  onPresetChange: (label: string) => void;
+  onLabelChange: (label: string) => void;
+  onPromptChange: (prompt: string) => void;
+  onRun: () => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <SystemLabel>Add prompt layer</SystemLabel>
+          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+            Child of <span className="font-medium text-foreground">{sourceLabel}</span>
+          </p>
+        </div>
+        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground">
+          one decision
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-5 gap-1">
+        {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((entryType) => {
+          const meta = FRAME_LAYER_META[entryType];
+          const Icon = meta.icon;
+          return (
+            <button
+              key={entryType}
+              type="button"
+              onClick={() => onTypeChange(entryType)}
+              title={meta.description}
+              className={cn(
+                'flex min-w-0 flex-col items-center gap-1 rounded-md border px-1 py-2 text-[8px] outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                type === entryType && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+              )}
+            >
+              <Icon className="size-3.5" />
+              <span className="truncate">{meta.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <Select value={label} onValueChange={(value) => value && onPresetChange(value)}>
+        <SelectTrigger className="mt-2 h-8! w-full bg-background text-[11px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="start">
+          {FRAME_LAYER_PRESETS[type].map((preset) => (
+            <SelectItem key={preset.label} value={preset.label}>
+              {preset.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Input
+        value={label}
+        onChange={(event) => onLabelChange(event.target.value)}
+        maxLength={80}
+        aria-label="Prompt layer name"
+        className="mt-2 h-8 bg-background text-[11px]"
+      />
+      <Textarea
+        value={prompt}
+        onChange={(event) => onPromptChange(event.target.value)}
+        maxLength={800}
+        className="mt-2 min-h-24 resize-none bg-background text-[11px] leading-4"
+      />
+      <Button
+        size="sm"
+        className="mt-2 w-full"
+        disabled={disabled || busy || prompt.trim().length < 3}
+        onClick={onRun}
+      >
+        {busy ? <Loader2 className="animate-spin" /> : <GitBranch />}
+        Generate child node
+      </Button>
+      {disabled && (
+        <p className="mt-1.5 text-[9px] leading-3.5 text-muted-foreground">
+          Generate or select a live base frame first. The example graph remains fully inspectable.
+        </p>
+      )}
+    </div>
+  );
+}
+
 const fallbackHistory: HistoryRun[] = [
   ['sample-0', 'Soft industrial product portrait on warm mineral paper', 'FLUX.2 [max]', 2, 18],
   ['sample-1', 'Retro-futurist desktop machine, quiet studio light', 'FLUX.2 [max]', 2, 1_440],
@@ -443,7 +657,7 @@ export function PlaygroundShell({
   const [selectedNode, setSelectedNode] = useState<NodeId>('model');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [prompt, setPrompt] = useState(
-    'A precise product portrait of a compact creative machine, warm mineral background, soft studio light, tactile controls.',
+    'An elderly clockmaker works alone at a scarred wooden bench, holding a brass gear beside one candle in a nearly black forest workshop. Preserve tactile period tools, smoke and deep nocturnal atmosphere.',
   );
   const [historyItems, setHistoryItems] = useState<HistoryRun[]>(viewer ? [] : fallbackHistory);
   const [historyState, setHistoryState] = useState<'loading' | 'synced' | 'error'>(
@@ -477,6 +691,7 @@ export function PlaygroundShell({
   const [frameLayerPrompt, setFrameLayerPrompt] = useState(
     FRAME_LAYER_PRESETS.lens[0].prompt,
   );
+  const [selectedRecipeNode, setSelectedRecipeNode] = useState('base');
 
   const dimensions = aspectOptions.find((option) => option.value === aspect) ?? aspectOptions[1];
   const selected = inspectorCopy[selectedNode];
@@ -748,7 +963,9 @@ export function PlaygroundShell({
             ? 'Preserve camera position, subjects, blocking, light and geography. Change only focal rendering and optical character.'
             : variationType === 'light'
               ? 'Preserve camera, lens, subjects, blocking and production design. Change only the motivated light and atmosphere.'
-              : 'Preserve the approved composition, camera, lens and lighting. Apply only the finishing instruction above.',
+              : variationType === 'color'
+                ? 'Preserve the approved composition, subjects, camera, lens and lighting geometry. Change only palette, contrast and color separation.'
+                : 'Preserve the approved composition, camera, lens and lighting. Apply only the finishing instruction above.',
       ].join('\n');
       setPrompt(payload.prompt);
       setSeed(payload.seed);
@@ -830,7 +1047,9 @@ export function PlaygroundShell({
     ) ??
     null;
   const frameLayerRuns = historyItems.filter((item) =>
-    ['camera', 'lens', 'light', 'refine'].includes(String(item.parameters.variationType)),
+    ['camera', 'lens', 'light', 'color', 'refine'].includes(
+      String(item.parameters.variationType),
+    ),
   );
   const activeFrame =
     (activeFrameRunId
@@ -871,6 +1090,42 @@ export function PlaygroundShell({
     setFrameLayerLabel(first.label);
     setFrameLayerPrompt(first.prompt);
   };
+
+  const chooseFrameLayerPreset = (value: string) => {
+    const preset = FRAME_LAYER_PRESETS[frameLayerType].find((entry) => entry.label === value);
+    if (!preset) return;
+    setFrameLayerLabel(preset.label);
+    setFrameLayerPrompt(preset.prompt);
+  };
+
+  const prepareRecipeNode = (nodeId: string, nextType: FrameLayerType) => {
+    setSelectedRecipeNode(nodeId);
+    if (branchRoot) setActiveFrameRunId(branchRoot.id);
+    chooseFrameLayerType(nextType);
+  };
+
+  const renderPromptLayerBuilder = (sourceLabel: string) => (
+    <PromptLayerBuilder
+      sourceLabel={sourceLabel}
+      type={frameLayerType}
+      label={frameLayerLabel}
+      prompt={frameLayerPrompt}
+      disabled={!activeFrame?.assets[0]}
+      busy={isRunning}
+      onTypeChange={chooseFrameLayerType}
+      onPresetChange={chooseFrameLayerPreset}
+      onLabelChange={setFrameLayerLabel}
+      onPromptChange={setFrameLayerPrompt}
+      onRun={() =>
+        createFrameVariation(
+          activeFrame,
+          frameLayerType,
+          frameLayerLabel.trim() || FRAME_LAYER_META[frameLayerType].label,
+          frameLayerPrompt.trim(),
+        )
+      }
+    />
+  );
 
   return (
     <TooltipProvider delay={350}>
@@ -967,10 +1222,10 @@ export function PlaygroundShell({
           }
         />
 
-        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_var(--app-inspector-width)_minmax(0,1fr)_var(--app-history-width)] max-2xl:grid-cols-[var(--app-rail-width)_var(--app-inspector-width)_minmax(0,1fr)]">
+        <div className="grid h-[calc(100svh-var(--app-header-height))] grid-cols-[var(--app-rail-width)_minmax(0,1fr)_var(--app-history-width)] max-2xl:grid-cols-[var(--app-rail-width)_minmax(0,1fr)]">
           <ProductRail active="playground" />
 
-          <aside className="flex min-h-0 flex-col border-r bg-playground-surface">
+          <aside className="hidden min-h-0 flex-col border-r bg-playground-surface">
             <div className="flex h-[var(--app-header-height)] items-center justify-between border-b px-4">
               <div>
                 <SystemLabel>{selected.label}</SystemLabel>
@@ -1236,7 +1491,390 @@ export function PlaygroundShell({
             </div>
           </aside>
 
-          <section className="relative min-w-0 overflow-hidden bg-[var(--canvas)]">
+          <section className="relative min-w-0 overflow-y-auto bg-[var(--canvas)]">
+            <div className="pointer-events-none absolute inset-0 graph-grid opacity-60" />
+            <div className="sticky top-0 z-30 flex min-h-[var(--app-header-height)] flex-wrap items-center gap-2 border-b bg-background/94 px-4 py-2 backdrop-blur-md">
+              <div className="mr-2 min-w-44">
+                <div className="flex items-center gap-1.5">
+                  <Layers3 className="size-3.5" />
+                  <span className="text-[13px] font-medium">Frame Stack</span>
+                  <Badge variant="outline" className="h-5 font-mono text-[8px] uppercase">
+                    prompt constructor
+                  </Badge>
+                </div>
+                <p className="mt-0.5 text-[9px] text-muted-foreground">
+                  One frame · two optical paths · iterative prompt layers
+                </p>
+              </div>
+
+              <Select
+                value={model}
+                onValueChange={(value) => value && isKnownModel(value) && setModel(value)}
+              >
+                <SelectTrigger className="h-8! w-40 bg-background text-[11px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  {modelOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <AspectParameter
+                label="Aspect"
+                value={aspect}
+                onValueChange={(value) => setAspect(value as typeof aspect)}
+              />
+              <ParameterSelect
+                label="Outputs"
+                value={outputs}
+                options={['1', '2', '3', '4']}
+                onValueChange={setOutputs}
+              />
+
+              <Popover>
+                <PopoverTrigger
+                  render={
+                    <Button variant="outline" size="sm" className="h-8 text-[11px]">
+                      <SlidersHorizontal /> Parameters
+                    </Button>
+                  }
+                />
+                <PopoverContent align="start" side="bottom" className="w-72 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-medium">Prompt upsampling</p>
+                      <p className="text-[9px] text-muted-foreground">Expand intent before inference</p>
+                    </div>
+                    <Switch size="sm" checked={promptUpsampling} onCheckedChange={setPromptUpsampling} />
+                  </div>
+                  <Separator className="my-3" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <ParameterSelect
+                      label="Safety"
+                      value={safety}
+                      options={['0', '1', '2', '3', '4', '5', '6']}
+                      onValueChange={setSafety}
+                    />
+                    <ParameterSelect
+                      label="Format"
+                      value={outputFormat.toUpperCase()}
+                      options={['PNG', 'JPEG', 'WEBP']}
+                      onValueChange={(value) =>
+                        setOutputFormat(value.toLowerCase() as typeof outputFormat)
+                      }
+                    />
+                  </div>
+                  <SystemLabel className="mt-3">Seed</SystemLabel>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Input
+                      value={seed == null ? '' : String(seed)}
+                      onChange={(event) => {
+                        const raw = event.target.value.replace(/[^0-9]/g, '');
+                        setSeed(raw ? Math.min(Number(raw), 2 ** 32 - 1) : null);
+                      }}
+                      inputMode="numeric"
+                      placeholder="Random"
+                      className="h-8 bg-background font-mono text-[10px]"
+                    />
+                    <Button variant="outline" size="icon-sm" onClick={() => setSeed(randomSeed())}>
+                      <Dices />
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <div className="ml-auto flex items-center gap-1.5">
+                <span className="hidden font-mono text-[9px] uppercase text-muted-foreground xl:inline">
+                  ~{formatUsd(estimatedCost)} / base
+                </span>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setApiPayloadOpen(true)}>
+                  <Code2 /> API
+                </Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setHistoryOpen(true)}>
+                  <History /> History
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8"
+                  onClick={() => void runWorkflow()}
+                  disabled={isRunning || prompt.trim().length < 3}
+                >
+                  {isRunning ? <Loader2 className="animate-spin" /> : <Play />}
+                  Generate base
+                </Button>
+              </div>
+            </div>
+
+            {runMessage && (
+              <div
+                className={cn(
+                  'relative z-20 mx-5 mt-3 rounded-md border px-3 py-2 text-[10px]',
+                  runMessage.tone === 'error'
+                    ? 'border-destructive/30 bg-destructive/5 text-destructive'
+                    : 'bg-background/85 text-muted-foreground',
+                )}
+              >
+                {runMessage.text}
+              </div>
+            )}
+
+            <div className="relative z-10 mx-auto min-w-[1120px] max-w-[1180px] px-5 pb-10 pt-5">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <SystemLabel>Example branch · Clockmaker at work</SystemLabel>
+                  <p className="mt-1 text-[12px] font-medium">Compare decisions, not random outputs</p>
+                  <p className="mt-0.5 max-w-2xl text-[10px] leading-4 text-muted-foreground">
+                    Every child inherits the complete recipe above it. Add or edit one layer on the
+                    node; generation creates another child without mutating its parent.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 font-mono text-[8px] uppercase text-muted-foreground">
+                  <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-border" /> inherited</span>
+                  <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--brand)]" /> local decision</span>
+                </div>
+              </div>
+
+              <div className="relative h-[810px] overflow-hidden rounded-2xl border bg-background/42 p-4 shadow-inner backdrop-blur-[2px]">
+                <svg
+                  className="pointer-events-none absolute inset-0 size-full"
+                  viewBox="0 0 1140 810"
+                  preserveAspectRatio="none"
+                  aria-hidden
+                >
+                  <path d="M 306 390 C 334 390, 330 166, 374 166" className="graph-edge" />
+                  <path d="M 306 390 C 334 390, 330 585, 374 585" className="graph-edge" />
+                  <path d="M 666 166 C 692 166, 700 166, 734 166" className="graph-edge graph-edge-active" />
+                  <path d="M 666 585 C 692 585, 700 585, 734 585" className="graph-edge graph-edge-active" />
+                  <path d="M 1026 166 C 1052 166, 1054 166, 1082 166" className="graph-edge" strokeDasharray="4 4" />
+                  <path d="M 1026 585 C 1052 585, 1054 585, 1082 585" className="graph-edge" strokeDasharray="4 4" />
+                </svg>
+
+                <article
+                  className={cn(
+                    'absolute left-4 top-[190px] w-[290px] overflow-visible rounded-xl border bg-background shadow-[var(--floating-shadow)]',
+                    selectedRecipeNode === 'base' && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                  )}
+                >
+                  <span className="absolute -right-1.5 top-20 size-3 rounded-full border-2 border-background bg-[var(--brand)]" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRecipeNode('base')}
+                    className="relative block aspect-[2.15/1] w-full overflow-hidden rounded-t-[11px] bg-muted text-left"
+                  >
+                    <NextImage
+                      src="/scenes/ads-art/scene-02.webp"
+                      alt="Clockmaker base frame"
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-9 text-white">
+                      <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">00 · source</span>
+                      <span className="mt-0.5 block text-[12px] font-medium">Clockmaker at work</span>
+                    </span>
+                  </button>
+                  <div className="p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <SystemLabel>Base prompt</SystemLabel>
+                      <span className="font-mono text-[8px] text-muted-foreground">{prompt.length} chars</span>
+                    </div>
+                    <Textarea
+                      value={prompt}
+                      onChange={(event) => setPrompt(event.target.value)}
+                      className="mt-1.5 min-h-24 resize-none bg-background text-[10px] leading-4"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{model}</span>
+                      <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{aspect}</span>
+                      <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>seed {seed ?? 'random'}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                      <Button size="xs" onClick={() => void runWorkflow()} disabled={isRunning || prompt.trim().length < 3}>
+                        {isRunning ? <Loader2 className="animate-spin" /> : <Play />} Render base
+                      </Button>
+                      <Popover
+                        onOpenChange={(open) => open && prepareRecipeNode('base', 'lens')}
+                      >
+                        <PopoverTrigger render={<Button size="xs" variant="outline"><Plus /> Add branch</Button>} />
+                        <PopoverContent side="right" align="start" className="w-[350px] p-3">
+                          {renderPromptLayerBuilder('Clockmaker at work')}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                </article>
+
+                <div className="absolute left-[374px] top-4 w-[290px]">
+                  <FrameRecipeNode
+                    eyebrow="01 · lens branch A"
+                    title="Cooke S4 · 40 mm"
+                    note="Warm dimensional glass; the full workshop geography stays readable."
+                    image="/frame-stack/cooke-40mm.jpg"
+                    selected={selectedRecipeNode === 'cooke'}
+                    onSelect={() => setSelectedRecipeNode('cooke')}
+                    layers={[
+                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                      { type: 'camera', label: 'Camera', value: 'Locked medium bench', inherited: true },
+                      { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm' },
+                    ]}
+                  >
+                    <Popover onOpenChange={(open) => open && prepareRecipeNode('cooke', 'light')}>
+                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add layer to this node</Button>} />
+                      <PopoverContent side="right" align="start" className="w-[350px] p-3">
+                        {renderPromptLayerBuilder('Cooke S4 · 40 mm')}
+                      </PopoverContent>
+                    </Popover>
+                  </FrameRecipeNode>
+                </div>
+
+                <div className="absolute left-[734px] top-4 w-[290px]">
+                  <FrameRecipeNode
+                    eyebrow="02 · light iteration"
+                    title="Tungsten practical"
+                    note="Same Cooke path, now with stronger motivated amber light and negative fill."
+                    image="/frame-stack/cooke-tungsten.jpg"
+                    selected={selectedRecipeNode === 'cooke-light'}
+                    onSelect={() => setSelectedRecipeNode('cooke-light')}
+                    layers={[
+                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                      { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm', inherited: true },
+                      { type: 'light', label: 'Light', value: 'Tungsten practical' },
+                      { type: 'color', label: 'Color', value: 'Warm mineral' },
+                    ]}
+                  >
+                    <Popover onOpenChange={(open) => open && prepareRecipeNode('cooke-light', 'refine')}>
+                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add polish layer</Button>} />
+                      <PopoverContent side="left" align="start" className="w-[350px] p-3">
+                        {renderPromptLayerBuilder('Tungsten practical')}
+                      </PopoverContent>
+                    </Popover>
+                  </FrameRecipeNode>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => prepareRecipeNode('cooke-light', 'refine')}
+                  className="absolute left-[1080px] top-[132px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+                  aria-label="Continue Cooke branch"
+                >
+                  <Plus className="size-4" />
+                </button>
+
+                <div className="absolute left-[374px] top-[423px] w-[290px]">
+                  <FrameRecipeNode
+                    eyebrow="01 · lens branch B"
+                    title="Zeiss Super Speed · 85 mm"
+                    note="A tighter portrait path with compressed depth and precise focus on the gear."
+                    image="/frame-stack/zeiss-85mm.jpg"
+                    selected={selectedRecipeNode === 'zeiss'}
+                    onSelect={() => setSelectedRecipeNode('zeiss')}
+                    layers={[
+                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                      { type: 'camera', label: 'Camera', value: 'Intimate bench portrait', inherited: true },
+                      { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm' },
+                    ]}
+                  >
+                    <Popover onOpenChange={(open) => open && prepareRecipeNode('zeiss', 'light')}>
+                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add layer to this node</Button>} />
+                      <PopoverContent side="right" align="start" className="w-[350px] p-3">
+                        {renderPromptLayerBuilder('Zeiss Super Speed · 85 mm')}
+                      </PopoverContent>
+                    </Popover>
+                  </FrameRecipeNode>
+                </div>
+
+                <div className="absolute left-[734px] top-[423px] w-[290px]">
+                  <FrameRecipeNode
+                    eyebrow="02 · light iteration"
+                    title="Blue-hour ambient"
+                    note="The Zeiss path gains cool environmental wrap while the candle stays motivated."
+                    image="/frame-stack/zeiss-blue-hour.jpg"
+                    selected={selectedRecipeNode === 'zeiss-light'}
+                    onSelect={() => setSelectedRecipeNode('zeiss-light')}
+                    layers={[
+                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                      { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm', inherited: true },
+                      { type: 'light', label: 'Light', value: 'Blue-hour ambient' },
+                      { type: 'color', label: 'Color', value: 'Cyan / amber split' },
+                    ]}
+                  >
+                    <Popover onOpenChange={(open) => open && prepareRecipeNode('zeiss-light', 'refine')}>
+                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add polish layer</Button>} />
+                      <PopoverContent side="left" align="start" className="w-[350px] p-3">
+                        {renderPromptLayerBuilder('Blue-hour ambient')}
+                      </PopoverContent>
+                    </Popover>
+                  </FrameRecipeNode>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => prepareRecipeNode('zeiss-light', 'refine')}
+                  className="absolute left-[1080px] top-[551px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+                  aria-label="Continue Zeiss branch"
+                >
+                  <Plus className="size-4" />
+                </button>
+              </div>
+
+              {frameLayerRuns.length > 0 && (
+                <div className="mt-5 rounded-xl border bg-background/75 p-3 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <SystemLabel>Live branches</SystemLabel>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Generated nodes from this workspace. Select one to make it the parent of the next layer.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                      {frameLayerRuns.length} generated
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {frameLayerRuns.slice(0, 4).map((run) => {
+                      const type = String(run.parameters.variationType) as FrameLayerType;
+                      const label =
+                        typeof run.parameters.variationLabel === 'string'
+                          ? run.parameters.variationLabel
+                          : FRAME_LAYER_META[type]?.label ?? 'Prompt layer';
+                      return (
+                        <button
+                          key={run.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveFrameRunId(run.id);
+                            setDetailRunId(run.id);
+                          }}
+                          className={cn(
+                            'flex items-center gap-2 rounded-lg border bg-background p-2 text-left transition-colors hover:border-foreground/30',
+                            activeFrame?.id === run.id && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+                          )}
+                        >
+                          <span className="relative size-12 shrink-0 overflow-hidden rounded bg-muted">
+                            {run.assets[0] ? (
+                              <NextImage src={run.assets[0].url} alt="" fill unoptimized className="object-cover" />
+                            ) : (
+                              <span className="grid size-full place-items-center"><Loader2 className="size-3 animate-spin" /></span>
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block font-mono text-[7px] uppercase text-muted-foreground">{FRAME_LAYER_META[type]?.label ?? 'Layer'}</span>
+                            <span className="block truncate text-[9px] font-medium">{label}</span>
+                            <span className="mt-0.5 block text-[8px] text-muted-foreground">{run.status}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="hidden min-w-0 overflow-hidden bg-[var(--canvas)]">
             <div className="absolute inset-0 graph-grid opacity-60" />
             <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
               <Badge

@@ -119,6 +119,7 @@ function validate(body: CreateBody | null) {
     body.variationType === 'camera' ||
     body.variationType === 'lens' ||
     body.variationType === 'light' ||
+    body.variationType === 'color' ||
     body.variationType === 'refine'
       ? body.variationType
       : null;
