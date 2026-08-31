@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from 'react';
@@ -32,6 +33,8 @@ import {
   Layers3,
   Lightbulb,
   Loader2,
+  Maximize2,
+  Minimize2,
   Palette,
   Play,
   Plus,
@@ -45,6 +48,8 @@ import {
   SunMedium,
   WandSparkles,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -431,6 +436,67 @@ type RecipeLayer = {
   inherited?: boolean;
 };
 
+type FrameCanvasState = 'empty' | 'base' | 'one-branch' | 'branching';
+type RecipeNodeId = 'base' | 'cooke' | 'cooke-light' | 'zeiss' | 'zeiss-light';
+
+const FRAME_CANVAS_STATES: Array<{
+  value: FrameCanvasState;
+  label: string;
+  nodeCount: number;
+  description: string;
+}> = [
+  {
+    value: 'empty',
+    label: 'Empty canvas',
+    nodeCount: 0,
+    description: 'Start by defining and rendering one root frame.',
+  },
+  {
+    value: 'base',
+    label: 'Base only',
+    nodeCount: 1,
+    description: 'The root can still be replaced because it has no descendants.',
+  },
+  {
+    value: 'one-branch',
+    label: 'One branch',
+    nodeCount: 2,
+    description: 'The root is locked; continue from either selected node.',
+  },
+  {
+    value: 'branching',
+    label: 'Branching',
+    nodeCount: 5,
+    description: 'Compare independent optical paths and keep extending approved decisions.',
+  },
+];
+
+const FRAME_RECIPE_CONTEXT: Record<
+  RecipeNodeId,
+  { label: string; eyebrow: string; nextType: FrameLayerType; childCount: number }
+> = {
+  base: { label: 'Clockmaker at work', eyebrow: 'Root frame', nextType: 'lens', childCount: 2 },
+  cooke: { label: 'Cooke S4 · 40 mm', eyebrow: 'Lens branch A', nextType: 'light', childCount: 1 },
+  'cooke-light': {
+    label: 'Tungsten practical',
+    eyebrow: 'Light iteration',
+    nextType: 'refine',
+    childCount: 0,
+  },
+  zeiss: {
+    label: 'Zeiss Super Speed · 85 mm',
+    eyebrow: 'Lens branch B',
+    nextType: 'light',
+    childCount: 1,
+  },
+  'zeiss-light': {
+    label: 'Blue-hour ambient',
+    eyebrow: 'Light iteration',
+    nextType: 'refine',
+    childCount: 0,
+  },
+};
+
 function RecipeLayerIcon({ type }: { type: RecipeLayer['type'] }) {
   if (type === 'base') return <ImageIcon className="size-3" />;
   const Icon = FRAME_LAYER_META[type].icon;
@@ -445,6 +511,7 @@ function FrameRecipeNode({
   layers,
   selected,
   onSelect,
+  compact = false,
   children,
 }: {
   eyebrow: string;
@@ -454,8 +521,12 @@ function FrameRecipeNode({
   layers: RecipeLayer[];
   selected: boolean;
   onSelect: () => void;
-  children: ReactNode;
+  compact?: boolean;
+  children?: ReactNode;
 }) {
+  const inheritedCount = layers.filter((layer) => layer.inherited).length;
+  const visibleLayers = compact ? layers.filter((layer) => !layer.inherited) : layers;
+
   return (
     <article
       className={cn(
@@ -486,11 +557,18 @@ function FrameRecipeNode({
         )}
       </button>
       <div className="p-2.5">
-        <p className="line-clamp-2 min-h-7 text-[9px] leading-3.5 text-muted-foreground">
-          {note}
-        </p>
+        {!compact && (
+          <p className="line-clamp-2 min-h-7 text-[9px] leading-3.5 text-muted-foreground">
+            {note}
+          </p>
+        )}
+        {compact && inheritedCount > 0 && (
+          <p className="font-mono text-[8px] uppercase text-muted-foreground">
+            {inheritedCount} inherited layer{inheritedCount === 1 ? '' : 's'}
+          </p>
+        )}
         <div className="mt-2 space-y-1">
-          {layers.map((layer, index) => (
+          {visibleLayers.map((layer, index) => (
             <button
               key={`${layer.type}:${layer.value}:${index}`}
               type="button"
@@ -513,111 +591,9 @@ function FrameRecipeNode({
             </button>
           ))}
         </div>
-        <div className="mt-2">{children}</div>
+        {children && <div className="mt-2">{children}</div>}
       </div>
     </article>
-  );
-}
-
-function PromptLayerBuilder({
-  sourceLabel,
-  type,
-  label,
-  prompt,
-  disabled,
-  busy,
-  onTypeChange,
-  onPresetChange,
-  onLabelChange,
-  onPromptChange,
-  onRun,
-}: {
-  sourceLabel: string;
-  type: FrameLayerType;
-  label: string;
-  prompt: string;
-  disabled: boolean;
-  busy: boolean;
-  onTypeChange: (type: FrameLayerType) => void;
-  onPresetChange: (label: string) => void;
-  onLabelChange: (label: string) => void;
-  onPromptChange: (prompt: string) => void;
-  onRun: () => void;
-}) {
-  return (
-    <div>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <SystemLabel>Add prompt layer</SystemLabel>
-          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-            Child of <span className="font-medium text-foreground">{sourceLabel}</span>
-          </p>
-        </div>
-        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[8px] uppercase text-muted-foreground">
-          one decision
-        </span>
-      </div>
-      <div className="mt-3 grid grid-cols-5 gap-1">
-        {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((entryType) => {
-          const meta = FRAME_LAYER_META[entryType];
-          const Icon = meta.icon;
-          return (
-            <button
-              key={entryType}
-              type="button"
-              onClick={() => onTypeChange(entryType)}
-              title={meta.description}
-              className={cn(
-                'flex min-w-0 flex-col items-center gap-1 rounded-md border px-1 py-2 text-[8px] outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                type === entryType && 'border-[var(--brand)] bg-[var(--brand-soft)]',
-              )}
-            >
-              <Icon className="size-3.5" />
-              <span className="truncate">{meta.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <Select value={label} onValueChange={(value) => value && onPresetChange(value)}>
-        <SelectTrigger className="mt-2 h-8! w-full bg-background text-[11px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="start">
-          {FRAME_LAYER_PRESETS[type].map((preset) => (
-            <SelectItem key={preset.label} value={preset.label}>
-              {preset.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Input
-        value={label}
-        onChange={(event) => onLabelChange(event.target.value)}
-        maxLength={80}
-        aria-label="Prompt layer name"
-        className="mt-2 h-8 bg-background text-[11px]"
-      />
-      <Textarea
-        value={prompt}
-        onChange={(event) => onPromptChange(event.target.value)}
-        maxLength={800}
-        className="mt-2 min-h-24 resize-none bg-background text-[11px] leading-4"
-      />
-      <Button
-        size="sm"
-        className="mt-2 w-full"
-        disabled={disabled || busy || prompt.trim().length < 3}
-        onClick={onRun}
-      >
-        {busy ? <Loader2 className="animate-spin" /> : <GitBranch />}
-        Generate child node
-      </Button>
-      {disabled && (
-        <p className="mt-1.5 text-[9px] leading-3.5 text-muted-foreground">
-          Generate or select a live base frame first. The example graph remains fully inspectable.
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -691,7 +667,18 @@ export function PlaygroundShell({
   const [frameLayerPrompt, setFrameLayerPrompt] = useState(
     FRAME_LAYER_PRESETS.lens[0].prompt,
   );
-  const [selectedRecipeNode, setSelectedRecipeNode] = useState('base');
+  const [selectedRecipeNode, setSelectedRecipeNode] = useState<RecipeNodeId | null>('base');
+  const [frameCanvasState, setFrameCanvasState] = useState<FrameCanvasState>('branching');
+  const [frameCanvasZoom, setFrameCanvasZoom] = useState(85);
+  const [frameCanvasCompact, setFrameCanvasCompact] = useState(false);
+  const [frameStackFullscreen, setFrameStackFullscreen] = useState(false);
+  const frameStackRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const syncFullscreen = () => setFrameStackFullscreen(document.fullscreenElement === frameStackRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
 
   const dimensions = aspectOptions.find((option) => option.value === aspect) ?? aspectOptions[1];
   const selected = inspectorCopy[selectedNode];
@@ -1098,34 +1085,51 @@ export function PlaygroundShell({
     setFrameLayerPrompt(preset.prompt);
   };
 
-  const prepareRecipeNode = (nodeId: string, nextType: FrameLayerType) => {
+  const prepareRecipeNode = (nodeId: RecipeNodeId, nextType: FrameLayerType) => {
     setSelectedRecipeNode(nodeId);
     if (branchRoot) setActiveFrameRunId(branchRoot.id);
     chooseFrameLayerType(nextType);
   };
 
-  const renderPromptLayerBuilder = (sourceLabel: string) => (
-    <PromptLayerBuilder
-      sourceLabel={sourceLabel}
-      type={frameLayerType}
-      label={frameLayerLabel}
-      prompt={frameLayerPrompt}
-      disabled={!activeFrame?.assets[0]}
-      busy={isRunning}
-      onTypeChange={chooseFrameLayerType}
-      onPresetChange={chooseFrameLayerPreset}
-      onLabelChange={setFrameLayerLabel}
-      onPromptChange={setFrameLayerPrompt}
-      onRun={() =>
-        createFrameVariation(
-          activeFrame,
-          frameLayerType,
-          frameLayerLabel.trim() || FRAME_LAYER_META[frameLayerType].label,
-          frameLayerPrompt.trim(),
-        )
-      }
-    />
-  );
+  const selectRecipeNode = (nodeId: RecipeNodeId) => {
+    prepareRecipeNode(nodeId, FRAME_RECIPE_CONTEXT[nodeId].nextType);
+  };
+
+  const changeFrameCanvasState = (nextState: FrameCanvasState) => {
+    setFrameCanvasState(nextState);
+    const nextSelection: RecipeNodeId | null =
+      nextState === 'empty'
+        ? null
+        : nextState === 'one-branch'
+          ? 'cooke'
+          : 'base';
+    setSelectedRecipeNode(nextSelection);
+    if (nextSelection) chooseFrameLayerType(FRAME_RECIPE_CONTEXT[nextSelection].nextType);
+  };
+
+  const toggleFrameStackFullscreen = async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    await frameStackRef.current?.requestFullscreen();
+  };
+
+  const selectedRecipeContext = selectedRecipeNode
+    ? FRAME_RECIPE_CONTEXT[selectedRecipeNode]
+    : null;
+  const frameStateMeta = FRAME_CANVAS_STATES.find((entry) => entry.value === frameCanvasState)!;
+  const showBaseNode = frameCanvasState !== 'empty';
+  const showCookeNode = frameCanvasState === 'one-branch' || frameCanvasState === 'branching';
+  const showFullBranching = frameCanvasState === 'branching';
+  const rootDescendantCount =
+    frameCanvasState === 'branching' ? 4 : frameCanvasState === 'one-branch' ? 1 : 0;
+  const selectedDescendantCount =
+    selectedRecipeNode === 'base'
+      ? rootDescendantCount
+      : frameCanvasState === 'one-branch' && selectedRecipeNode === 'cooke'
+        ? 0
+        : selectedRecipeContext?.childCount ?? 0;
 
   return (
     <TooltipProvider delay={350}>
@@ -1279,7 +1283,7 @@ export function PlaygroundShell({
                 onValueChange={(value) => value && isKnownModel(value) && setModel(value)}
               >
                 <SelectTrigger className="mb-4 h-9! w-full bg-playground-surface-elevated text-[13px]">
-                  <SelectValue />
+                  <SelectValue>{frameStateMeta.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start">
                   <SelectGroup>
@@ -1491,386 +1495,534 @@ export function PlaygroundShell({
             </div>
           </aside>
 
-          <section className="relative min-w-0 overflow-y-auto bg-[var(--canvas)]">
+          <section
+            ref={frameStackRef}
+            className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--canvas)]"
+          >
             <div className="pointer-events-none absolute inset-0 graph-grid opacity-60" />
-            <div className="sticky top-0 z-30 flex min-h-[var(--app-header-height)] flex-wrap items-center gap-2 border-b bg-background/94 px-4 py-2 backdrop-blur-md">
-              <div className="mr-2 min-w-44">
+
+            <div className="relative z-30 flex min-h-[var(--app-header-height)] shrink-0 flex-wrap items-center gap-2 border-b bg-background/94 px-4 py-2 backdrop-blur-md">
+              <div className="mr-2 min-w-48">
                 <div className="flex items-center gap-1.5">
                   <Layers3 className="size-3.5" />
                   <span className="text-[13px] font-medium">Frame Stack</span>
                   <Badge variant="outline" className="h-5 font-mono text-[8px] uppercase">
-                    prompt constructor
+                    node context
                   </Badge>
                 </div>
                 <p className="mt-0.5 text-[9px] text-muted-foreground">
-                  One frame · two optical paths · iterative prompt layers
+                  Select a node, then define exactly one next decision
                 </p>
               </div>
 
               <Select
-                value={model}
-                onValueChange={(value) => value && isKnownModel(value) && setModel(value)}
+                value={frameCanvasState}
+                onValueChange={(value) => {
+                  if (FRAME_CANVAS_STATES.some((entry) => entry.value === value)) {
+                    changeFrameCanvasState(value as FrameCanvasState);
+                  }
+                }}
               >
-                <SelectTrigger className="h-8! w-40 bg-background text-[11px]">
+                <SelectTrigger className="h-8! w-44 bg-background text-[11px]">
+                  <span className="font-mono text-[8px] uppercase text-muted-foreground">State</span>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="start">
-                  {modelOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.value}
+                  {FRAME_CANVAS_STATES.map((entry) => (
+                    <SelectItem key={entry.value} value={entry.value} className="py-2">
+                      <span className="flex flex-col">
+                        <span>{entry.label}</span>
+                        <span className="text-[9px] text-muted-foreground">
+                          {entry.nodeCount} node{entry.nodeCount === 1 ? '' : 's'}
+                        </span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <AspectParameter
-                label="Aspect"
-                value={aspect}
-                onValueChange={(value) => setAspect(value as typeof aspect)}
-              />
-              <ParameterSelect
-                label="Outputs"
-                value={outputs}
-                options={['1', '2', '3', '4']}
-                onValueChange={setOutputs}
-              />
+              <span className="hidden max-w-72 text-[9px] leading-3.5 text-muted-foreground xl:block">
+                {frameStateMeta.description}
+              </span>
 
-              <Popover>
-                <PopoverTrigger
-                  render={
-                    <Button variant="outline" size="sm" className="h-8 text-[11px]">
-                      <SlidersHorizontal /> Parameters
-                    </Button>
-                  }
-                />
-                <PopoverContent align="start" side="bottom" className="w-72 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-medium">Prompt upsampling</p>
-                      <p className="text-[9px] text-muted-foreground">Expand intent before inference</p>
-                    </div>
-                    <Switch size="sm" checked={promptUpsampling} onCheckedChange={setPromptUpsampling} />
-                  </div>
-                  <Separator className="my-3" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <ParameterSelect
-                      label="Safety"
-                      value={safety}
-                      options={['0', '1', '2', '3', '4', '5', '6']}
-                      onValueChange={setSafety}
-                    />
-                    <ParameterSelect
-                      label="Format"
-                      value={outputFormat.toUpperCase()}
-                      options={['PNG', 'JPEG', 'WEBP']}
-                      onValueChange={(value) =>
-                        setOutputFormat(value.toLowerCase() as typeof outputFormat)
-                      }
-                    />
-                  </div>
-                  <SystemLabel className="mt-3">Seed</SystemLabel>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <Input
-                      value={seed == null ? '' : String(seed)}
-                      onChange={(event) => {
-                        const raw = event.target.value.replace(/[^0-9]/g, '');
-                        setSeed(raw ? Math.min(Number(raw), 2 ** 32 - 1) : null);
-                      }}
-                      inputMode="numeric"
-                      placeholder="Random"
-                      className="h-8 bg-background font-mono text-[10px]"
-                    />
-                    <Button variant="outline" size="icon-sm" onClick={() => setSeed(randomSeed())}>
-                      <Dices />
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="hidden font-mono text-[9px] uppercase text-muted-foreground xl:inline">
-                  ~{formatUsd(estimatedCost)} / base
-                </span>
+              <div className="ml-auto flex items-center gap-1">
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setApiPayloadOpen(true)}>
                   <Code2 /> API
                 </Button>
                 <Button variant="outline" size="sm" className="h-8" onClick={() => setHistoryOpen(true)}>
                   <History /> History
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-8"
-                  onClick={() => void runWorkflow()}
-                  disabled={isRunning || prompt.trim().length < 3}
-                >
-                  {isRunning ? <Loader2 className="animate-spin" /> : <Play />}
-                  Generate base
-                </Button>
+                <Separator orientation="vertical" className="mx-1 h-5" />
+                <IconTooltip label="Zoom out">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Zoom out"
+                    onClick={() => setFrameCanvasZoom((value) => Math.max(55, value - 10))}
+                  >
+                    <ZoomOut />
+                  </Button>
+                </IconTooltip>
+                <span className="w-9 text-center font-mono text-[9px] text-muted-foreground">
+                  {frameCanvasZoom}%
+                </span>
+                <IconTooltip label="Zoom in">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Zoom in"
+                    onClick={() => setFrameCanvasZoom((value) => Math.min(115, value + 10))}
+                  >
+                    <ZoomIn />
+                  </Button>
+                </IconTooltip>
+                <IconTooltip label="Fit graph">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Fit graph"
+                    onClick={() => setFrameCanvasZoom(frameCanvasState === 'branching' ? 75 : 90)}
+                  >
+                    <RotateCcw />
+                  </Button>
+                </IconTooltip>
+                <IconTooltip label={frameCanvasCompact ? 'Show full recipes' : 'Compact node recipes'}>
+                  <Button
+                    variant={frameCanvasCompact ? 'secondary' : 'ghost'}
+                    size="icon-sm"
+                    aria-label={frameCanvasCompact ? 'Show full recipes' : 'Compact node recipes'}
+                    onClick={() => setFrameCanvasCompact((value) => !value)}
+                  >
+                    <SquareStack />
+                  </Button>
+                </IconTooltip>
+                <IconTooltip label={frameStackFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={frameStackFullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
+                    onClick={() => void toggleFrameStackFullscreen()}
+                  >
+                    {frameStackFullscreen ? <Minimize2 /> : <Maximize2 />}
+                  </Button>
+                </IconTooltip>
               </div>
             </div>
 
-            {runMessage && (
-              <div
-                className={cn(
-                  'relative z-20 mx-5 mt-3 rounded-md border px-3 py-2 text-[10px]',
-                  runMessage.tone === 'error'
-                    ? 'border-destructive/30 bg-destructive/5 text-destructive'
-                    : 'bg-background/85 text-muted-foreground',
-                )}
-              >
-                {runMessage.text}
-              </div>
-            )}
-
-            <div className="relative z-10 mx-auto min-w-[1120px] max-w-[1180px] px-5 pb-10 pt-5">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                  <SystemLabel>Example branch · Clockmaker at work</SystemLabel>
-                  <p className="mt-1 text-[12px] font-medium">Compare decisions, not random outputs</p>
-                  <p className="mt-0.5 max-w-2xl text-[10px] leading-4 text-muted-foreground">
-                    Every child inherits the complete recipe above it. Add or edit one layer on the
-                    node; generation creates another child without mutating its parent.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 font-mono text-[8px] uppercase text-muted-foreground">
-                  <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-border" /> inherited</span>
-                  <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--brand)]" /> local decision</span>
-                </div>
-              </div>
-
-              <div className="relative h-[810px] overflow-hidden rounded-2xl border bg-background/42 p-4 shadow-inner backdrop-blur-[2px]">
-                <svg
-                  className="pointer-events-none absolute inset-0 size-full"
-                  viewBox="0 0 1140 810"
-                  preserveAspectRatio="none"
-                  aria-hidden
-                >
-                  <path d="M 306 390 C 334 390, 330 166, 374 166" className="graph-edge" />
-                  <path d="M 306 390 C 334 390, 330 585, 374 585" className="graph-edge" />
-                  <path d="M 666 166 C 692 166, 700 166, 734 166" className="graph-edge graph-edge-active" />
-                  <path d="M 666 585 C 692 585, 700 585, 734 585" className="graph-edge graph-edge-active" />
-                  <path d="M 1026 166 C 1052 166, 1054 166, 1082 166" className="graph-edge" strokeDasharray="4 4" />
-                  <path d="M 1026 585 C 1052 585, 1054 585, 1082 585" className="graph-edge" strokeDasharray="4 4" />
-                </svg>
-
-                <article
+            <div className="relative z-10 min-h-0 flex-1 overflow-auto">
+              {runMessage && (
+                <div
                   className={cn(
-                    'absolute left-4 top-[190px] w-[290px] overflow-visible rounded-xl border bg-background shadow-[var(--floating-shadow)]',
-                    selectedRecipeNode === 'base' && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                    'sticky left-4 top-3 z-40 w-fit max-w-xl rounded-md border bg-background/95 px-3 py-2 text-[10px] shadow-sm',
+                    runMessage.tone === 'error' && 'border-destructive/30 text-destructive',
                   )}
                 >
-                  <span className="absolute -right-1.5 top-20 size-3 rounded-full border-2 border-background bg-[var(--brand)]" />
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRecipeNode('base')}
-                    className="relative block aspect-[2.15/1] w-full overflow-hidden rounded-t-[11px] bg-muted text-left"
-                  >
-                    <NextImage
-                      src="/scenes/ads-art/scene-02.webp"
-                      alt="Clockmaker base frame"
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
-                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-9 text-white">
-                      <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">00 · source</span>
-                      <span className="mt-0.5 block text-[12px] font-medium">Clockmaker at work</span>
-                    </span>
-                  </button>
-                  <div className="p-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <SystemLabel>Base prompt</SystemLabel>
-                      <span className="font-mono text-[8px] text-muted-foreground">{prompt.length} chars</span>
-                    </div>
-                    <Textarea
-                      value={prompt}
-                      onChange={(event) => setPrompt(event.target.value)}
-                      className="mt-1.5 min-h-24 resize-none bg-background text-[10px] leading-4"
-                    />
-                    <div className="mt-2 flex flex-wrap items-center gap-1">
-                      <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{model}</span>
-                      <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{aspect}</span>
-                      <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>seed {seed ?? 'random'}</span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-1.5">
-                      <Button size="xs" onClick={() => void runWorkflow()} disabled={isRunning || prompt.trim().length < 3}>
-                        {isRunning ? <Loader2 className="animate-spin" /> : <Play />} Render base
-                      </Button>
-                      <Popover
-                        onOpenChange={(open) => open && prepareRecipeNode('base', 'lens')}
-                      >
-                        <PopoverTrigger render={<Button size="xs" variant="outline"><Plus /> Add branch</Button>} />
-                        <PopoverContent side="right" align="start" className="w-[350px] p-3">
-                          {renderPromptLayerBuilder('Clockmaker at work')}
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                </article>
-
-                <div className="absolute left-[374px] top-4 w-[290px]">
-                  <FrameRecipeNode
-                    eyebrow="01 · lens branch A"
-                    title="Cooke S4 · 40 mm"
-                    note="Warm dimensional glass; the full workshop geography stays readable."
-                    image="/frame-stack/cooke-40mm.jpg"
-                    selected={selectedRecipeNode === 'cooke'}
-                    onSelect={() => setSelectedRecipeNode('cooke')}
-                    layers={[
-                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                      { type: 'camera', label: 'Camera', value: 'Locked medium bench', inherited: true },
-                      { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm' },
-                    ]}
-                  >
-                    <Popover onOpenChange={(open) => open && prepareRecipeNode('cooke', 'light')}>
-                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add layer to this node</Button>} />
-                      <PopoverContent side="right" align="start" className="w-[350px] p-3">
-                        {renderPromptLayerBuilder('Cooke S4 · 40 mm')}
-                      </PopoverContent>
-                    </Popover>
-                  </FrameRecipeNode>
-                </div>
-
-                <div className="absolute left-[734px] top-4 w-[290px]">
-                  <FrameRecipeNode
-                    eyebrow="02 · light iteration"
-                    title="Tungsten practical"
-                    note="Same Cooke path, now with stronger motivated amber light and negative fill."
-                    image="/frame-stack/cooke-tungsten.jpg"
-                    selected={selectedRecipeNode === 'cooke-light'}
-                    onSelect={() => setSelectedRecipeNode('cooke-light')}
-                    layers={[
-                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                      { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm', inherited: true },
-                      { type: 'light', label: 'Light', value: 'Tungsten practical' },
-                      { type: 'color', label: 'Color', value: 'Warm mineral' },
-                    ]}
-                  >
-                    <Popover onOpenChange={(open) => open && prepareRecipeNode('cooke-light', 'refine')}>
-                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add polish layer</Button>} />
-                      <PopoverContent side="left" align="start" className="w-[350px] p-3">
-                        {renderPromptLayerBuilder('Tungsten practical')}
-                      </PopoverContent>
-                    </Popover>
-                  </FrameRecipeNode>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => prepareRecipeNode('cooke-light', 'refine')}
-                  className="absolute left-[1080px] top-[132px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
-                  aria-label="Continue Cooke branch"
-                >
-                  <Plus className="size-4" />
-                </button>
-
-                <div className="absolute left-[374px] top-[423px] w-[290px]">
-                  <FrameRecipeNode
-                    eyebrow="01 · lens branch B"
-                    title="Zeiss Super Speed · 85 mm"
-                    note="A tighter portrait path with compressed depth and precise focus on the gear."
-                    image="/frame-stack/zeiss-85mm.jpg"
-                    selected={selectedRecipeNode === 'zeiss'}
-                    onSelect={() => setSelectedRecipeNode('zeiss')}
-                    layers={[
-                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                      { type: 'camera', label: 'Camera', value: 'Intimate bench portrait', inherited: true },
-                      { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm' },
-                    ]}
-                  >
-                    <Popover onOpenChange={(open) => open && prepareRecipeNode('zeiss', 'light')}>
-                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add layer to this node</Button>} />
-                      <PopoverContent side="right" align="start" className="w-[350px] p-3">
-                        {renderPromptLayerBuilder('Zeiss Super Speed · 85 mm')}
-                      </PopoverContent>
-                    </Popover>
-                  </FrameRecipeNode>
-                </div>
-
-                <div className="absolute left-[734px] top-[423px] w-[290px]">
-                  <FrameRecipeNode
-                    eyebrow="02 · light iteration"
-                    title="Blue-hour ambient"
-                    note="The Zeiss path gains cool environmental wrap while the candle stays motivated."
-                    image="/frame-stack/zeiss-blue-hour.jpg"
-                    selected={selectedRecipeNode === 'zeiss-light'}
-                    onSelect={() => setSelectedRecipeNode('zeiss-light')}
-                    layers={[
-                      { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
-                      { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm', inherited: true },
-                      { type: 'light', label: 'Light', value: 'Blue-hour ambient' },
-                      { type: 'color', label: 'Color', value: 'Cyan / amber split' },
-                    ]}
-                  >
-                    <Popover onOpenChange={(open) => open && prepareRecipeNode('zeiss-light', 'refine')}>
-                      <PopoverTrigger render={<Button variant="outline" size="xs" className="w-full"><Plus /> Add polish layer</Button>} />
-                      <PopoverContent side="left" align="start" className="w-[350px] p-3">
-                        {renderPromptLayerBuilder('Blue-hour ambient')}
-                      </PopoverContent>
-                    </Popover>
-                  </FrameRecipeNode>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => prepareRecipeNode('zeiss-light', 'refine')}
-                  className="absolute left-[1080px] top-[551px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
-                  aria-label="Continue Zeiss branch"
-                >
-                  <Plus className="size-4" />
-                </button>
-              </div>
-
-              {frameLayerRuns.length > 0 && (
-                <div className="mt-5 rounded-xl border bg-background/75 p-3 shadow-sm backdrop-blur-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <SystemLabel>Live branches</SystemLabel>
-                      <p className="mt-1 text-[10px] text-muted-foreground">
-                        Generated nodes from this workspace. Select one to make it the parent of the next layer.
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="font-mono text-[8px] uppercase">
-                      {frameLayerRuns.length} generated
-                    </Badge>
-                  </div>
-                  <div className="mt-3 grid grid-cols-4 gap-2">
-                    {frameLayerRuns.slice(0, 4).map((run) => {
-                      const type = String(run.parameters.variationType) as FrameLayerType;
-                      const label =
-                        typeof run.parameters.variationLabel === 'string'
-                          ? run.parameters.variationLabel
-                          : FRAME_LAYER_META[type]?.label ?? 'Prompt layer';
-                      return (
-                        <button
-                          key={run.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveFrameRunId(run.id);
-                            setDetailRunId(run.id);
-                          }}
-                          className={cn(
-                            'flex items-center gap-2 rounded-lg border bg-background p-2 text-left transition-colors hover:border-foreground/30',
-                            activeFrame?.id === run.id && 'border-[var(--brand)] bg-[var(--brand-soft)]',
-                          )}
-                        >
-                          <span className="relative size-12 shrink-0 overflow-hidden rounded bg-muted">
-                            {run.assets[0] ? (
-                              <NextImage src={run.assets[0].url} alt="" fill unoptimized className="object-cover" />
-                            ) : (
-                              <span className="grid size-full place-items-center"><Loader2 className="size-3 animate-spin" /></span>
-                            )}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block font-mono text-[7px] uppercase text-muted-foreground">{FRAME_LAYER_META[type]?.label ?? 'Layer'}</span>
-                            <span className="block truncate text-[9px] font-medium">{label}</span>
-                            <span className="mt-0.5 block text-[8px] text-muted-foreground">{run.status}</span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {runMessage.text}
                 </div>
               )}
+
+              <div
+                className="relative mx-auto w-[1400px] px-5 pb-8 pt-4 transition-[zoom] duration-200"
+                style={{ zoom: frameCanvasZoom / 100 } as CSSProperties}
+              >
+                <div className="mb-3 flex items-end justify-between gap-3">
+                  <div>
+                    <SystemLabel>Clockmaker exploration · {frameStateMeta.label}</SystemLabel>
+                    <p className="mt-1 text-[12px] font-medium">
+                      {frameCanvasState === 'empty'
+                        ? 'Generate the root before branching'
+                        : 'The selected node owns the next action'}
+                    </p>
+                    <p className="mt-0.5 max-w-2xl text-[10px] leading-4 text-muted-foreground">
+                      {frameCanvasState === 'empty'
+                        ? 'The empty canvas has no editable node. The dock defines the prompt and render settings for node 00.'
+                        : frameCanvasState === 'base'
+                          ? 'With no descendants, the root can still be replaced. The first branch locks it and preserves continuity.'
+                          : 'A root with descendants is immutable. Branches inherit its recipe, then add one explicit camera, lens, light, colour or polish decision.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 font-mono text-[8px] uppercase text-muted-foreground">
+                    <span>{frameStateMeta.nodeCount} node{frameStateMeta.nodeCount === 1 ? '' : 's'}</span>
+                    <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-border" /> inherited</span>
+                    <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--brand)]" /> local</span>
+                  </div>
+                </div>
+
+                <div className="relative h-[860px] overflow-hidden rounded-2xl border bg-background/42 shadow-inner backdrop-blur-[2px]">
+                  {frameCanvasState === 'empty' ? (
+                    <div className="absolute inset-0 grid place-items-center">
+                      <div className="w-[360px] rounded-2xl border border-dashed bg-background/80 p-8 text-center shadow-sm backdrop-blur-sm">
+                        <span className="mx-auto grid size-12 place-items-center rounded-xl bg-muted text-muted-foreground">
+                          <ImageIcon className="size-5" />
+                        </span>
+                        <p className="mt-4 text-[14px] font-medium">Start with one root frame</p>
+                        <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                          Define the scene prompt and render settings in the context dock below. The
+                          canvas becomes branchable only after that first frame exists.
+                        </p>
+                        <Button
+                          size="sm"
+                          className="mt-4"
+                          onClick={() => void runWorkflow()}
+                          disabled={isRunning || prompt.trim().length < 3}
+                        >
+                          {isRunning ? <Loader2 className="animate-spin" /> : <Play />}
+                          Generate root frame
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <svg
+                        className="pointer-events-none absolute inset-0 size-full"
+                        viewBox="0 0 1360 860"
+                        preserveAspectRatio="none"
+                        aria-hidden
+                      >
+                        {frameCanvasState === 'one-branch' && (
+                          <path d="M 610 410 C 660 410, 700 410, 750 410" className="graph-edge graph-edge-active" />
+                        )}
+                        {showFullBranching && (
+                          <>
+                            <path d="M 334 410 C 372 410, 376 180, 425 180" className="graph-edge" />
+                            <path d="M 334 410 C 372 410, 376 620, 425 620" className="graph-edge" />
+                            <path d="M 735 180 C 770 180, 786 180, 825 180" className="graph-edge graph-edge-active" />
+                            <path d="M 735 620 C 770 620, 786 620, 825 620" className="graph-edge graph-edge-active" />
+                            <path d="M 1135 180 C 1168 180, 1180 180, 1212 180" className="graph-edge" strokeDasharray="4 4" />
+                            <path d="M 1135 620 C 1168 620, 1180 620, 1212 620" className="graph-edge" strokeDasharray="4 4" />
+                          </>
+                        )}
+                      </svg>
+
+                      {showBaseNode && (
+                        <article
+                          className={cn(
+                            'absolute top-[240px] w-[310px] overflow-visible rounded-xl border bg-background shadow-[var(--floating-shadow)] transition-all hover:-translate-y-0.5',
+                            frameCanvasState === 'base'
+                              ? 'left-[525px]'
+                              : frameCanvasState === 'one-branch'
+                                ? 'left-[300px]'
+                                : 'left-6',
+                            selectedRecipeNode === 'base' && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                          )}
+                        >
+                          {showCookeNode && <span className="absolute -right-1.5 top-20 size-3 rounded-full border-2 border-background bg-[var(--brand)]" />}
+                          <button
+                            type="button"
+                            onClick={() => selectRecipeNode('base')}
+                            className="relative block aspect-[2.15/1] w-full overflow-hidden rounded-t-[11px] bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+                          >
+                            <NextImage
+                              src="/scenes/ads-art/scene-02.webp"
+                              alt="Clockmaker base frame"
+                              fill
+                              unoptimized
+                              className="object-cover"
+                            />
+                            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-9 text-white">
+                              <span className="block font-mono text-[8px] uppercase tracking-[0.13em] text-white/68">00 · root frame</span>
+                              <span className="mt-0.5 block text-[12px] font-medium">Clockmaker at work</span>
+                            </span>
+                            {selectedRecipeNode === 'base' && (
+                              <span className="absolute right-2 top-2 rounded-full bg-white px-2 py-0.5 font-mono text-[8px] uppercase text-black shadow">
+                                selected
+                              </span>
+                            )}
+                          </button>
+                          <div className="p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <SystemLabel>Base prompt</SystemLabel>
+                              <span className={cn(
+                                'rounded px-1.5 py-0.5 font-mono text-[8px] uppercase',
+                                rootDescendantCount > 0 ? 'bg-muted text-muted-foreground' : 'bg-[var(--brand-soft)] text-[var(--brand)]',
+                              )}>
+                                {rootDescendantCount > 0
+                                  ? `${rootDescendantCount} descendant${rootDescendantCount === 1 ? '' : 's'} · locked`
+                                  : 'mutable root'}
+                              </span>
+                            </div>
+                            {!frameCanvasCompact && (
+                              <p className="mt-1.5 line-clamp-3 text-[10px] leading-4 text-muted-foreground">
+                                {prompt}
+                              </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-1">
+                              <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{model}</span>
+                              <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>{aspect}</span>
+                              <span className={cn(parameterChipClass, 'h-6 text-[8px]')}>seed {seed ?? 'random'}</span>
+                            </div>
+                          </div>
+                        </article>
+                      )}
+
+                      {showCookeNode && (
+                        <div className={cn('absolute w-[310px]', frameCanvasState === 'one-branch' ? 'left-[750px] top-[240px]' : 'left-[425px] top-6')}>
+                          <FrameRecipeNode
+                            eyebrow="01 · lens branch A"
+                            title="Cooke S4 · 40 mm"
+                            note="Warm dimensional glass; the full workshop geography stays readable."
+                            image="/frame-stack/cooke-40mm.jpg"
+                            selected={selectedRecipeNode === 'cooke'}
+                            onSelect={() => selectRecipeNode('cooke')}
+                            compact={frameCanvasCompact}
+                            layers={[
+                              { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                              { type: 'camera', label: 'Camera', value: 'Locked medium bench', inherited: true },
+                              { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm' },
+                            ]}
+                          />
+                        </div>
+                      )}
+
+                      {showFullBranching && (
+                        <>
+                          <div className="absolute left-[825px] top-6 w-[310px]">
+                            <FrameRecipeNode
+                              eyebrow="02 · light iteration"
+                              title="Tungsten practical"
+                              note="Same Cooke path, now with stronger motivated amber light and negative fill."
+                              image="/frame-stack/cooke-tungsten.jpg"
+                              selected={selectedRecipeNode === 'cooke-light'}
+                              onSelect={() => selectRecipeNode('cooke-light')}
+                              compact={frameCanvasCompact}
+                              layers={[
+                                { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                                { type: 'lens', label: 'Lens', value: 'Cooke S4 · 40 mm', inherited: true },
+                                { type: 'light', label: 'Light', value: 'Tungsten practical' },
+                                { type: 'color', label: 'Color', value: 'Warm mineral' },
+                              ]}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => selectRecipeNode('cooke-light')}
+                            className="absolute left-[1210px] top-[148px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+                            aria-label="Continue Cooke branch"
+                          >
+                            <Plus className="size-4" />
+                          </button>
+                          <div className="absolute left-[425px] top-[465px] w-[310px]">
+                            <FrameRecipeNode
+                              eyebrow="01 · lens branch B"
+                              title="Zeiss Super Speed · 85 mm"
+                              note="A tighter portrait path with compressed depth and precise focus on the gear."
+                              image="/frame-stack/zeiss-85mm.jpg"
+                              selected={selectedRecipeNode === 'zeiss'}
+                              onSelect={() => selectRecipeNode('zeiss')}
+                              compact={frameCanvasCompact}
+                              layers={[
+                                { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                                { type: 'camera', label: 'Camera', value: 'Intimate bench portrait', inherited: true },
+                                { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm' },
+                              ]}
+                            />
+                          </div>
+                          <div className="absolute left-[825px] top-[465px] w-[310px]">
+                            <FrameRecipeNode
+                              eyebrow="02 · light iteration"
+                              title="Blue-hour ambient"
+                              note="The Zeiss path gains cool environmental wrap while the candle stays motivated."
+                              image="/frame-stack/zeiss-blue-hour.jpg"
+                              selected={selectedRecipeNode === 'zeiss-light'}
+                              onSelect={() => selectRecipeNode('zeiss-light')}
+                              compact={frameCanvasCompact}
+                              layers={[
+                                { type: 'base', label: 'Scene', value: 'Clockmaker at work', inherited: true },
+                                { type: 'lens', label: 'Lens', value: 'Zeiss Super Speed · 85 mm', inherited: true },
+                                { type: 'light', label: 'Light', value: 'Blue-hour ambient' },
+                                { type: 'color', label: 'Color', value: 'Cyan / amber split' },
+                              ]}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => selectRecipeNode('zeiss-light')}
+                            className="absolute left-[1210px] top-[588px] grid size-12 place-items-center rounded-xl border border-dashed bg-background/75 text-muted-foreground shadow-sm transition-colors hover:border-foreground/30 hover:text-foreground"
+                            aria-label="Continue Zeiss branch"
+                          >
+                            <Plus className="size-4" />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="relative z-40 shrink-0 border-t bg-background/96 px-3 py-2.5 shadow-[0_-12px_32px_rgba(0,0,0,0.05)] backdrop-blur-md">
+              <div className="mx-auto flex max-w-[1600px] items-end gap-2">
+                <div className="min-w-44 max-w-56 flex-1">
+                  <SystemLabel>{selectedRecipeContext ? selectedRecipeContext.eyebrow : 'Canvas is empty'}</SystemLabel>
+                  <p className="mt-1 truncate text-[12px] font-medium">
+                    {selectedRecipeContext ? selectedRecipeContext.label : 'Define the root frame'}
+                  </p>
+                  <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
+                    {selectedRecipeContext
+                      ? selectedRecipeNode === 'base' && selectedDescendantCount > 0
+                        ? `Root locked by ${selectedDescendantCount} descendant${selectedDescendantCount === 1 ? '' : 's'}`
+                        : `${selectedDescendantCount} descendant${selectedDescendantCount === 1 ? '' : 's'} · next action is contextual`
+                      : 'Prompt and render settings create node 00'}
+                  </p>
+                </div>
+
+                {selectedRecipeContext ? (
+                  <>
+                    <div className="w-32">
+                      <SystemLabel>Next layer</SystemLabel>
+                      <Select
+                        value={frameLayerType}
+                        onValueChange={(value) => value && chooseFrameLayerType(value as FrameLayerType)}
+                      >
+                        <SelectTrigger className="mt-1 h-8! w-full bg-background text-[10px]">
+                          <SelectValue>{FRAME_LAYER_META[frameLayerType].label}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="start" side="top">
+                          {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {FRAME_LAYER_META[type].label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-48">
+                      <SystemLabel>{FRAME_LAYER_META[frameLayerType].label} preset</SystemLabel>
+                      <Select value={frameLayerLabel} onValueChange={(value) => value && chooseFrameLayerPreset(value)}>
+                        <SelectTrigger className="mt-1 h-8! w-full bg-background text-[10px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent align="start" side="top">
+                          {FRAME_LAYER_PRESETS[frameLayerType].map((preset) => (
+                            <SelectItem key={preset.label} value={preset.label}>
+                              {preset.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger render={<Button variant="outline" size="sm" className="h-8"><WandSparkles /> Direction</Button>} />
+                      <PopoverContent align="start" side="top" className="w-[360px] p-3">
+                        <SystemLabel>{FRAME_LAYER_META[frameLayerType].label} direction</SystemLabel>
+                        <Input
+                          value={frameLayerLabel}
+                          onChange={(event) => setFrameLayerLabel(event.target.value)}
+                          className="mt-2 h-8 bg-background text-[11px]"
+                        />
+                        <Textarea
+                          value={frameLayerPrompt}
+                          onChange={(event) => setFrameLayerPrompt(event.target.value)}
+                          className="mt-2 min-h-28 resize-none bg-background text-[11px] leading-4"
+                        />
+                        <p className="mt-2 text-[9px] leading-3.5 text-muted-foreground">
+                          Everything above this node is inherited. This field describes only the new decision.
+                        </p>
+                      </PopoverContent>
+                    </Popover>
+                  </>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger render={<Button variant="outline" size="sm" className="h-8"><WandSparkles /> Base prompt</Button>} />
+                    <PopoverContent align="start" side="top" className="w-[380px] p-3">
+                      <SystemLabel>Root frame prompt</SystemLabel>
+                      <Textarea
+                        value={prompt}
+                        onChange={(event) => setPrompt(event.target.value)}
+                        className="mt-2 min-h-32 resize-none bg-background text-[11px] leading-4"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
+
+                <div className="w-36">
+                  <SystemLabel>Model</SystemLabel>
+                  <Select value={model} onValueChange={(value) => value && isKnownModel(value) && setModel(value)}>
+                    <SelectTrigger className="mt-1 h-8! w-full bg-background text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start" side="top">
+                      {modelOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.value}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <AspectParameter label="Aspect" value={aspect} onValueChange={(value) => setAspect(value as typeof aspect)} />
+                <ParameterSelect label="Outputs" value={outputs} options={['1', '2', '3', '4']} onValueChange={setOutputs} />
+
+                <Popover>
+                  <PopoverTrigger render={<Button variant="outline" size="sm" className="h-8"><SlidersHorizontal /> Params</Button>} />
+                  <PopoverContent align="end" side="top" className="w-72 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-medium">Prompt upsampling</p>
+                        <p className="text-[9px] text-muted-foreground">Expand intent before inference</p>
+                      </div>
+                      <Switch size="sm" checked={promptUpsampling} onCheckedChange={setPromptUpsampling} />
+                    </div>
+                    <Separator className="my-3" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <ParameterSelect label="Safety" value={safety} options={['0', '1', '2', '3', '4', '5', '6']} onValueChange={setSafety} />
+                      <ParameterSelect
+                        label="Format"
+                        value={outputFormat.toUpperCase()}
+                        options={['PNG', 'JPEG', 'WEBP']}
+                        onValueChange={(value) => setOutputFormat(value.toLowerCase() as typeof outputFormat)}
+                      />
+                    </div>
+                    <SystemLabel className="mt-3">Seed</SystemLabel>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      <Input
+                        value={seed == null ? '' : String(seed)}
+                        onChange={(event) => {
+                          const raw = event.target.value.replace(/[^0-9]/g, '');
+                          setSeed(raw ? Math.min(Number(raw), 2 ** 32 - 1) : null);
+                        }}
+                        inputMode="numeric"
+                        placeholder="Random"
+                        className="h-8 bg-background font-mono text-[10px]"
+                      />
+                      <Button variant="outline" size="icon-sm" onClick={() => setSeed(randomSeed())}><Dices /></Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {selectedRecipeNode === 'base' && selectedDescendantCount > 0 && (
+                  <div className="flex h-8 items-center gap-1.5 rounded-md border border-dashed bg-muted/40 px-2 text-[9px] text-muted-foreground" title="Replacing the root would invalidate every descendant">
+                    <CircleX className="size-3" /> Root locked
+                  </div>
+                )}
+                {selectedRecipeNode === 'base' && selectedDescendantCount === 0 && frameCanvasState === 'base' && (
+                  <Button variant="ghost" size="sm" className="h-8" onClick={() => void runWorkflow()} disabled={isRunning}>
+                    <RefreshCw /> Replace root
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  className="h-8 min-w-36"
+                  onClick={() => {
+                    if (!selectedRecipeContext) {
+                      void runWorkflow();
+                      return;
+                    }
+                    createFrameVariation(
+                      activeFrame,
+                      frameLayerType,
+                      frameLayerLabel.trim() || FRAME_LAYER_META[frameLayerType].label,
+                      frameLayerPrompt.trim(),
+                    );
+                  }}
+                  disabled={isRunning || (!selectedRecipeContext ? prompt.trim().length < 3 : frameLayerPrompt.trim().length < 3)}
+                >
+                  {isRunning ? <Loader2 className="animate-spin" /> : selectedRecipeContext ? <GitBranch /> : <Play />}
+                  {selectedRecipeContext
+                    ? selectedRecipeNode === 'base'
+                      ? `Add ${FRAME_LAYER_META[frameLayerType].label.toLowerCase()} branch`
+                      : 'Generate child'
+                    : 'Generate base'}
+                </Button>
+              </div>
             </div>
           </section>
 
