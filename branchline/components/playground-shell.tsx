@@ -1283,7 +1283,7 @@ export function PlaygroundShell({
                 onValueChange={(value) => value && isKnownModel(value) && setModel(value)}
               >
                 <SelectTrigger className="mb-4 h-9! w-full bg-playground-surface-elevated text-[13px]">
-                  <SelectValue>{frameStateMeta.label}</SelectValue>
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="start">
                   <SelectGroup>
@@ -1525,7 +1525,7 @@ export function PlaygroundShell({
               >
                 <SelectTrigger className="h-8! w-44 bg-background text-[11px]">
                   <span className="font-mono text-[8px] uppercase text-muted-foreground">State</span>
-                  <SelectValue />
+                  <span className="flex flex-1 text-left">{frameStateMeta.label}</span>
                 </SelectTrigger>
                 <SelectContent align="start">
                   {FRAME_CANVAS_STATES.map((entry) => (
