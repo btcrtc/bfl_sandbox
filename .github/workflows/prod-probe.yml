@@ -1,0 +1,24 @@
+name: Probe production build
+
+# Manual probe: checks which build is live on Railway by requesting files
+# that only exist in newer builds. No secrets involved.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe deployment
+        run: |
+          BASE="https://branchline-production.up.railway.app"
+          probe() {
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1" || echo ERR)
+            echo "$1 -> $code"
+          }
+          probe "/"
+          # Present only in the merged build (new 10-scene example board):
+          probe "/scenes/ads-art/scene-01.webp"
+          probe "/scenes/ads-art/scene-01-draft.mp4"
+          # Present since the previous build (DP-shot-list stills):
+          probe "/example/scene-01.jpg"
