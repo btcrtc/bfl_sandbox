@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import NextImage from 'next/image';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Check,
   Captions,
@@ -55,7 +61,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -64,7 +74,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   SCENE_STILL_ESTIMATE_USD,
   VIDEO_RATES_PER_SEC,
@@ -90,7 +105,10 @@ type StoryboardListItem = {
   updatedAt: number;
 };
 
-type Selection = { kind: 'idea' } | { kind: 'scene'; id: string } | { kind: 'reel' };
+type Selection =
+  | { kind: 'idea' }
+  | { kind: 'scene'; id: string }
+  | { kind: 'reel' };
 
 const DURATION_OPTIONS = ['5', '8', '10', '12', '15', '20'];
 const SCENE_COUNT_OPTIONS = ['3', '4', '5', '6'];
@@ -109,7 +127,10 @@ function sceneTrimRange(scene: SceneDto, override?: TrimRange): TrimRange {
   );
   const endMs = Math.min(
     sourceDurationMs,
-    Math.max(startMs + MIN_TRIM_MS, Math.round(rawEnd / TRIM_STEP_MS) * TRIM_STEP_MS),
+    Math.max(
+      startMs + MIN_TRIM_MS,
+      Math.round(rawEnd / TRIM_STEP_MS) * TRIM_STEP_MS,
+    ),
   );
   return { startMs, endMs };
 }
@@ -169,7 +190,9 @@ export function ScenesShell({
   signInPath: string;
   videoEnabled: boolean;
 }) {
-  const [storyboardList, setStoryboardList] = useState<StoryboardListItem[]>([]);
+  const [storyboardList, setStoryboardList] = useState<StoryboardListItem[]>(
+    [],
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [storyboard, setStoryboard] = useState<StoryboardDto | null>(null);
   const [listState, setListState] = useState<'loading' | 'ready' | 'error'>(
@@ -177,8 +200,12 @@ export function ScenesShell({
   );
   const [creating, setCreating] = useState(false);
   const [breakingDown, setBreakingDown] = useState(false);
-  const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
-  const [videoBusyScenes, setVideoBusyScenes] = useState<Set<string>>(new Set());
+  const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(
+    new Set(),
+  );
+  const [videoBusyScenes, setVideoBusyScenes] = useState<Set<string>>(
+    new Set(),
+  );
   const [assembling, setAssembling] = useState(false);
   const [notice, setNotice] = useState<{
     tone: 'info' | 'error';
@@ -186,14 +213,18 @@ export function ScenesShell({
   } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [rawSelection, setRawSelection] = useState<Selection>({ kind: 'idea' });
-  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
+  const [density, setDensity] = useState<'comfortable' | 'compact'>(
+    'comfortable',
+  );
 
   // Restore the strip density after mount (deferred: no sync setState in
   // effects under the react compiler).
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       try {
-        if (window.localStorage.getItem('branchline-scenes-density') === 'compact') {
+        if (
+          window.localStorage.getItem('branchline-scenes-density') === 'compact'
+        ) {
           setDensity('compact');
         }
       } catch {
@@ -270,9 +301,12 @@ export function ScenesShell({
 
   const loadStoryboard = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/storyboards/${encodeURIComponent(id)}`, {
-        cache: 'no-store',
-      });
+      const response = await fetch(
+        `/api/storyboards/${encodeURIComponent(id)}`,
+        {
+          cache: 'no-store',
+        },
+      );
       if (!response.ok) throw new Error();
       const data = (await response.json()) as { storyboard: StoryboardDto };
       // Ignore stale responses after the user switched boards.
@@ -300,17 +334,25 @@ export function ScenesShell({
     storyboard?.scenes.some(
       (scene) =>
         (scene.run && ['queued', 'running'].includes(scene.run.status)) ||
-        scene.clips.some((clip) => !clip.run || ['queued', 'running'].includes(clip.run.status)),
+        scene.clips.some(
+          (clip) =>
+            !clip.run || ['queued', 'running'].includes(clip.run.status),
+        ),
     ),
   );
   useEffect(() => {
     if (!hasActiveRun || !activeId || !storyboard) return;
     const runningGenerationIds = storyboard.scenes.flatMap((scene) => [
-      ...(scene.run && ['queued', 'running'].includes(scene.run.status) && scene.generationId
+      ...(scene.run &&
+      ['queued', 'running'].includes(scene.run.status) &&
+      scene.generationId
         ? [scene.generationId]
         : []),
       ...scene.clips
-        .filter((clip) => !clip.run || ['queued', 'running'].includes(clip.run.status))
+        .filter(
+          (clip) =>
+            !clip.run || ['queued', 'running'].includes(clip.run.status),
+        )
         .map((clip) => clip.generationId),
     ]);
     const interval = window.setInterval(() => {
@@ -365,11 +407,14 @@ export function ScenesShell({
     async (patch: Record<string, unknown>, options?: { apply?: boolean }) => {
       if (!activeId) return;
       try {
-        const response = await fetch(`/api/storyboards/${encodeURIComponent(activeId)}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(patch),
-        });
+        const response = await fetch(
+          `/api/storyboards/${encodeURIComponent(activeId)}`,
+          {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(patch),
+          },
+        );
         const data = (await response.json()) as {
           storyboard?: StoryboardDto;
           error?: string;
@@ -382,7 +427,10 @@ export function ScenesShell({
       } catch (error) {
         setNotice({
           tone: 'error',
-          text: error instanceof Error && error.message ? error.message : 'Could not save changes.',
+          text:
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not save changes.',
         });
       }
     },
@@ -392,7 +440,9 @@ export function ScenesShell({
   const writeSequence = useCallback(
     async (idea: string, sceneCount: number) => {
       if (!activeId || !storyboard) return;
-      const hasRenderedWork = storyboard.scenes.some((scene) => scene.run || scene.clips.length);
+      const hasRenderedWork = storyboard.scenes.some(
+        (scene) => scene.run || scene.clips.length,
+      );
       if (
         hasRenderedWork &&
         !window.confirm(
@@ -403,11 +453,14 @@ export function ScenesShell({
       }
       setBreakingDown(true);
       try {
-        const response = await fetch(`/api/storyboards/${encodeURIComponent(activeId)}/breakdown`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ idea, sceneCount }),
-        });
+        const response = await fetch(
+          `/api/storyboards/${encodeURIComponent(activeId)}/breakdown`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ idea, sceneCount }),
+          },
+        );
         const data = (await response.json()) as {
           source?: 'mistral' | 'template';
           storyboard?: StoryboardDto;
@@ -416,7 +469,9 @@ export function ScenesShell({
         if (!response.ok || !data.storyboard) throw new Error(data.error);
         setStoryboard(data.storyboard);
         const firstScene = data.storyboard.scenes[0];
-        setRawSelection(firstScene ? { kind: 'scene', id: firstScene.id } : { kind: 'idea' });
+        setRawSelection(
+          firstScene ? { kind: 'scene', id: firstScene.id } : { kind: 'idea' },
+        );
         setNotice(
           data.source === 'mistral'
             ? {
@@ -468,7 +523,9 @@ export function ScenesShell({
         setNotice({
           tone: 'error',
           text:
-            error instanceof Error && error.message ? error.message : 'Could not save the scene.',
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not save the scene.',
         });
       }
     },
@@ -477,11 +534,14 @@ export function ScenesShell({
 
   const addScene = useCallback(async () => {
     if (!activeId) return;
-    const response = await fetch(`/api/storyboards/${encodeURIComponent(activeId)}/scenes`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    });
+    const response = await fetch(
+      `/api/storyboards/${encodeURIComponent(activeId)}/scenes`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      },
+    );
     const data = (await response.json().catch(() => null)) as {
       id?: string;
     } | null;
@@ -505,8 +565,12 @@ export function ScenesShell({
   );
 
   const generateScene = useCallback(
-    async (sceneId: string, instruction?: string) => {
-      if (!activeId) return;
+    async (
+      sceneId: string,
+      instruction?: string,
+      options?: { parentGenerationId?: string; activate?: boolean },
+    ): Promise<string | null> => {
+      if (!activeId) return null;
       setGeneratingScenes((current) => new Set(current).add(sceneId));
       try {
         const response = await fetch(
@@ -514,10 +578,21 @@ export function ScenesShell({
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(instruction ? { instruction } : {}),
+            body: JSON.stringify(
+              instruction
+                ? {
+                    instruction,
+                    ...(options?.parentGenerationId
+                      ? { parentGenerationId: options.parentGenerationId }
+                      : {}),
+                    ...(options?.activate === false ? { activate: false } : {}),
+                  }
+                : {},
+            ),
           },
         );
         const data = (await response.json()) as {
+          id?: string;
           mode?: string;
           error?: string;
         };
@@ -531,12 +606,16 @@ export function ScenesShell({
             : { tone: 'info', text: 'Scene still is rendering.' },
         );
         await loadStoryboard(activeId);
+        return data.id ?? null;
       } catch (error) {
         setNotice({
           tone: 'error',
           text:
-            error instanceof Error && error.message ? error.message : 'Could not start the render.',
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not start the render.',
         });
+        return null;
       } finally {
         setGeneratingScenes((current) => {
           const next = new Set(current);
@@ -577,7 +656,9 @@ export function ScenesShell({
         setNotice({
           tone: 'error',
           text:
-            error instanceof Error && error.message ? error.message : 'Could not start the clip.',
+            error instanceof Error && error.message
+              ? error.message
+              : 'Could not start the clip.',
         });
       } finally {
         markVideoBusy(sceneId, false);
@@ -656,9 +737,14 @@ export function ScenesShell({
     if (!storyboard || !pendingPinRef.current) return;
     const assetId = pendingPinRef.current;
     pendingPinRef.current = null;
-    if (storyboard.references.some((reference) => reference.assetId === assetId)) return;
+    if (
+      storyboard.references.some((reference) => reference.assetId === assetId)
+    )
+      return;
     const slotsFull = storyboard.references.length >= 3;
-    const existingIds = storyboard.references.map((reference) => reference.assetId);
+    const existingIds = storyboard.references.map(
+      (reference) => reference.assetId,
+    );
     const timeout = window.setTimeout(() => {
       if (slotsFull) {
         setNotice({
@@ -714,13 +800,16 @@ export function ScenesShell({
   const scenes = storyboard?.scenes ?? [];
   // Normalize: a selected scene that no longer exists falls back gracefully.
   const selection: Selection =
-    rawSelection.kind === 'scene' && !scenes.some((scene) => scene.id === rawSelection.id)
+    rawSelection.kind === 'scene' &&
+    !scenes.some((scene) => scene.id === rawSelection.id)
       ? scenes.length
         ? { kind: 'scene', id: scenes[0].id }
         : { kind: 'idea' }
       : rawSelection;
   const selectedScene =
-    selection.kind === 'scene' ? (scenes.find((scene) => scene.id === selection.id) ?? null) : null;
+    selection.kind === 'scene'
+      ? (scenes.find((scene) => scene.id === selection.id) ?? null)
+      : null;
 
   // Arrow keys walk the strip: idea → scenes → reel. Ignored while typing.
   const selectionOrder: Selection[] = [
@@ -738,10 +827,16 @@ export function ScenesShell({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       const target = event.target as HTMLElement | null;
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+        return;
       if (target?.isContentEditable) return;
       // Dialogs, popovers and open dropdowns own their arrow keys.
-      if (document.querySelector('[role="dialog"], [role="listbox"], [role="menu"]')) return;
+      if (
+        document.querySelector(
+          '[role="dialog"], [role="listbox"], [role="menu"]',
+        )
+      )
+        return;
       const order = selectionOrderRef.current;
       const current = selectionRef.current;
       const currentIndex = order.findIndex((entry) =>
@@ -759,7 +854,10 @@ export function ScenesShell({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const totalSeconds = scenes.reduce((sum, scene) => sum + sceneCutDurationSec(scene), 0);
+  const totalSeconds = scenes.reduce(
+    (sum, scene) => sum + sceneCutDurationSec(scene),
+    0,
+  );
 
   // --- render ---------------------------------------------------------------
 
@@ -831,7 +929,9 @@ export function ScenesShell({
                       <p
                         className={cn(
                           'mb-3 text-[11px] leading-4',
-                          notice.tone === 'error' ? 'text-destructive' : 'text-muted-foreground',
+                          notice.tone === 'error'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground',
                         )}
                       >
                         {notice.text}
@@ -854,8 +954,12 @@ export function ScenesShell({
                           key={storyboard.id}
                           storyboard={storyboard}
                           busy={breakingDown}
-                          onSaveIdea={(idea) => void patchStoryboard({ idea }, { apply: false })}
-                          onWriteSequence={(idea, count) => void writeSequence(idea, count)}
+                          onSaveIdea={(idea) =>
+                            void patchStoryboard({ idea }, { apply: false })
+                          }
+                          onWriteSequence={(idea, count) =>
+                            void writeSequence(idea, count)
+                          }
                         />
                       )}
                       {selection.kind === 'scene' && selectedScene && (
@@ -863,18 +967,38 @@ export function ScenesShell({
                           key={selectedScene.id}
                           storyboardId={storyboard.id}
                           scene={selectedScene}
-                          isFinalScene={selectedScene.sceneIndex === storyboard.scenes.length - 1}
+                          isFinalScene={
+                            selectedScene.sceneIndex ===
+                            storyboard.scenes.length - 1
+                          }
                           boardSeed={storyboard.seed}
                           videoEnabled={videoEnabled}
                           busyStill={generatingScenes.has(selectedScene.id)}
-                          busyVideo={videoBusyScenes.has(selectedScene.id) || assembling}
-                          onPatch={(patch) => patchScene(selectedScene.id, patch)}
-                          onRenderStill={() => void generateScene(selectedScene.id)}
+                          busyVideo={
+                            videoBusyScenes.has(selectedScene.id) || assembling
+                          }
+                          onPatch={(patch) =>
+                            patchScene(selectedScene.id, patch)
+                          }
+                          onRenderStill={() =>
+                            void generateScene(selectedScene.id)
+                          }
                           onRefine={(instruction) =>
                             void generateScene(selectedScene.id, instruction)
                           }
+                          onCreateVariation={(
+                            parentGenerationId,
+                            instruction,
+                          ) =>
+                            generateScene(selectedScene.id, instruction, {
+                              parentGenerationId,
+                              activate: false,
+                            })
+                          }
                           onDraftClip={() => void draftClip(selectedScene.id)}
-                          onEnhance={(tier) => void enhanceClip(selectedScene.id, tier)}
+                          onEnhance={(tier) =>
+                            void enhanceClip(selectedScene.id, tier)
+                          }
                           onDelete={() => void deleteScene(selectedScene.id)}
                         />
                       )}
@@ -888,9 +1012,13 @@ export function ScenesShell({
                           onNotice={(text) => setNotice({ tone: 'info', text })}
                           busyScenes={videoBusyScenes}
                           onDraftClip={(sceneId) => void draftClip(sceneId)}
-                          onEnhance={(sceneId, tier) => void enhanceClip(sceneId, tier)}
+                          onEnhance={(sceneId, tier) =>
+                            void enhanceClip(sceneId, tier)
+                          }
                           onSaveSubtitles={saveSubtitles}
-                          onOpenScene={(id) => setRawSelection({ kind: 'scene', id })}
+                          onOpenScene={(id) =>
+                            setRawSelection({ kind: 'scene', id })
+                          }
                           onTrim={(sceneId, trim) =>
                             void patchScene(sceneId, {
                               trimStartMs: trim.startMs,
@@ -904,7 +1032,8 @@ export function ScenesShell({
                 ) : viewer ? (
                   listState === 'loading' ? (
                     <p className="mt-10 flex items-center justify-center gap-2 text-[12px] text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" /> Loading storyboards…
+                      <Loader2 className="size-4 animate-spin" /> Loading
+                      storyboards…
                     </p>
                   ) : (
                     <EmptyBoard
@@ -940,7 +1069,9 @@ export function ScenesShell({
           onPick={(assetId) => {
             setPickerOpen(false);
             const next = [
-              ...storyboard.references.map((entry) => entry.assetId).filter((id) => id !== assetId),
+              ...storyboard.references
+                .map((entry) => entry.assetId)
+                .filter((id) => id !== assetId),
               assetId,
             ].slice(-3);
             void patchStoryboard({ referenceAssetIds: next });
@@ -980,7 +1111,10 @@ function BoardBar({
 }) {
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
-      <Select value={storyboard.id} onValueChange={(next) => next && onSwitch(next)}>
+      <Select
+        value={storyboard.id}
+        onValueChange={(next) => next && onSwitch(next)}
+      >
         <SelectTrigger size="sm" className="h-8! w-40 text-[12px]">
           <Film className="size-3.5 shrink-0 text-muted-foreground" />
           <SelectValue />
@@ -1044,7 +1178,9 @@ function BoardBar({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label={density === 'compact' ? 'Comfortable strip' : 'Compact strip'}
+                aria-label={
+                  density === 'compact' ? 'Comfortable strip' : 'Compact strip'
+                }
                 onClick={onToggleDensity}
               />
             }
@@ -1056,7 +1192,11 @@ function BoardBar({
           </TooltipContent>
         </Tooltip>
         <LooksChip onPatch={onPatch} />
-        <ReferencesChip storyboard={storyboard} onPatch={onPatch} onOpenPicker={onOpenPicker} />
+        <ReferencesChip
+          storyboard={storyboard}
+          onPatch={onPatch}
+          onOpenPicker={onOpenPicker}
+        />
         <BoardSeedChip seed={storyboard.seed} onPatch={onPatch} />
         <StyleChip styleNote={storyboard.styleNote} onPatch={onPatch} />
         <Tooltip>
@@ -1081,7 +1221,11 @@ function BoardBar({
 
 // Applies a saved Look (crafted in the Playground) to this board in one move:
 // style note + seed + the look's frame as reference image 1.
-function LooksChip({ onPatch }: { onPatch: (patch: Record<string, unknown>) => void }) {
+function LooksChip({
+  onPatch,
+}: {
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [looks, setLooks] = useState<LookDto[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -1114,10 +1258,13 @@ function LooksChip({ onPatch }: { onPatch: (patch: Record<string, unknown>) => v
       <PopoverContent align="end" className="w-80 gap-2 p-3">
         <p className="text-[12px] font-medium">Apply a look</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          A look fills the board&apos;s style note and seed and pins its frame as reference 1 —
-          crafted in the Playground via &ldquo;Save as Look&rdquo;.
+          A look fills the board&apos;s style note and seed and pins its frame
+          as reference 1 — crafted in the Playground via &ldquo;Save as
+          Look&rdquo;.
         </p>
-        {failed && <p className="text-[11px] text-destructive">Could not load looks.</p>}
+        {failed && (
+          <p className="text-[11px] text-destructive">Could not load looks.</p>
+        )}
         {!failed && looks == null && (
           <p className="flex items-center gap-2 py-2 text-[11px] text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" /> Loading…
@@ -1125,8 +1272,8 @@ function LooksChip({ onPatch }: { onPatch: (patch: Record<string, unknown>) => v
         )}
         {looks != null && looks.length === 0 && (
           <p className="rounded-md border border-dashed p-2.5 text-[11px] leading-4 text-muted-foreground">
-            No looks yet. Iterate a frame in the Playground until the style sings, then save it as a
-            Look from the run detail.
+            No looks yet. Iterate a frame in the Playground until the style
+            sings, then save it as a Look from the run detail.
           </p>
         )}
         {looks != null && looks.length > 0 && (
@@ -1156,7 +1303,9 @@ function LooksChip({ onPatch }: { onPatch: (patch: Record<string, unknown>) => v
                   />
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[12px] font-medium">{look.name}</span>
+                  <span className="block truncate text-[12px] font-medium">
+                    {look.name}
+                  </span>
                   <span className="block truncate font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                     {look.modelId}
                     {look.seed != null && ` · seed ${look.seed}`}
@@ -1187,15 +1336,17 @@ function ReferencesChip({
           <button type="button" className={cn(parameterChipClass, 'h-8')}>
             <Images className="size-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Refs</span>
-            <span className="font-mono text-foreground">{storyboard.references.length}/3</span>
+            <span className="font-mono text-foreground">
+              {storyboard.references.length}/3
+            </span>
           </button>
         }
       />
       <PopoverContent align="end" className="w-72 gap-2 p-3">
         <p className="text-[12px] font-medium">Reference images</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          Pinned images ride along as <code>input_image</code> 1–3 with every scene render —
-          subject, style, palette.
+          Pinned images ride along as <code>input_image</code> 1–3 with every
+          scene render — subject, style, palette.
         </p>
         <div className="grid grid-cols-3 gap-1.5">
           {Array.from({ length: 3 }, (_, slotIndex) => {
@@ -1218,7 +1369,9 @@ function ReferencesChip({
                     onClick={() =>
                       onPatch({
                         referenceAssetIds: storyboard.references
-                          .filter((entry) => entry.assetId !== reference.assetId)
+                          .filter(
+                            (entry) => entry.assetId !== reference.assetId,
+                          )
                           .map((entry) => entry.assetId),
                       })
                     }
@@ -1262,15 +1415,17 @@ function BoardSeedChip({
           <button type="button" className={cn(parameterChipClass, 'h-8')}>
             <Dices className="size-3.5 text-muted-foreground" />
             <span className="text-muted-foreground">Seed</span>
-            <span className="font-mono text-foreground">{seed == null ? 'auto' : seed}</span>
+            <span className="font-mono text-foreground">
+              {seed == null ? 'auto' : seed}
+            </span>
           </button>
         }
       />
       <PopoverContent align="end" className="w-64 gap-2 p-3">
         <p className="text-[12px] font-medium">Board seed</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          One seed for the whole sequence keeps the look coherent; scenes can override it
-          individually.
+          One seed for the whole sequence keeps the look coherent; scenes can
+          override it individually.
         </p>
         <Input
           key={seed == null ? 'auto' : String(seed)}
@@ -1288,12 +1443,18 @@ function BoardSeedChip({
           <Button
             variant="outline"
             size="xs"
-            onClick={() => onPatch({ seed: Math.floor(Math.random() * 2 ** 32) })}
+            onClick={() =>
+              onPatch({ seed: Math.floor(Math.random() * 2 ** 32) })
+            }
           >
             <Dices /> Re-roll
           </Button>
           {seed != null && (
-            <Button variant="ghost" size="xs" onClick={() => onPatch({ seed: null })}>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => onPatch({ seed: null })}
+            >
               <X /> Random
             </Button>
           )}
@@ -1314,7 +1475,10 @@ function StyleChip({
     <Popover>
       <PopoverTrigger
         render={
-          <button type="button" className={cn(parameterChipClass, 'h-8 max-w-52')}>
+          <button
+            type="button"
+            className={cn(parameterChipClass, 'h-8 max-w-52')}
+          >
             <Sparkles className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="text-muted-foreground">Style</span>
             <span className="truncate font-mono text-foreground">
@@ -1326,7 +1490,8 @@ function StyleChip({
       <PopoverContent align="end" className="w-80 gap-2 p-3">
         <p className="text-[12px] font-medium">Style note</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          Appended to every scene prompt — the shared visual grammar of the film.
+          Appended to every scene prompt — the shared visual grammar of the
+          film.
         </p>
         <Textarea
           key={styleNote ?? 'empty'}
@@ -1377,35 +1542,38 @@ function SequenceStrip({
 
       <div className="min-w-0 overflow-x-auto overflow-y-hidden px-1">
         <div className="flex min-w-max items-stretch">
-        {storyboard.scenes.map((scene) => {
-          const selected = selection.kind === 'scene' && selection.id === scene.id;
-          return (
-            <span key={scene.id} className="contents">
-              <div className="relative">
-                <SceneNode
-                  scene={scene}
-                  isFinalScene={scene.sceneIndex === storyboard.scenes.length - 1}
-                  videoEnabled={videoEnabled}
-                  selected={selected}
-                  onSelect={() => onSelect({ kind: 'scene', id: scene.id })}
-                  compact={compact}
-                />
-              </div>
-              <Connector compact={compact} />
-            </span>
-          );
-        })}
-        <button
-          onClick={onAddScene}
-          className={cn(
-            'grid shrink-0 place-items-center self-stretch rounded-lg border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground',
-            compact ? 'w-10' : 'w-16',
-          )}
-          aria-label="Add scene"
-        >
-          <Plus className="size-4" />
-        </button>
-        <Connector dashed compact={compact} />
+          {storyboard.scenes.map((scene) => {
+            const selected =
+              selection.kind === 'scene' && selection.id === scene.id;
+            return (
+              <span key={scene.id} className="contents">
+                <div className="relative">
+                  <SceneNode
+                    scene={scene}
+                    isFinalScene={
+                      scene.sceneIndex === storyboard.scenes.length - 1
+                    }
+                    videoEnabled={videoEnabled}
+                    selected={selected}
+                    onSelect={() => onSelect({ kind: 'scene', id: scene.id })}
+                    compact={compact}
+                  />
+                </div>
+                <Connector compact={compact} />
+              </span>
+            );
+          })}
+          <button
+            onClick={onAddScene}
+            className={cn(
+              'grid shrink-0 place-items-center self-stretch rounded-lg border border-dashed text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground',
+              compact ? 'w-10' : 'w-16',
+            )}
+            aria-label="Add scene"
+          >
+            <Plus className="size-4" />
+          </button>
+          <Connector dashed compact={compact} />
         </div>
       </div>
 
@@ -1422,7 +1590,13 @@ function SequenceStrip({
   );
 }
 
-function Connector({ dashed = false, compact = false }: { dashed?: boolean; compact?: boolean }) {
+function Connector({
+  dashed = false,
+  compact = false,
+}: {
+  dashed?: boolean;
+  compact?: boolean;
+}) {
   return (
     <div
       className={cn(
@@ -1431,9 +1605,21 @@ function Connector({ dashed = false, compact = false }: { dashed?: boolean; comp
       )}
       aria-hidden
     >
-      <span className={cn('h-px bg-border', compact ? 'w-1.5' : 'w-3', dashed && 'opacity-60')} />
+      <span
+        className={cn(
+          'h-px bg-border',
+          compact ? 'w-1.5' : 'w-3',
+          dashed && 'opacity-60',
+        )}
+      />
       <ChevronRight className="-mx-1.5 size-3 shrink-0 text-muted-foreground/40" />
-      <span className={cn('h-px bg-border', compact ? 'w-1.5' : 'w-3', dashed && 'opacity-60')} />
+      <span
+        className={cn(
+          'h-px bg-border',
+          compact ? 'w-1.5' : 'w-3',
+          dashed && 'opacity-60',
+        )}
+      />
     </div>
   );
 }
@@ -1477,8 +1663,17 @@ function IdeaNode({
 }) {
   const ref = useNodeScrollIntoView(selected);
   return (
-    <button ref={ref} onClick={onSelect} className={nodeClass(selected, compact)}>
-      <div className={cn('flex items-center justify-between', compact ? 'mb-1' : 'mb-2')}>
+    <button
+      ref={ref}
+      onClick={onSelect}
+      className={nodeClass(selected, compact)}
+    >
+      <div
+        className={cn(
+          'flex items-center justify-between',
+          compact ? 'mb-1' : 'mb-2',
+        )}
+      >
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           Idea
         </span>
@@ -1494,7 +1689,8 @@ function IdeaNode({
           idea ? 'text-foreground' : 'text-muted-foreground',
         )}
       >
-        {idea || 'Describe the film — one paragraph the whole sequence is written from.'}
+        {idea ||
+          'Describe the film — one paragraph the whole sequence is written from.'}
       </p>
       {!compact && (
         <p className="mt-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
@@ -1536,13 +1732,20 @@ function SceneNode({
       className={nodeClass(selected, compact)}
       title={compact ? scene.title : undefined}
     >
-      <div className={cn('flex items-center justify-between', compact ? 'mb-1' : 'mb-1.5')}>
+      <div
+        className={cn(
+          'flex items-center justify-between',
+          compact ? 'mb-1' : 'mb-1.5',
+        )}
+      >
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           {compact
             ? String(scene.sceneIndex + 1).padStart(2, '0')
             : `Scene ${String(scene.sceneIndex + 1).padStart(2, '0')}`}
         </span>
-        {rendering && <Loader2 className="size-3 animate-spin text-amber-600" />}
+        {rendering && (
+          <Loader2 className="size-3 animate-spin text-amber-600" />
+        )}
       </div>
       <div
         className={cn(
@@ -1587,11 +1790,24 @@ function SceneNode({
         )}
         {isFinalScene && (stillAsset || clipAsset) && <EndCardLogo compact />}
       </div>
-      {!compact && <p className="truncate text-[11px] font-medium">{scene.title}</p>}
-      <div className={cn('flex items-center', compact ? 'mt-1 gap-1' : 'mt-1.5 gap-1.5')}>
+      {!compact && (
+        <p className="truncate text-[11px] font-medium">{scene.title}</p>
+      )}
+      <div
+        className={cn(
+          'flex items-center',
+          compact ? 'mt-1 gap-1' : 'mt-1.5 gap-1.5',
+        )}
+      >
         <StepDot label="Still" state={steps.still} />
-        <StepDot label="Draft clip" state={videoEnabled ? steps.draft : 'idle'} />
-        <StepDot label="Enhanced" state={videoEnabled ? steps.enhance : 'idle'} />
+        <StepDot
+          label="Draft clip"
+          state={videoEnabled ? steps.draft : 'idle'}
+        />
+        <StepDot
+          label="Enhanced"
+          state={videoEnabled ? steps.enhance : 'idle'}
+        />
       </div>
     </button>
   );
@@ -1601,7 +1817,11 @@ function StepDot({ label, state }: { label: string; state: StepState }) {
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<span className={cn('size-1.5 rounded-full', STEP_DOT_CLASS[state])} />}
+        render={
+          <span
+            className={cn('size-1.5 rounded-full', STEP_DOT_CLASS[state])}
+          />
+        }
       />
       <TooltipContent>
         {label}: {state}
@@ -1645,8 +1865,17 @@ function ReelNode({
 }) {
   const ref = useNodeScrollIntoView(selected);
   return (
-    <button ref={ref} onClick={onSelect} className={nodeClass(selected, compact)}>
-      <div className={cn('flex items-center justify-between', compact ? 'mb-1' : 'mb-2')}>
+    <button
+      ref={ref}
+      onClick={onSelect}
+      className={nodeClass(selected, compact)}
+    >
+      <div
+        className={cn(
+          'flex items-center justify-between',
+          compact ? 'mb-1' : 'mb-2',
+        )}
+      >
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           Reel
         </span>
@@ -1654,7 +1883,12 @@ function ReelNode({
           <Film className="size-3" />
         </span>
       </div>
-      <p className={cn('font-medium', compact ? 'text-[13px] leading-4' : 'text-[15px] leading-5')}>
+      <p
+        className={cn(
+          'font-medium',
+          compact ? 'text-[13px] leading-4' : 'text-[15px] leading-5',
+        )}
+      >
         {formatCutDuration(totalSeconds)}
       </p>
       <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -1690,8 +1924,8 @@ function IdeaDetail({
     <Surface className="p-5">
       <SystemLabel>Core idea</SystemLabel>
       <p className="mt-1 max-w-2xl text-[13px] leading-5 text-muted-foreground">
-        One paragraph: who, where, what happens. The sequence of shots is written from this — then
-        every scene is yours to refine and render.
+        One paragraph: who, where, what happens. The sequence of shots is
+        written from this — then every scene is yours to refine and render.
       </p>
       <div className="relative mt-3 max-w-2xl">
         <Textarea
@@ -1699,7 +1933,8 @@ function IdeaDetail({
           maxLength={2_000}
           onChange={(event) => setIdea(event.target.value)}
           onBlur={() => {
-            if (idea.trim() !== (storyboard.idea ?? '')) onSaveIdea(idea.trim());
+            if (idea.trim() !== (storyboard.idea ?? ''))
+              onSaveIdea(idea.trim());
           }}
           placeholder="A lighthouse keeper discovers the light attracts something from the deep. Night storm, one lantern, the sea answering back…"
           className="min-h-28 resize-none bg-background pb-7 text-sm leading-5"
@@ -1709,7 +1944,10 @@ function IdeaDetail({
         </span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Select value={sceneCount} onValueChange={(next) => next && setSceneCount(next)}>
+        <Select
+          value={sceneCount}
+          onValueChange={(next) => next && setSceneCount(next)}
+        >
           <SelectTrigger size="sm" className="h-8! w-28 text-[12px]">
             <SelectValue />
           </SelectTrigger>
@@ -1726,10 +1964,13 @@ function IdeaDetail({
           disabled={!canWrite}
         >
           {busy ? <Loader2 className="animate-spin" /> : <Sparkles />}
-          {storyboard.scenes.length ? 'Rewrite sequence' : 'Write scene sequence'}
+          {storyboard.scenes.length
+            ? 'Rewrite sequence'
+            : 'Write scene sequence'}
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          Shot list by Mistral — the same model family that reads prompts inside FLUX.2.
+          Shot list by Mistral — the same model family that reads prompts inside
+          FLUX.2.
         </span>
       </div>
     </Surface>
@@ -1818,7 +2059,10 @@ function StageRail({
                   {entry.label}
                 </span>
                 <span
-                  className={cn('size-1.5 shrink-0 rounded-full', STEP_DOT_CLASS[states[id]])}
+                  className={cn(
+                    'size-1.5 shrink-0 rounded-full',
+                    STEP_DOT_CLASS[states[id]],
+                  )}
                 />
               </span>
               <span className="mt-0.5 hidden text-[9px] leading-3 text-muted-foreground lg:block">
@@ -1843,6 +2087,7 @@ function SceneDetail({
   onPatch,
   onRenderStill,
   onRefine,
+  onCreateVariation,
   onDraftClip,
   onEnhance,
   onDelete,
@@ -1857,6 +2102,10 @@ function SceneDetail({
   onPatch: (patch: Record<string, unknown>) => Promise<void>;
   onRenderStill: () => void;
   onRefine: (instruction: string) => void;
+  onCreateVariation: (
+    parentGenerationId: string,
+    instruction: string,
+  ) => Promise<string | null>;
   onDraftClip: () => void;
   onEnhance: (tier: 'hd' | 'fhd') => void;
   onDelete: () => void;
@@ -1864,13 +2113,20 @@ function SceneDetail({
   const draft = latestClip(scene, ['draft']);
   const hd = latestClip(scene, ['hd']);
   const fhd = latestClip(scene, ['fhd']);
-  const defaultTab: StageTab = fhd ? 'fhd' : hd ? 'hd' : draft ? 'draft' : 'still';
+  const defaultTab: StageTab = fhd
+    ? 'fhd'
+    : hd
+      ? 'hd'
+      : draft
+        ? 'draft'
+        : 'still';
   const [tab, setTab] = useState<StageTab>(defaultTab);
   const [frameTrackOpen, setFrameTrackOpen] = useState(false);
 
   const stillRunning = runStepState(scene.run) === 'active';
   const draftRunning = clipStepState(draft) === 'active';
-  const enhanceRunning = clipStepState(hd) === 'active' || clipStepState(fhd) === 'active';
+  const enhanceRunning =
+    clipStepState(hd) === 'active' || clipStepState(fhd) === 'active';
   const hasStill = Boolean(scene.run?.assets[0]);
   const hasFinishedDraft = draft?.run?.status === 'succeeded';
   const effectiveSeed = scene.seed ?? boardSeed;
@@ -1885,243 +2141,293 @@ function SceneDetail({
 
   return (
     <>
-    <Surface className="p-4 lg:p-5">
-      <div className="grid gap-4 lg:grid-cols-[142px_minmax(0,1.2fr)_minmax(330px,0.8fr)] lg:gap-5">
-        <StageRail value={tab} onChange={setTab} states={stageStates} />
+      <Surface className="p-4 lg:p-5">
+        <div className="grid gap-4 lg:grid-cols-[142px_minmax(0,1.2fr)_minmax(330px,0.8fr)] lg:gap-5">
+          <StageRail value={tab} onChange={setTab} states={stageStates} />
 
-        <div className="min-w-0">
-          <SceneStage
-            tab={tab}
-            scene={scene}
-            draft={draft}
-            hd={hd}
-            fhd={fhd}
-            effectiveSeed={effectiveSeed}
-            isFinalScene={isFinalScene}
-            onOpenFrameTrack={hasStill ? () => setFrameTrackOpen(true) : undefined}
-          />
-          {tab === 'still' && scene.takes.length > 0 && (
-            <TakesTree
-              takes={scene.takes}
-              activeGenerationId={scene.generationId}
-              onSetActive={(generationId) => onPatch({ activeGenerationId: generationId })}
-              onNewTake={onRenderStill}
-              busy={busyStill || stillRunning}
+          <div className="min-w-0">
+            <SceneStage
+              tab={tab}
+              scene={scene}
+              draft={draft}
+              hd={hd}
+              fhd={fhd}
+              effectiveSeed={effectiveSeed}
+              isFinalScene={isFinalScene}
+              onOpenFrameTrack={
+                hasStill ? () => setFrameTrackOpen(true) : undefined
+              }
             />
-          )}
-          {tab === 'still' && hasStill && (
-            <RefineTakeForm busy={busyStill || stillRunning} onRefine={onRefine} />
-          )}
-        </div>
-
-        <div className="min-w-0 rounded-lg border bg-background/55 p-3.5">
-          <div className="flex items-center justify-between gap-2">
-            <SystemLabel>Scene {String(scene.sceneIndex + 1).padStart(2, '0')}</SystemLabel>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Delete scene"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => {
-                      const hasWork = Boolean(scene.run || scene.clips.length);
-                      if (!hasWork || window.confirm('Delete this scene and its renders?')) {
-                        onDelete();
-                      }
-                    }}
-                  />
+            {tab === 'still' && scene.takes.length > 0 && (
+              <TakesTree
+                takes={scene.takes}
+                activeGenerationId={scene.generationId}
+                onSetActive={(generationId) =>
+                  onPatch({ activeGenerationId: generationId })
                 }
-              >
-                <Trash2 />
-              </TooltipTrigger>
-              <TooltipContent>Delete scene</TooltipContent>
-            </Tooltip>
-          </div>
-          <Input
-            key={`${scene.id}-title`}
-            defaultValue={scene.title}
-            onBlur={(event) => {
-              const value = event.target.value.trim();
-              if (value && value !== scene.title) void onPatch({ title: value });
-            }}
-            className="mt-1 h-8 border-0 bg-transparent px-0 text-[15px] font-medium shadow-none focus-visible:ring-1"
-            aria-label="Scene title"
-          />
-          <div className="mt-3 flex items-start justify-between gap-3 border-t pt-3">
-            <div>
-              <SystemLabel>{stage.eyebrow}</SystemLabel>
-              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                {stage.description}
-              </p>
-            </div>
-            <Badge variant="outline" className="shrink-0 font-mono text-[9px] uppercase">
-              {stage.index} · {stage.label}
-            </Badge>
-          </div>
-
-          {tab === 'still' && (
-            <>
-              <Textarea
-                key={`${scene.id}-prompt`}
-                defaultValue={scene.prompt}
-                onBlur={(event) => {
-                  if (event.target.value.trim() !== scene.prompt) {
-                    void onPatch({ prompt: event.target.value });
-                  }
-                }}
-                placeholder="Describe this frame — subject, setting, camera, lens and light…"
-                className="mt-2 min-h-32 resize-none bg-background text-[13px] leading-5"
-              />
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <Select
-                  value={String(scene.durationSec)}
-                  onValueChange={(next) => next && onPatch({ durationSec: Number(next) })}
-                >
-                  <SelectTrigger size="sm" className="h-7! w-[74px] text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DURATION_OPTIONS.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}s
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <SceneSeedControl seed={scene.seed} onPatch={onPatch} />
-              </div>
-            </>
-          )}
-
-          {tab === 'draft' && (
-            <>
-              <Textarea
-                key={`${scene.id}-video-prompt`}
-                defaultValue={scene.videoPrompt ?? ''}
-                onBlur={(event) => {
-                  const value = event.target.value.trim();
-                  if (value !== (scene.videoPrompt ?? '')) {
-                    void onPatch({ videoPrompt: value || null });
-                  }
-                }}
-                placeholder="Describe only what changes: performance, camera move, environmental motion, timing and sound."
-                className="mt-2 min-h-40 resize-none border-primary/20 bg-primary/[0.025] text-[13px] leading-5"
-              />
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                  Motion only · source frame remains locked
-                </span>
-                <Select
-                  value={String(scene.durationSec)}
-                  onValueChange={(next) => next && onPatch({ durationSec: Number(next) })}
-                >
-                  <SelectTrigger size="sm" className="h-7! w-[74px] text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DURATION_OPTIONS.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}s
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-
-          <div className="mt-4">
-            {tab === 'still' && (
-              <StepRow
-                index={1}
-                label={hasStill ? 'Render new take' : 'Render still'}
-                cost={`~${formatUsd(SCENE_STILL_ESTIMATE_USD)}`}
-                state={runStepState(scene.run)}
+                onNewTake={onRenderStill}
                 busy={busyStill || stillRunning}
-                disabled={busyStill || stillRunning || scene.prompt.trim().length < 3}
-                onRun={onRenderStill}
-                hint={
-                  scene.prompt.trim().length < 3
-                    ? 'Write the shot prompt first.'
-                    : hasStill
-                      ? 'FLUX.2 [pro] frame — earlier takes stay selectable under the stage.'
-                      : 'FLUX.2 [pro] frame with the board references and seed.'
-                }
-                error={scene.run?.errorMessage ?? null}
               />
             )}
-
-            {tab === 'draft' &&
-              (videoEnabled ? (
-                <StepRow
-                  index={2}
-                  label={hasFinishedDraft ? 'Render another motion draft' : 'Render motion draft'}
-                  cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'draft'))}`}
-                  state={clipStepState(draft)}
-                  busy={busyVideo || draftRunning}
-                  disabled={!hasStill || busyVideo || draftRunning || enhanceRunning}
-                  onRun={onDraftClip}
-                  hint={
-                    hasStill
-                      ? 'FLUX 3 Video draft from the still — cheap preview with audio.'
-                      : 'Render the still first.'
-                  }
-                  error={draft?.run?.errorMessage ?? null}
-                />
-              ) : (
-                <p className="rounded-md border border-dashed p-2.5 text-[10px] leading-relaxed text-muted-foreground">
-                  Video generation is off on this deployment.
-                </p>
-              ))}
-
-            {tab === 'hd' && (
-              <StepRow
-                index={3}
-                label={hd ? 'Rebuild HD master' : 'Upscale to HD'}
-                cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}`}
-                state={clipStepState(hd)}
-                busy={busyVideo || enhanceRunning}
-                disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
-                onRun={() => onEnhance('hd')}
-                hint={
-                  hasFinishedDraft
-                    ? 'No new prompt at this stage. Preserve the approved motion and upscale it to an HD master.'
-                    : 'Finish a draft clip first.'
-                }
-                error={hd?.run?.errorMessage ?? null}
-              />
-            )}
-
-            {tab === 'fhd' && (
-              <StepRow
-                index={4}
-                label={fhd ? 'Rebuild Full HD master' : 'Upscale to Full HD'}
-                cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'fhd'))}`}
-                state={clipStepState(fhd)}
-                busy={busyVideo || enhanceRunning}
-                disabled={!hasFinishedDraft || busyVideo || draftRunning || enhanceRunning}
-                onRun={() => onEnhance('fhd')}
-                hint={
-                  hasFinishedDraft
-                    ? 'Delivery-only operation. The approved draft prompt, timing and seed stay unchanged.'
-                    : 'Finish a draft clip first.'
-                }
-                error={fhd?.run?.errorMessage ?? null}
+            {tab === 'still' && hasStill && (
+              <RefineTakeForm
+                busy={busyStill || stillRunning}
+                onRefine={onRefine}
               />
             )}
           </div>
+
+          <div className="min-w-0 rounded-lg border bg-background/55 p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <SystemLabel>
+                Scene {String(scene.sceneIndex + 1).padStart(2, '0')}
+              </SystemLabel>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Delete scene"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        const hasWork = Boolean(
+                          scene.run || scene.clips.length,
+                        );
+                        if (
+                          !hasWork ||
+                          window.confirm('Delete this scene and its renders?')
+                        ) {
+                          onDelete();
+                        }
+                      }}
+                    />
+                  }
+                >
+                  <Trash2 />
+                </TooltipTrigger>
+                <TooltipContent>Delete scene</TooltipContent>
+              </Tooltip>
+            </div>
+            <Input
+              key={`${scene.id}-title`}
+              defaultValue={scene.title}
+              onBlur={(event) => {
+                const value = event.target.value.trim();
+                if (value && value !== scene.title)
+                  void onPatch({ title: value });
+              }}
+              className="mt-1 h-8 border-0 bg-transparent px-0 text-[15px] font-medium shadow-none focus-visible:ring-1"
+              aria-label="Scene title"
+            />
+            <div className="mt-3 flex items-start justify-between gap-3 border-t pt-3">
+              <div>
+                <SystemLabel>{stage.eyebrow}</SystemLabel>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                  {stage.description}
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className="shrink-0 font-mono text-[9px] uppercase"
+              >
+                {stage.index} · {stage.label}
+              </Badge>
+            </div>
+
+            {tab === 'still' && (
+              <>
+                <Textarea
+                  key={`${scene.id}-prompt`}
+                  defaultValue={scene.prompt}
+                  onBlur={(event) => {
+                    if (event.target.value.trim() !== scene.prompt) {
+                      void onPatch({ prompt: event.target.value });
+                    }
+                  }}
+                  placeholder="Describe this frame — subject, setting, camera, lens and light…"
+                  className="mt-2 min-h-32 resize-none bg-background text-[13px] leading-5"
+                />
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <Select
+                    value={String(scene.durationSec)}
+                    onValueChange={(next) =>
+                      next && onPatch({ durationSec: Number(next) })
+                    }
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      className="h-7! w-[74px] text-[11px]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DURATION_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <SceneSeedControl seed={scene.seed} onPatch={onPatch} />
+                </div>
+              </>
+            )}
+
+            {tab === 'draft' && (
+              <>
+                <Textarea
+                  key={`${scene.id}-video-prompt`}
+                  defaultValue={scene.videoPrompt ?? ''}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (scene.videoPrompt ?? '')) {
+                      void onPatch({ videoPrompt: value || null });
+                    }
+                  }}
+                  placeholder="Describe only what changes: performance, camera move, environmental motion, timing and sound."
+                  className="mt-2 min-h-40 resize-none border-primary/20 bg-primary/[0.025] text-[13px] leading-5"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                    Motion only · source frame remains locked
+                  </span>
+                  <Select
+                    value={String(scene.durationSec)}
+                    onValueChange={(next) =>
+                      next && onPatch({ durationSec: Number(next) })
+                    }
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      className="h-7! w-[74px] text-[11px]"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DURATION_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+
+            <div className="mt-4">
+              {tab === 'still' && (
+                <StepRow
+                  index={1}
+                  label={hasStill ? 'Render new take' : 'Render still'}
+                  cost={`~${formatUsd(SCENE_STILL_ESTIMATE_USD)}`}
+                  state={runStepState(scene.run)}
+                  busy={busyStill || stillRunning}
+                  disabled={
+                    busyStill || stillRunning || scene.prompt.trim().length < 3
+                  }
+                  onRun={onRenderStill}
+                  hint={
+                    scene.prompt.trim().length < 3
+                      ? 'Write the shot prompt first.'
+                      : hasStill
+                        ? 'FLUX.2 [pro] frame — earlier takes stay selectable under the stage.'
+                        : 'FLUX.2 [pro] frame with the board references and seed.'
+                  }
+                  error={scene.run?.errorMessage ?? null}
+                />
+              )}
+
+              {tab === 'draft' &&
+                (videoEnabled ? (
+                  <StepRow
+                    index={2}
+                    label={
+                      hasFinishedDraft
+                        ? 'Render another motion draft'
+                        : 'Render motion draft'
+                    }
+                    cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'draft'))}`}
+                    state={clipStepState(draft)}
+                    busy={busyVideo || draftRunning}
+                    disabled={
+                      !hasStill || busyVideo || draftRunning || enhanceRunning
+                    }
+                    onRun={onDraftClip}
+                    hint={
+                      hasStill
+                        ? 'FLUX 3 Video draft from the still — cheap preview with audio.'
+                        : 'Render the still first.'
+                    }
+                    error={draft?.run?.errorMessage ?? null}
+                  />
+                ) : (
+                  <p className="rounded-md border border-dashed p-2.5 text-[10px] leading-relaxed text-muted-foreground">
+                    Video generation is off on this deployment.
+                  </p>
+                ))}
+
+              {tab === 'hd' && (
+                <StepRow
+                  index={3}
+                  label={hd ? 'Rebuild HD master' : 'Upscale to HD'}
+                  cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'hd'))}`}
+                  state={clipStepState(hd)}
+                  busy={busyVideo || enhanceRunning}
+                  disabled={
+                    !hasFinishedDraft ||
+                    busyVideo ||
+                    draftRunning ||
+                    enhanceRunning
+                  }
+                  onRun={() => onEnhance('hd')}
+                  hint={
+                    hasFinishedDraft
+                      ? 'No new prompt at this stage. Preserve the approved motion and upscale it to an HD master.'
+                      : 'Finish a draft clip first.'
+                  }
+                  error={hd?.run?.errorMessage ?? null}
+                />
+              )}
+
+              {tab === 'fhd' && (
+                <StepRow
+                  index={4}
+                  label={fhd ? 'Rebuild Full HD master' : 'Upscale to Full HD'}
+                  cost={`~${formatUsd(estimateVideoCostUsd(scene.durationSec, 'fhd'))}`}
+                  state={clipStepState(fhd)}
+                  busy={busyVideo || enhanceRunning}
+                  disabled={
+                    !hasFinishedDraft ||
+                    busyVideo ||
+                    draftRunning ||
+                    enhanceRunning
+                  }
+                  onRun={() => onEnhance('fhd')}
+                  hint={
+                    hasFinishedDraft
+                      ? 'Delivery-only operation. The approved draft prompt, timing and seed stay unchanged.'
+                      : 'Finish a draft clip first.'
+                  }
+                  error={fhd?.run?.errorMessage ?? null}
+                />
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </Surface>
-    <FrameTrackDialog
-      open={frameTrackOpen}
-      onOpenChange={setFrameTrackOpen}
-      storyboardId={storyboardId}
-      scene={scene}
-      onSetActive={(generationId) => onPatch({ activeGenerationId: generationId })}
-    />
+      </Surface>
+      <FrameTrackDialog
+        open={frameTrackOpen}
+        onOpenChange={setFrameTrackOpen}
+        storyboardId={storyboardId}
+        scene={scene}
+        onSetActive={(generationId) =>
+          onPatch({ activeGenerationId: generationId })
+        }
+        onCreateVariation={onCreateVariation}
+        busy={busyStill || stillRunning}
+      />
     </>
   );
 }
@@ -2145,7 +2451,8 @@ function SceneStage({
   isFinalScene: boolean;
   onOpenFrameTrack?: () => void;
 }) {
-  const clip = tab === 'draft' ? draft : tab === 'hd' ? hd : tab === 'fhd' ? fhd : null;
+  const clip =
+    tab === 'draft' ? draft : tab === 'hd' ? hd : tab === 'fhd' ? fhd : null;
   const stillAsset = scene.run?.assets[0];
 
   let content: ReactNode;
@@ -2172,9 +2479,16 @@ function SceneStage({
         />
       );
     } else if (scene.run && scene.run.status !== 'succeeded') {
-      content = <StagePlaceholder icon="alert" text={scene.run.errorMessage ?? 'Render failed.'} />;
+      content = (
+        <StagePlaceholder
+          icon="alert"
+          text={scene.run.errorMessage ?? 'Render failed.'}
+        />
+      );
     } else {
-      content = <StagePlaceholder icon="image" text="No still yet — run step 1." />;
+      content = (
+        <StagePlaceholder icon="image" text="No still yet — run step 1." />
+      );
     }
     meta = `${scene.run?.modelId ?? 'FLUX.2 [pro]'} · ${scene.run?.status ?? 'not rendered'} · seed ${
       effectiveSeed == null ? 'random' : effectiveSeed
@@ -2195,10 +2509,18 @@ function SceneStage({
       );
     } else if (clip && clipStepState(clip) === 'active') {
       content = (
-        <StagePlaceholder icon="spinner" text={`Rendering the ${tab} clip — a few minutes…`} />
+        <StagePlaceholder
+          icon="spinner"
+          text={`Rendering the ${tab} clip — a few minutes…`}
+        />
       );
     } else if (clip?.run && clip.run.status !== 'succeeded') {
-      content = <StagePlaceholder icon="alert" text={clip.run.errorMessage ?? 'Clip failed.'} />;
+      content = (
+        <StagePlaceholder
+          icon="alert"
+          text={clip.run.errorMessage ?? 'Clip failed.'}
+        />
+      );
     } else if (scene.run?.assets[0]) {
       // Placeholder cut: the active take stands in for the clip until video
       // renders, so the edit reads end-to-end before spending a credit.
@@ -2224,7 +2546,10 @@ function SceneStage({
       );
     } else {
       content = (
-        <StagePlaceholder icon="film" text={`No ${tab} clip yet — render the still first.`} />
+        <StagePlaceholder
+          icon="film"
+          text={`No ${tab} clip yet — render the still first.`}
+        />
       );
     }
     meta = `FLUX 3 Video [${tab}] · ${clip?.run?.status ?? 'not rendered'}${
@@ -2236,7 +2561,9 @@ function SceneStage({
     <div>
       <div className="relative aspect-video overflow-hidden rounded-md border bg-muted">
         {content}
-        {isFinalScene && (stillAsset || clip?.run?.assets[0]) && <EndCardLogo />}
+        {isFinalScene && (stillAsset || clip?.run?.assets[0]) && (
+          <EndCardLogo />
+        )}
         {tab === 'still' && stillAsset && onOpenFrameTrack && (
           <button
             type="button"
@@ -2304,16 +2631,30 @@ function StepRow({
         <span className="grid size-5 shrink-0 place-items-center rounded-full bg-muted font-mono text-[10px]">
           {index}
         </span>
-        <span className={cn('size-1.5 shrink-0 rounded-full', STEP_DOT_CLASS[state])} />
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{label}</span>
+        <span
+          className={cn(
+            'size-1.5 shrink-0 rounded-full',
+            STEP_DOT_CLASS[state],
+          )}
+        />
+        <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+          {label}
+        </span>
         {actions ?? (
-          <Button size="xs" variant="outline" onClick={onRun} disabled={disabled}>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={onRun}
+            disabled={disabled}
+          >
             {busy ? <Loader2 className="animate-spin" /> : <Play />}
             {cost}
           </Button>
         )}
       </div>
-      <p className="mt-1 pl-7 text-[10px] leading-relaxed text-muted-foreground">{hint}</p>
+      <p className="mt-1 pl-7 text-[10px] leading-relaxed text-muted-foreground">
+        {hint}
+      </p>
       {error && state === 'error' && (
         <p className="mt-1 rounded bg-amber-500/10 px-2 py-1 pl-2 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
           {error}
@@ -2336,7 +2677,9 @@ function SceneSeedControl({
         render={
           <button
             type="button"
-            aria-label={seed == null ? 'Scene seed: board default' : `Scene seed: ${seed}`}
+            aria-label={
+              seed == null ? 'Scene seed: board default' : `Scene seed: ${seed}`
+            }
             className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 font-mono text-[10px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
           >
             <Dices className="size-3" />
@@ -2347,8 +2690,8 @@ function SceneSeedControl({
       <PopoverContent align="start" side="bottom" className="w-64 gap-2 p-3">
         <p className="text-[12px] font-medium">Scene seed</p>
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          Overrides the board seed for this shot only — re-roll one bad frame without breaking the
-          rest of the sequence.
+          Overrides the board seed for this shot only — re-roll one bad frame
+          without breaking the rest of the sequence.
         </p>
         <Input
           key={seed == null ? 'board' : String(seed)}
@@ -2366,12 +2709,18 @@ function SceneSeedControl({
           <Button
             variant="outline"
             size="xs"
-            onClick={() => onPatch({ seed: Math.floor(Math.random() * 2 ** 32) })}
+            onClick={() =>
+              onPatch({ seed: Math.floor(Math.random() * 2 ** 32) })
+            }
           >
             <Dices /> Re-roll
           </Button>
           {seed != null && (
-            <Button variant="ghost" size="xs" onClick={() => onPatch({ seed: null })}>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => onPatch({ seed: null })}
+            >
               <X /> Board default
             </Button>
           )}
@@ -2460,7 +2809,8 @@ function RefineTakeForm({
       </div>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
         Keeps the shot, applies your change, branches off the active take (~
-        {formatUsd(SCENE_STILL_ESTIMATE_USD)}). Pick a question, finish the sentence.
+        {formatUsd(SCENE_STILL_ESTIMATE_USD)}). Pick a question, finish the
+        sentence.
       </p>
     </div>
   );
@@ -2485,7 +2835,8 @@ function buildTakeTree(takes: TakeDto[]): TakeNode[] {
   const roots: TakeNode[] = [];
   for (const node of nodes.values()) {
     const refinedFrom = node.run?.parameters?.refinedFrom;
-    const parent = typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
+    const parent =
+      typeof refinedFrom === 'string' ? nodes.get(refinedFrom) : undefined;
     if (parent && parent !== node) parent.children.push(node);
     else roots.push(node);
   }
@@ -2569,7 +2920,9 @@ function TakeTreeBranch({
   const childWidths = node.children.map(subtreeWidth);
   const childCenters = childWidths.map(
     (childWidth, childIndex) =>
-      childWidths.slice(0, childIndex).reduce((total, value) => total + value, 0) +
+      childWidths
+        .slice(0, childIndex)
+        .reduce((total, value) => total + value, 0) +
       childIndex * TREE_GAP +
       childWidth / 2,
   );
@@ -2598,7 +2951,8 @@ function TakeTreeBranch({
                 d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${TREE_EDGE_H - bend}, ${childCenters[childIndex]} ${TREE_EDGE_H}`}
                 className={cn(
                   'graph-edge',
-                  child.generationId === activeGenerationId && 'graph-edge-active',
+                  child.generationId === activeGenerationId &&
+                    'graph-edge-active',
                 )}
               />
             ))}
@@ -2666,15 +3020,17 @@ function TakesTree({
             ) : (
               <span className="flex flex-col items-center gap-0.5">
                 <Plus className="size-3.5" />
-                <span className="font-mono text-[8px] uppercase tracking-wider">New take</span>
+                <span className="font-mono text-[8px] uppercase tracking-wider">
+                  New take
+                </span>
               </span>
             )}
           </button>
         </div>
       </div>
       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        A refinement branches off the take it was made from — click any node to make it the
-        scene&apos;s active frame.
+        A refinement branches off the take it was made from — click any node to
+        make it the scene&apos;s active frame.
       </p>
     </div>
   );
@@ -2683,12 +3039,108 @@ function TakesTree({
 const FRAME_TRACK_TILE_W = 190;
 const FRAME_TRACK_GAP = 28;
 const FRAME_TRACK_EDGE_H = 38;
+const FRAME_TRACK_COMPOSER_W = 336;
 
-function frameTrackSubtreeWidth(node: TakeNode): number {
-  if (!node.children.length) return FRAME_TRACK_TILE_W;
+const FRAME_TRACK_VARIATION_GROUPS = {
+  lens: {
+    label: 'Lens',
+    options: [
+      {
+        label: 'Cooke S4 · 40 mm',
+        prompt:
+          'Photograph through a Cooke S4 40 mm lens with gentle warmth, rounded falloff and soft highlight roll-off.',
+      },
+      {
+        label: 'Zeiss Super Speed · 28 mm',
+        prompt:
+          'Shift to a Zeiss Super Speed 28 mm lens with intimate wide-angle perspective, restrained distortion and crisp practical lights.',
+      },
+      {
+        label: 'Anamorphic · 75 mm',
+        prompt:
+          'Use a 75 mm anamorphic lens with compressed depth, oval bokeh and a restrained horizontal flare from motivated light.',
+      },
+    ],
+  },
+  camera: {
+    label: 'Camera',
+    options: [
+      {
+        label: 'Low three-quarter',
+        prompt:
+          'Move the camera to a low three-quarter angle while preserving subject blocking, geography and the exact story beat.',
+      },
+      {
+        label: 'Overhead lockoff',
+        prompt:
+          'Reframe as a precise overhead lockoff while preserving every object, the action and the established light direction.',
+      },
+      {
+        label: 'Tight profile',
+        prompt:
+          'Move into a tight profile composition with shallow depth of field while keeping the performance and screen direction.',
+      },
+    ],
+  },
+  light: {
+    label: 'Light',
+    options: [
+      {
+        label: 'Candle practical',
+        prompt:
+          'Let the candle become the motivated key light, with warm falloff on skin and deep cool shadows elsewhere.',
+      },
+      {
+        label: 'Cold window edge',
+        prompt:
+          'Add a cold window edge light from camera left while preserving the practical exposure and nocturnal contrast.',
+      },
+      {
+        label: 'Dawn fill',
+        prompt:
+          'Introduce the first desaturated dawn fill without changing blocking, materials or the established practical sources.',
+      },
+    ],
+  },
+  atmosphere: {
+    label: 'Atmosphere',
+    options: [
+      {
+        label: 'Fine smoke',
+        prompt:
+          'Add a fine layer of workshop smoke that reveals the light beams without obscuring faces or important objects.',
+      },
+      {
+        label: 'Rain on glass',
+        prompt:
+          'Add restrained rain texture on the foreground glass while the subjects, staging and interior remain unchanged.',
+      },
+      {
+        label: 'Clear air',
+        prompt:
+          'Remove atmospheric haze for cleaner separation and precise material detail while preserving the same lighting design.',
+      },
+    ],
+  },
+} as const;
+
+type FrameTrackVariationType = keyof typeof FRAME_TRACK_VARIATION_GROUPS;
+
+function frameTrackSubtreeWidth(
+  node: TakeNode,
+  branchParentId: string | null,
+): number {
+  const ownWidth =
+    node.generationId === branchParentId
+      ? FRAME_TRACK_COMPOSER_W
+      : FRAME_TRACK_TILE_W;
+  if (!node.children.length) return ownWidth;
   return Math.max(
-    FRAME_TRACK_TILE_W,
-    node.children.reduce((total, child) => total + frameTrackSubtreeWidth(child), 0) +
+    ownWidth,
+    node.children.reduce(
+      (total, child) => total + frameTrackSubtreeWidth(child, branchParentId),
+      0,
+    ) +
       FRAME_TRACK_GAP * (node.children.length - 1),
   );
 }
@@ -2698,6 +3150,7 @@ function FrameTrackTake({
   label,
   active,
   selected,
+  branchOpen,
   usage,
   onSelect,
 }: {
@@ -2705,6 +3158,7 @@ function FrameTrackTake({
   label: string;
   active: boolean;
   selected: boolean;
+  branchOpen: boolean;
   usage: GenerationUsage[];
   onSelect: () => void;
 }) {
@@ -2723,6 +3177,7 @@ function FrameTrackTake({
       )}
       aria-label={`Preview ${label}${active ? ', active in scene' : ''}`}
       aria-pressed={selected}
+      aria-expanded={branchOpen}
     >
       <span className="relative block aspect-video overflow-hidden bg-muted">
         {asset ? (
@@ -2743,7 +3198,9 @@ function FrameTrackTake({
           </span>
         )}
         <span className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-8 text-white">
-          <span className="font-mono text-[8px] uppercase tracking-wider">{label}</span>
+          <span className="font-mono text-[8px] uppercase tracking-wider">
+            {label}
+          </span>
           {active && (
             <span className="rounded-full bg-[var(--brand)] px-1.5 py-0.5 font-mono text-[7px] uppercase">
               in scene
@@ -2757,10 +3214,124 @@ function FrameTrackTake({
         </span>
         <span className="mt-1 flex items-center justify-between gap-2 font-mono text-[8px] uppercase text-muted-foreground">
           <span>{node.run?.status ?? 'saved'}</span>
-          <span>{boardCount} board{boardCount === 1 ? '' : 's'}</span>
+          <span>
+            {boardCount} board{boardCount === 1 ? '' : 's'}
+          </span>
+        </span>
+        <span
+          className={cn(
+            'mt-2 flex items-center gap-1 border-t pt-1.5 font-mono text-[8px] uppercase',
+            branchOpen ? 'text-[var(--brand)]' : 'text-muted-foreground',
+          )}
+        >
+          <GitBranch className="size-2.5" />{' '}
+          {branchOpen ? 'branch open' : 'open branch'}
         </span>
       </span>
     </button>
+  );
+}
+
+function FrameTrackBranchComposer({
+  parentLabel,
+  variationType,
+  variationLabel,
+  variationPrompt,
+  busy,
+  onTypeChange,
+  onPresetChange,
+  onPromptChange,
+  onCreate,
+}: {
+  parentLabel: string;
+  variationType: FrameTrackVariationType;
+  variationLabel: string;
+  variationPrompt: string;
+  busy: boolean;
+  onTypeChange: (type: FrameTrackVariationType) => void;
+  onPresetChange: (label: string) => void;
+  onPromptChange: (prompt: string) => void;
+  onCreate: () => void;
+}) {
+  const group = FRAME_TRACK_VARIATION_GROUPS[variationType];
+  return (
+    <div className="w-[336px] rounded-xl border border-foreground/15 bg-background p-3 text-left shadow-lg">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <SystemLabel>Branch from {parentLabel}</SystemLabel>
+          <p className="mt-1 text-[9px] leading-4 text-muted-foreground">
+            Choose one production decision. The current frame remains untouched.
+          </p>
+        </div>
+        <Badge variant="outline" className="font-mono text-[7px] uppercase">
+          preview
+        </Badge>
+      </div>
+      <div className="mt-2 grid grid-cols-[106px_minmax(0,1fr)] gap-1.5">
+        <Select
+          value={variationType}
+          onValueChange={(value) =>
+            value && onTypeChange(value as FrameTrackVariationType)
+          }
+        >
+          <SelectTrigger
+            className="h-8! bg-background text-[10px]"
+            aria-label="Variation type"
+          >
+            <SelectValue>{group.label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent align="start" side="bottom">
+            {(
+              Object.keys(
+                FRAME_TRACK_VARIATION_GROUPS,
+              ) as FrameTrackVariationType[]
+            ).map((type) => (
+              <SelectItem key={type} value={type}>
+                {FRAME_TRACK_VARIATION_GROUPS[type].label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={variationLabel}
+          onValueChange={(value) => value && onPresetChange(value)}
+        >
+          <SelectTrigger
+            className="h-8! bg-background text-[10px]"
+            aria-label="Variation preset"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="start" side="bottom">
+            {group.options.map((option) => (
+              <SelectItem key={option.label} value={option.label}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <Textarea
+        value={variationPrompt}
+        onChange={(event) => onPromptChange(event.target.value)}
+        aria-label="Variation direction"
+        className="mt-1.5 min-h-20 resize-none bg-background text-[10px] leading-4"
+      />
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-[8px] leading-3 text-muted-foreground">
+          Adds a selectable child; it does not replace the scene frame.
+        </p>
+        <Button
+          size="sm"
+          className="h-8 shrink-0"
+          onClick={onCreate}
+          disabled={busy || variationPrompt.trim().length < 3}
+        >
+          {busy ? <Loader2 className="animate-spin" /> : <GitBranch />}
+          Create variation
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -2769,6 +3340,8 @@ function FrameTrackBranch({
   labels,
   activeGenerationId,
   selectedGenerationId,
+  branchParentId,
+  branchComposer,
   usage,
   onSelect,
 }: {
@@ -2776,14 +3349,21 @@ function FrameTrackBranch({
   labels: Map<string, string>;
   activeGenerationId: string | null;
   selectedGenerationId: string | null;
+  branchParentId: string | null;
+  branchComposer: ReactNode;
   usage: Record<string, GenerationUsage[]>;
   onSelect: (generationId: string) => void;
 }) {
-  const width = frameTrackSubtreeWidth(node);
-  const childWidths = node.children.map(frameTrackSubtreeWidth);
+  const branchOpen = node.generationId === branchParentId;
+  const width = frameTrackSubtreeWidth(node, branchParentId);
+  const childWidths = node.children.map((child) =>
+    frameTrackSubtreeWidth(child, branchParentId),
+  );
   const childCenters = childWidths.map(
     (childWidth, childIndex) =>
-      childWidths.slice(0, childIndex).reduce((total, value) => total + value, 0) +
+      childWidths
+        .slice(0, childIndex)
+        .reduce((total, value) => total + value, 0) +
       childIndex * FRAME_TRACK_GAP +
       childWidth / 2,
   );
@@ -2795,9 +3375,16 @@ function FrameTrackBranch({
         label={labels.get(node.generationId) ?? 'T?'}
         active={node.generationId === activeGenerationId}
         selected={node.generationId === selectedGenerationId}
+        branchOpen={branchOpen}
         usage={usage[node.generationId] ?? []}
         onSelect={() => onSelect(node.generationId)}
       />
+      {branchOpen && (
+        <>
+          <div className="h-5 border-l border-foreground/25" aria-hidden />
+          {branchComposer}
+        </>
+      )}
       {node.children.length > 0 && (
         <>
           <svg
@@ -2813,7 +3400,8 @@ function FrameTrackBranch({
                 d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${FRAME_TRACK_EDGE_H - bend}, ${childCenters[childIndex]} ${FRAME_TRACK_EDGE_H}`}
                 className={cn(
                   'graph-edge',
-                  child.generationId === activeGenerationId && 'graph-edge-active',
+                  child.generationId === activeGenerationId &&
+                    'graph-edge-active',
                 )}
               />
             ))}
@@ -2826,6 +3414,8 @@ function FrameTrackBranch({
                 labels={labels}
                 activeGenerationId={activeGenerationId}
                 selectedGenerationId={selectedGenerationId}
+                branchParentId={branchParentId}
+                branchComposer={branchComposer}
                 usage={usage}
                 onSelect={onSelect}
               />
@@ -2843,19 +3433,39 @@ function FrameTrackDialog({
   storyboardId,
   scene,
   onSetActive,
+  onCreateVariation,
+  busy,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storyboardId: string;
   scene: SceneDto;
   onSetActive: (generationId: string) => Promise<void>;
+  onCreateVariation: (
+    parentGenerationId: string,
+    instruction: string,
+  ) => Promise<string | null>;
+  busy: boolean;
 }) {
-  const [selectedGenerationId, setSelectedGenerationId] = useState<string | null>(
-    scene.generationId,
-  );
+  const [selectedGenerationId, setSelectedGenerationId] = useState<
+    string | null
+  >(scene.generationId);
   const [usage, setUsage] = useState<Record<string, GenerationUsage[]>>({});
-  const [usageState, setUsageState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [usageState, setUsageState] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle');
   const [applying, setApplying] = useState(false);
+  const [branching, setBranching] = useState(false);
+  const [branchParentId, setBranchParentId] = useState<string | null>(null);
+  const [variationType, setVariationType] =
+    useState<FrameTrackVariationType>('lens');
+  const initialVariation = FRAME_TRACK_VARIATION_GROUPS.lens.options[0];
+  const [variationLabel, setVariationLabel] = useState<string>(
+    initialVariation.label,
+  );
+  const [variationPrompt, setVariationPrompt] = useState<string>(
+    initialVariation.prompt,
+  );
   const roots = buildTakeTree(scene.takes);
   const labels = new Map(
     scene.takes
@@ -2868,34 +3478,43 @@ function FrameTrackDialog({
     scene.takes.find((take) => take.generationId === scene.generationId) ??
     scene.takes[0] ??
     null;
-  const selectedUsage = selectedTake ? (usage[selectedTake.generationId] ?? []) : [];
+  const selectedUsage = selectedTake
+    ? (usage[selectedTake.generationId] ?? [])
+    : [];
   const selectedAsset = selectedTake?.run?.assets[0];
   const selectedActive = Boolean(
     selectedTake && scene.generationId === selectedTake.generationId,
   );
   const fullPageHref = `/playground?storyboardId=${encodeURIComponent(storyboardId)}&sceneId=${encodeURIComponent(scene.id)}`;
+  const takeIds = scene.takes.map((take) => take.generationId).join(',');
 
   useEffect(() => {
     if (!open) return;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
-      setSelectedGenerationId(scene.generationId ?? scene.takes[0]?.generationId ?? null);
+      setSelectedGenerationId((current) =>
+        current && scene.takes.some((take) => take.generationId === current)
+          ? current
+          : (scene.generationId ?? scene.takes[0]?.generationId ?? null),
+      );
       setUsageState('loading');
-      const ids = scene.takes.map((take) => take.generationId).join(',');
-      void fetch(`/api/generations/usage?ids=${encodeURIComponent(ids)}`, {
+      void fetch(`/api/generations/usage?ids=${encodeURIComponent(takeIds)}`, {
         cache: 'no-store',
         signal: controller.signal,
       })
         .then(async (response) => {
           if (!response.ok) throw new Error();
-          return (await response.json()) as { usage: Record<string, GenerationUsage[]> };
+          return (await response.json()) as {
+            usage: Record<string, GenerationUsage[]>;
+          };
         })
         .then((data) => {
           setUsage(data.usage);
           setUsageState('ready');
         })
         .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === 'AbortError') return;
+          if (error instanceof DOMException && error.name === 'AbortError')
+            return;
           setUsageState('error');
         });
     }, 0);
@@ -2903,7 +3522,59 @@ function FrameTrackDialog({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [open, scene.generationId, scene.takes]);
+  }, [open, scene.generationId, scene.takes, takeIds]);
+
+  const chooseVariationType = (type: FrameTrackVariationType) => {
+    const next = FRAME_TRACK_VARIATION_GROUPS[type].options[0];
+    setVariationType(type);
+    setVariationLabel(next.label);
+    setVariationPrompt(next.prompt);
+  };
+
+  const chooseVariationPreset = (label: string) => {
+    const option = FRAME_TRACK_VARIATION_GROUPS[variationType].options.find(
+      (entry) => entry.label === label,
+    );
+    if (!option) return;
+    setVariationLabel(option.label);
+    setVariationPrompt(option.prompt);
+  };
+
+  const selectFrameBranch = (generationId: string) => {
+    setSelectedGenerationId(generationId);
+    setBranchParentId((current) =>
+      current === generationId ? null : generationId,
+    );
+  };
+
+  const createVariation = async () => {
+    if (
+      !branchParentId ||
+      variationPrompt.trim().length < 3 ||
+      busy ||
+      branching
+    )
+      return;
+    setBranching(true);
+    try {
+      const group = FRAME_TRACK_VARIATION_GROUPS[variationType];
+      const generationId = await onCreateVariation(
+        branchParentId,
+        `${group.label} — ${variationLabel}. ${variationPrompt.trim()}`,
+      );
+      if (generationId) {
+        setSelectedGenerationId(generationId);
+        setBranchParentId(generationId);
+      }
+    } finally {
+      setBranching(false);
+    }
+  };
+
+  const changeOpenState = (nextOpen: boolean) => {
+    if (!nextOpen) setBranchParentId(null);
+    onOpenChange(nextOpen);
+  };
 
   const applySelectedFrame = async () => {
     if (!selectedTake || selectedActive || !selectedAsset) return;
@@ -2916,24 +3587,35 @@ function FrameTrackDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={changeOpenState}>
       <DialogContent className="h-[calc(100svh-2rem)] w-[calc(100%-2rem)] max-w-[1500px]! grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0!">
         <DialogHeader className="border-b px-5 py-4 pr-14">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <DialogTitle>Frame Track · Scene {String(scene.sceneIndex + 1).padStart(2, '0')}</DialogTitle>
-                <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                <DialogTitle>
+                  Frame Track · Scene{' '}
+                  {String(scene.sceneIndex + 1).padStart(2, '0')}
+                </DialogTitle>
+                <Badge
+                  variant="outline"
+                  className="font-mono text-[8px] uppercase"
+                >
                   {scene.takes.length} take{scene.takes.length === 1 ? '' : 's'}
                 </Badge>
               </div>
               <DialogDescription className="mt-1 text-[11px]">
-                Preview a branch here, or open the full Frame Stack to keep building it.
+                Select a frame to open its branch, create a variation, then
+                choose what feeds the scene.
               </DialogDescription>
             </div>
             <Link
               href={fullPageHref}
-              className={buttonVariants({ variant: 'outline', size: 'sm', className: 'h-8' })}
+              className={buttonVariants({
+                variant: 'outline',
+                size: 'sm',
+                className: 'h-8',
+              })}
             >
               <Maximize2 /> Open full Frame Stack
             </Link>
@@ -2944,7 +3626,10 @@ function FrameTrackDialog({
           <div className="relative min-h-0 overflow-auto bg-[var(--canvas)]">
             <div className="pointer-events-none absolute inset-0 graph-grid opacity-60" />
             <div className="relative flex min-h-full min-w-max items-start justify-center p-10">
-              <div className="flex items-start" style={{ gap: FRAME_TRACK_GAP }}>
+              <div
+                className="flex items-start"
+                style={{ gap: FRAME_TRACK_GAP }}
+              >
                 {roots.map((root) => (
                   <FrameTrackBranch
                     key={root.id}
@@ -2952,8 +3637,26 @@ function FrameTrackDialog({
                     labels={labels}
                     activeGenerationId={scene.generationId}
                     selectedGenerationId={selectedTake?.generationId ?? null}
+                    branchParentId={branchParentId}
+                    branchComposer={
+                      <FrameTrackBranchComposer
+                        parentLabel={
+                          branchParentId
+                            ? (labels.get(branchParentId) ?? 'take')
+                            : 'take'
+                        }
+                        variationType={variationType}
+                        variationLabel={variationLabel}
+                        variationPrompt={variationPrompt}
+                        busy={busy || branching}
+                        onTypeChange={chooseVariationType}
+                        onPresetChange={chooseVariationPreset}
+                        onPromptChange={setVariationPrompt}
+                        onCreate={() => void createVariation()}
+                      />
+                    }
                     usage={usage}
-                    onSelect={setSelectedGenerationId}
+                    onSelect={selectFrameBranch}
                   />
                 ))}
               </div>
@@ -2967,7 +3670,8 @@ function FrameTrackDialog({
                 variant={selectedActive ? 'default' : 'outline'}
                 className={cn(
                   'font-mono text-[8px] uppercase',
-                  selectedActive && 'bg-[var(--brand-soft)] text-[var(--brand)]',
+                  selectedActive &&
+                    'bg-[var(--brand-soft)] text-[var(--brand)]',
                 )}
               >
                 {selectedActive ? 'active in scene' : 'preview only'}
@@ -2989,7 +3693,9 @@ function FrameTrackDialog({
               )}
             </div>
             <p className="mt-2 text-[12px] font-medium">
-              {selectedTake ? (labels.get(selectedTake.generationId) ?? 'Take') : 'No take'}
+              {selectedTake
+                ? (labels.get(selectedTake.generationId) ?? 'Take')
+                : 'No take'}
             </p>
             <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
               {typeof selectedTake?.run?.parameters.instruction === 'string'
@@ -3001,17 +3707,24 @@ function FrameTrackDialog({
               <div className="flex items-center justify-between gap-2">
                 <SystemLabel>Used by boards</SystemLabel>
                 <span className="font-mono text-[8px] uppercase text-muted-foreground">
-                  {new Set(selectedUsage.map((entry) => entry.storyboardId)).size} linked
+                  {
+                    new Set(selectedUsage.map((entry) => entry.storyboardId))
+                      .size
+                  }{' '}
+                  linked
                 </span>
               </div>
               <div className="mt-2 space-y-1.5">
                 {usageState === 'loading' && (
                   <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                    <Loader2 className="size-3 animate-spin" /> Resolving dependencies…
+                    <Loader2 className="size-3 animate-spin" /> Resolving
+                    dependencies…
                   </p>
                 )}
                 {usageState === 'error' && (
-                  <p className="text-[10px] text-destructive">Could not load frame dependencies.</p>
+                  <p className="text-[10px] text-destructive">
+                    Could not load frame dependencies.
+                  </p>
                 )}
                 {usageState === 'ready' && selectedUsage.length === 0 && (
                   <p className="rounded-md border border-dashed p-2.5 text-[10px] text-muted-foreground">
@@ -3019,18 +3732,32 @@ function FrameTrackDialog({
                   </p>
                 )}
                 {selectedUsage.map((entry) => (
-                  <div key={`${entry.kind}:${entry.storyboardId}:${entry.sceneId}`} className="rounded-md border bg-muted/25 p-2.5">
+                  <div
+                    key={`${entry.kind}:${entry.storyboardId}:${entry.sceneId}`}
+                    className="rounded-md border bg-muted/25 p-2.5"
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[10px] font-medium">{entry.storyboardTitle}</span>
-                      <Badge variant="outline" className="font-mono text-[7px] uppercase">
-                        {entry.active ? 'active' : entry.kind === 'reference' ? 'reference' : 'take'}
+                      <span className="truncate text-[10px] font-medium">
+                        {entry.storyboardTitle}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[7px] uppercase"
+                      >
+                        {entry.active
+                          ? 'active'
+                          : entry.kind === 'reference'
+                            ? 'reference'
+                            : 'take'}
                       </Badge>
                     </div>
                     <p className="mt-0.5 truncate font-mono text-[8px] uppercase text-muted-foreground">
                       {entry.sceneIndex == null
                         ? 'Board reference'
                         : `Scene ${String(entry.sceneIndex + 1).padStart(2, '0')} · ${entry.sceneTitle}`}
-                      {entry.storyboardId === storyboardId ? ' · this board' : ''}
+                      {entry.storyboardId === storyboardId
+                        ? ' · this board'
+                        : ''}
                     </p>
                   </div>
                 ))}
@@ -3041,10 +3768,15 @@ function FrameTrackDialog({
 
         <div className="flex items-center justify-between gap-3 border-t bg-background px-4 py-3">
           <p className="max-w-xl text-[10px] leading-4 text-muted-foreground">
-            Changing the active frame only affects future video drafts. Existing clips remain attached to their original source.
+            Changing the active frame only affects future video drafts. Existing
+            clips remain attached to their original source.
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => changeOpenState(false)}
+            >
               Close
             </Button>
             <Button
@@ -3097,12 +3829,17 @@ function TimelineBlock({
   const visibleTrim = dragTrim ?? trim;
   const durationSec = (visibleTrim.endMs - visibleTrim.startMs) / 1_000;
   const sourceDurationMs = scene.durationSec * 1_000;
-  const trimmed = visibleTrim.startMs > 0 || visibleTrim.endMs < sourceDurationMs;
+  const trimmed =
+    visibleTrim.startMs > 0 || visibleTrim.endMs < sourceDurationMs;
   const asset = scene.run?.assets[0];
   const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
-  const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
+  const clipAsset =
+    clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
 
-  const beginTrim = (edge: 'in' | 'out', event: React.PointerEvent<HTMLButtonElement>) => {
+  const beginTrim = (
+    edge: 'in' | 'out',
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) => {
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -3116,8 +3853,10 @@ function TimelineBlock({
     const drag = dragStateRef.current;
     if (!drag) return;
     const deltaMs =
-      Math.round(((event.clientX - drag.startX) / TIMELINE_PX_PER_SEC / TRIM_STEP_MS) * 1_000) *
-      TRIM_STEP_MS;
+      Math.round(
+        ((event.clientX - drag.startX) / TIMELINE_PX_PER_SEC / TRIM_STEP_MS) *
+          1_000,
+      ) * TRIM_STEP_MS;
     const next =
       drag.edge === 'in'
         ? {
@@ -3144,7 +3883,10 @@ function TimelineBlock({
     dragStateRef.current = null;
     dragTrimRef.current = null;
     setDragTrim(null);
-    if (finalTrim && (finalTrim.startMs !== trim.startMs || finalTrim.endMs !== trim.endMs)) {
+    if (
+      finalTrim &&
+      (finalTrim.startMs !== trim.startMs || finalTrim.endMs !== trim.endMs)
+    ) {
       onTrimCommit(finalTrim);
     }
   };
@@ -3173,7 +3915,8 @@ function TimelineBlock({
               Math.min(sourceDurationMs, trim.endMs + direction * TRIM_STEP_MS),
             ),
           };
-    if (next.startMs !== trim.startMs || next.endMs !== trim.endMs) onTrimCommit(next);
+    if (next.startMs !== trim.startMs || next.endMs !== trim.endMs)
+      onTrimCommit(next);
   };
 
   return (
@@ -3224,12 +3967,14 @@ function TimelineBlock({
         )}
         {trimmed && (
           <span className="absolute left-1 top-1 rounded bg-black/72 px-1 font-mono text-[8px] uppercase tracking-wider text-white backdrop-blur">
-            {formatTrimTime(visibleTrim.startMs)}–{formatTrimTime(visibleTrim.endMs)}
+            {formatTrimTime(visibleTrim.startMs)}–
+            {formatTrimTime(visibleTrim.endMs)}
           </span>
         )}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background/90 to-transparent p-1 pt-3">
           <p className="truncate font-mono text-[9px] uppercase tracking-wider">
-            {String(scene.sceneIndex + 1).padStart(2, '0')} · {formatCutDuration(durationSec)}
+            {String(scene.sceneIndex + 1).padStart(2, '0')} ·{' '}
+            {formatCutDuration(durationSec)}
           </p>
         </div>
       </div>
@@ -3294,7 +4039,9 @@ function SubtitleEditor({
   ) => Promise<void>;
 }) {
   const scoped = scene.subtitles.filter((cue) => cue.clipId === clipId);
-  const inherited = clipId ? scene.subtitles.filter((cue) => cue.clipId === null) : [];
+  const inherited = clipId
+    ? scene.subtitles.filter((cue) => cue.clipId === null)
+    : [];
   const source = scoped.length ? scoped : inherited;
   const [cues, setCues] = useState<EditableSubtitle[]>(() =>
     source.map(({ id, startMs, endMs, text, speaker, language }) => ({
@@ -3310,7 +4057,9 @@ function SubtitleEditor({
 
   useEffect(() => {
     const exact = scene.subtitles.filter((cue) => cue.clipId === clipId);
-    const fallback = clipId ? scene.subtitles.filter((cue) => cue.clipId === null) : [];
+    const fallback = clipId
+      ? scene.subtitles.filter((cue) => cue.clipId === null)
+      : [];
     const next = exact.length ? exact : fallback;
     const timeout = window.setTimeout(
       () =>
@@ -3339,7 +4088,10 @@ function SubtitleEditor({
       ...current,
       {
         startMs: Math.max(0, startMs),
-        endMs: Math.min(scene.durationSec * 1_000, Math.max(startMs + 500, startMs + 2_000)),
+        endMs: Math.min(
+          scene.durationSec * 1_000,
+          Math.max(startMs + 500, startMs + 2_000),
+        ),
         text: '',
         speaker: null,
         language: 'de',
@@ -3393,7 +4145,10 @@ function SubtitleEditor({
           </button>
         )}
         {cues.map((cue, index) => (
-          <div key={cue.id ?? `new-${index}`} className="rounded-md border bg-muted/30 p-2">
+          <div
+            key={cue.id ?? `new-${index}`}
+            className="rounded-md border bg-muted/30 p-2"
+          >
             <div className="mb-1.5 flex items-center gap-1.5">
               <Input
                 aria-label="Subtitle start time in seconds"
@@ -3403,7 +4158,9 @@ function SubtitleEditor({
                   if (!Number.isFinite(value)) return;
                   setCues((current) =>
                     current.map((item, itemIndex) =>
-                      itemIndex === index ? { ...item, startMs: value * 1_000 } : item,
+                      itemIndex === index
+                        ? { ...item, startMs: value * 1_000 }
+                        : item,
                     ),
                   );
                 }}
@@ -3418,7 +4175,9 @@ function SubtitleEditor({
                   if (!Number.isFinite(value)) return;
                   setCues((current) =>
                     current.map((item, itemIndex) =>
-                      itemIndex === index ? { ...item, endMs: value * 1_000 } : item,
+                      itemIndex === index
+                        ? { ...item, endMs: value * 1_000 }
+                        : item,
                     ),
                   );
                 }}
@@ -3430,7 +4189,9 @@ function SubtitleEditor({
                 onChange={(event) =>
                   setCues((current) =>
                     current.map((item, itemIndex) =>
-                      itemIndex === index ? { ...item, speaker: event.target.value } : item,
+                      itemIndex === index
+                        ? { ...item, speaker: event.target.value }
+                        : item,
                     ),
                   )
                 }
@@ -3442,7 +4203,9 @@ function SubtitleEditor({
                 size="icon-xs"
                 aria-label="Remove subtitle cue"
                 onClick={() =>
-                  setCues((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                  setCues((current) =>
+                    current.filter((_, itemIndex) => itemIndex !== index),
+                  )
                 }
               >
                 <Trash2 />
@@ -3453,7 +4216,9 @@ function SubtitleEditor({
               onChange={(event) =>
                 setCues((current) =>
                   current.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, text: event.target.value } : item,
+                    itemIndex === index
+                      ? { ...item, text: event.target.value }
+                      : item,
                   ),
                 )
               }
@@ -3464,8 +4229,14 @@ function SubtitleEditor({
           </div>
         ))}
       </div>
-      <Button className="mt-2 w-full" size="sm" onClick={() => void commit()} disabled={saving}>
-        {saving ? <Loader2 className="animate-spin" /> : <Check />} Save subtitle track
+      <Button
+        className="mt-2 w-full"
+        size="sm"
+        onClick={() => void commit()}
+        disabled={saving}
+      >
+        {saving ? <Loader2 className="animate-spin" /> : <Check />} Save
+        subtitle track
       </Button>
     </div>
   );
@@ -3505,18 +4276,25 @@ function ReelDetail({
   const [copied, setCopied] = useState(false);
   const [trimDrafts, setTrimDrafts] = useState<Record<string, TrimRange>>({});
   const initialScene = storyboard.scenes[0] ?? null;
-  const [activeSceneId, setActiveSceneId] = useState<string | null>(initialScene?.id ?? null);
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(
+    initialScene?.id ?? null,
+  );
   const [activeClipId, setActiveClipId] = useState<string | null>(
-    initialScene ? (latestClip(initialScene, ['fhd', 'hd', 'draft'])?.id ?? null) : null,
+    initialScene
+      ? (latestClip(initialScene, ['fhd', 'hd', 'draft'])?.id ?? null)
+      : null,
   );
 
   const activeScene =
-    storyboard.scenes.find((scene) => scene.id === activeSceneId) ?? storyboard.scenes[0] ?? null;
+    storyboard.scenes.find((scene) => scene.id === activeSceneId) ??
+    storyboard.scenes[0] ??
+    null;
   const activeClip =
     activeScene && activeClipId
       ? (activeScene.clips.find((clip) => clip.id === activeClipId) ?? null)
       : null;
-  const trimFor = (scene: SceneDto) => sceneTrimRange(scene, trimDrafts[scene.id]);
+  const trimFor = (scene: SceneDto) =>
+    sceneTrimRange(scene, trimDrafts[scene.id]);
   const activeTrim = activeScene ? trimFor(activeScene) : null;
   const cutTotalSeconds = storyboard.scenes.reduce(
     (sum, scene) => sum + sceneCutDurationSec(scene, trimDrafts[scene.id]),
@@ -3529,15 +4307,22 @@ function ReelDetail({
         setActiveSceneId(storyboard.scenes[0]?.id ?? null);
         setActiveClipId(
           storyboard.scenes[0]
-            ? (latestClip(storyboard.scenes[0], ['fhd', 'hd', 'draft'])?.id ?? null)
+            ? (latestClip(storyboard.scenes[0], ['fhd', 'hd', 'draft'])?.id ??
+                null)
             : null,
         );
       }, 0);
       return () => window.clearTimeout(timeout);
     }
-    if (activeClipId && !activeScene.clips.some((clip) => clip.id === activeClipId)) {
+    if (
+      activeClipId &&
+      !activeScene.clips.some((clip) => clip.id === activeClipId)
+    ) {
       const timeout = window.setTimeout(
-        () => setActiveClipId(latestClip(activeScene, ['fhd', 'hd', 'draft'])?.id ?? null),
+        () =>
+          setActiveClipId(
+            latestClip(activeScene, ['fhd', 'hd', 'draft'])?.id ?? null,
+          ),
         0,
       );
       return () => window.clearTimeout(timeout);
@@ -3565,7 +4350,8 @@ function ReelDetail({
   const playerVideoRef = useRef<HTMLVideoElement | null>(null);
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const mediaAdvanceRef = useRef(false);
-  const playingItem = playlist && playPos < playlist.length ? playlist[playPos] : null;
+  const playingItem =
+    playlist && playPos < playlist.length ? playlist[playPos] : null;
 
   const applyTrimPreview = (scene: SceneDto, trim: TrimRange | null) => {
     setTrimDrafts((current) => {
@@ -3654,7 +4440,9 @@ function ReelDetail({
 
   useEffect(() => {
     if (!playingItem) return;
-    const scene = storyboard.scenes.find((entry) => entry.id === playingItem.id);
+    const scene = storyboard.scenes.find(
+      (entry) => entry.id === playingItem.id,
+    );
     if (!scene) return;
     const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
     const timeout = window.setTimeout(() => {
@@ -3668,7 +4456,8 @@ function ReelDetail({
     storyboard.scenes.flatMap((scene) => {
       const asset = scene.run?.assets[0];
       const clip = latestClip(scene, ['fhd', 'hd', 'draft']);
-      const clipAsset = clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
+      const clipAsset =
+        clip?.run?.status === 'succeeded' ? clip.run.assets[0] : undefined;
       const trim = trimFor(scene);
       return asset || clipAsset
         ? [
@@ -3688,7 +4477,9 @@ function ReelDetail({
     });
   const activeStill = activeScene?.run?.assets[0];
   const activeClipAsset =
-    activeClip?.run?.status === 'succeeded' ? activeClip.run.assets[0] : undefined;
+    activeClip?.run?.status === 'succeeded'
+      ? activeClip.run.assets[0]
+      : undefined;
   const selectedPreview =
     activeScene && (activeStill || activeClipAsset)
       ? (() => {
@@ -3706,7 +4497,8 @@ function ReelDetail({
           };
         })()
       : null;
-  const previewItem = playingItem ?? selectedPreview ?? buildPlaylist()[0] ?? null;
+  const previewItem =
+    playingItem ?? selectedPreview ?? buildPlaylist()[0] ?? null;
   const previewScene = previewItem
     ? (storyboard.scenes.find((scene) => scene.id === previewItem.id) ?? null)
     : null;
@@ -3717,8 +4509,12 @@ function ReelDetail({
     : (activeClip?.id ?? null);
   const previewSubtitles = previewScene
     ? (() => {
-        const exact = previewScene.subtitles.filter((cue) => cue.clipId === previewClipId);
-        return exact.length ? exact : previewScene.subtitles.filter((cue) => cue.clipId === null);
+        const exact = previewScene.subtitles.filter(
+          (cue) => cue.clipId === previewClipId,
+        );
+        return exact.length
+          ? exact
+          : previewScene.subtitles.filter((cue) => cue.clipId === null);
       })()
     : [];
   const activeSubtitle = playingItem
@@ -3729,7 +4525,9 @@ function ReelDetail({
       )
     : previewSubtitles[0];
   const elapsedBeforeScene = playlist
-    ? playlist.slice(0, playPos).reduce((sum, item) => sum + item.durationSec, 0)
+    ? playlist
+        .slice(0, playPos)
+        .reduce((sum, item) => sum + item.durationSec, 0)
     : 0;
   const cutElapsed = playingItem ? elapsedBeforeScene + elapsed : 0;
 
@@ -3842,7 +4640,8 @@ function ReelDetail({
         <div>
           <SystemLabel>Reel</SystemLabel>
           <p className="mt-1 text-[15px] font-medium">
-            {storyboard.scenes.length} scenes · {formatCutDuration(cutTotalSeconds)} cut
+            {storyboard.scenes.length} scenes ·{' '}
+            {formatCutDuration(cutTotalSeconds)} cut
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             Draft everything cheap, watch the cut, enhance only the keepers.
@@ -3851,14 +4650,31 @@ function ReelDetail({
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={togglePlayback}>
             {playingItem && !isPaused ? <Pause /> : <Play />}{' '}
-            {playingItem && !isPaused ? 'Pause cut' : playingItem ? 'Resume cut' : 'Play cut'}
+            {playingItem && !isPaused
+              ? 'Pause cut'
+              : playingItem
+                ? 'Resume cut'
+                : 'Play cut'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void exportBoard()}>
-            {copied ? <Check /> : <Copy />} {copied ? 'Copied' : 'Export board JSON'}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void exportBoard()}
+          >
+            {copied ? <Check /> : <Copy />}{' '}
+            {copied ? 'Copied' : 'Export board JSON'}
           </Button>
           {videoEnabled && (
-            <Button size="sm" onClick={onAssemble} disabled={assembling || draftableCount === 0}>
-              {assembling ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+            <Button
+              size="sm"
+              onClick={onAssemble}
+              disabled={assembling || draftableCount === 0}
+            >
+              {assembling ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Clapperboard />
+              )}
               Assemble draft reel
               {draftableCount > 0 ? ` (${draftableCount})` : ''}
             </Button>
@@ -3885,15 +4701,21 @@ function ReelDetail({
                   onLoadedMetadata={(event) => {
                     event.currentTarget.currentTime = Math.min(
                       playingItem.trimStartSec,
-                      event.currentTarget.duration || playingItem.sourceDurationSec,
+                      event.currentTarget.duration ||
+                        playingItem.sourceDurationSec,
                     );
                   }}
-                  onTimeUpdate={(event) => updateVideoClock(event.currentTarget)}
+                  onTimeUpdate={(event) =>
+                    updateVideoClock(event.currentTarget)
+                  }
                   onEnded={advanceFromMedia}
                   onError={advanceFromMedia}
                   className="size-full bg-black object-cover"
                 >
-                  <track kind="captions" label="Captions are rendered as an editable overlay" />
+                  <track
+                    kind="captions"
+                    label="Captions are rendered as an editable overlay"
+                  />
                 </video>
               ) : (
                 <NextImage
@@ -3916,7 +4738,8 @@ function ReelDetail({
                 onLoadedMetadata={(event) => {
                   event.currentTarget.currentTime = Math.min(
                     previewItem.trimStartSec,
-                    event.currentTarget.duration || previewItem.sourceDurationSec,
+                    event.currentTarget.duration ||
+                      previewItem.sourceDurationSec,
                   );
                 }}
                 className="size-full bg-black object-cover"
@@ -3943,7 +4766,9 @@ function ReelDetail({
                 </span>
               </button>
             )}
-            {previewScene?.sceneIndex === storyboard.scenes.length - 1 && <EndCardLogo />}
+            {previewScene?.sceneIndex === storyboard.scenes.length - 1 && (
+              <EndCardLogo />
+            )}
             {activeSubtitle && (
               <div className="pointer-events-none absolute inset-x-[10%] bottom-16 z-20 text-center">
                 <span className="inline rounded bg-black/78 px-2.5 py-1 text-[14px] font-medium leading-6 text-[#ffd84d] shadow-lg [box-decoration-break:clone] [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]">
@@ -3967,7 +4792,9 @@ function ReelDetail({
                   type="button"
                   onClick={togglePlayback}
                   className="pointer-events-auto grid size-8 shrink-0 place-items-center rounded-full bg-white text-black shadow transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white/60"
-                  aria-label={playingItem && !isPaused ? 'Pause playback' : 'Play the cut'}
+                  aria-label={
+                    playingItem && !isPaused ? 'Pause playback' : 'Play the cut'
+                  }
                 >
                   {playingItem && !isPaused ? (
                     <Pause className="size-3.5" />
@@ -3990,7 +4817,8 @@ function ReelDetail({
                     : `Cut ready · ${storyboard.scenes.length} scenes · ${formatCutDuration(cutTotalSeconds)} — clips play where rendered, stills hold`}
                 </p>
                 <span className="shrink-0 font-mono text-[10px] tabular-nums text-white/72">
-                  {formatPlayerTime(cutElapsed)} / {formatPlayerTime(cutTotalSeconds)}
+                  {formatPlayerTime(cutElapsed)} /{' '}
+                  {formatPlayerTime(cutTotalSeconds)}
                 </span>
                 <button
                   type="button"
@@ -3998,7 +4826,11 @@ function ReelDetail({
                   className="pointer-events-auto grid size-7 shrink-0 place-items-center rounded transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60"
                   aria-label={muted ? 'Unmute playback' : 'Mute playback'}
                 >
-                  {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                  {muted ? (
+                    <VolumeX className="size-3.5" />
+                  ) : (
+                    <Volume2 className="size-3.5" />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -4029,7 +4861,9 @@ function ReelDetail({
                       }}
                       className={cn(
                         'relative h-full overflow-hidden outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring',
-                        segmentState === 'done' ? 'bg-[#ffd84d]' : 'bg-white/20 hover:bg-white/40',
+                        segmentState === 'done'
+                          ? 'bg-[#ffd84d]'
+                          : 'bg-white/20 hover:bg-white/40',
                       )}
                       aria-label={`Play from scene ${sceneIndex + 1}: ${scene.title}`}
                     >
@@ -4054,7 +4888,8 @@ function ReelDetail({
                 <div className="min-w-0">
                   <SystemLabel>Active video</SystemLabel>
                   <p className="mt-1 truncate text-[13px] font-medium">
-                    {String(activeScene.sceneIndex + 1).padStart(2, '0')} · {activeScene.title}
+                    {String(activeScene.sceneIndex + 1).padStart(2, '0')} ·{' '}
+                    {activeScene.title}
                   </p>
                   <p className="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                     {activeClip ? `${activeClip.tier} clip` : 'source still'} ·{' '}
@@ -4074,7 +4909,8 @@ function ReelDetail({
                     onClick={() => setActiveClipId(null)}
                     className={cn(
                       'rounded-md border px-2 py-1.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                      !activeClip && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+                      !activeClip &&
+                        'border-[var(--brand)] bg-[var(--brand-soft)]',
                     )}
                   >
                     <span className="block font-mono text-[9px] uppercase tracking-wider">
@@ -4134,9 +4970,17 @@ function ReelDetail({
                     {[
                       ['In', formatTrimTime(activeTrim.startMs)],
                       ['Out', formatTrimTime(activeTrim.endMs)],
-                      ['Cut', formatCutDuration((activeTrim.endMs - activeTrim.startMs) / 1_000)],
+                      [
+                        'Cut',
+                        formatCutDuration(
+                          (activeTrim.endMs - activeTrim.startMs) / 1_000,
+                        ),
+                      ],
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded border bg-background px-2 py-1.5">
+                      <div
+                        key={label}
+                        className="rounded border bg-background px-2 py-1.5"
+                      >
                         <span className="block font-mono text-[8px] uppercase text-muted-foreground">
                           {label}
                         </span>
@@ -4157,8 +5001,8 @@ function ReelDetail({
                     <span className="absolute inset-y-0 left-1/2 w-px bg-background/80" />
                   </div>
                   <p className="mt-1.5 text-[9px] leading-3.5 text-muted-foreground">
-                    Drag the green IN and OUT handles on the track. Playback and both timelines use
-                    this exact source range.
+                    Drag the green IN and OUT handles on the track. Playback and
+                    both timelines use this exact source range.
                   </p>
                 </div>
               )}
@@ -4172,46 +5016,56 @@ function ReelDetail({
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-1.5">
-                <Button variant="outline" size="sm" onClick={() => jumpTo(activeScene.id)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => jumpTo(activeScene.id)}
+                >
                   <Play /> Play from here
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => onOpenScene(activeScene.id)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onOpenScene(activeScene.id)}
+                >
                   Open source scene
                 </Button>
-                {videoEnabled && !activeScene.clips.some((clip) => clip.tier === 'draft') && (
-                  <Button
-                    size="sm"
-                    onClick={() => onDraftClip(activeScene.id)}
-                    disabled={busyScenes.has(activeScene.id) || !activeStill}
-                  >
-                    {busyScenes.has(activeScene.id) ? (
-                      <Loader2 className="animate-spin" />
-                    ) : (
-                      <Play />
-                    )}
-                    Draft video
-                  </Button>
-                )}
-                {videoEnabled && activeScene.clips.some((clip) => clip.tier === 'draft') && (
-                  <>
+                {videoEnabled &&
+                  !activeScene.clips.some((clip) => clip.tier === 'draft') && (
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() => onEnhance(activeScene.id, 'hd')}
-                      disabled={busyScenes.has(activeScene.id)}
+                      onClick={() => onDraftClip(activeScene.id)}
+                      disabled={busyScenes.has(activeScene.id) || !activeStill}
                     >
-                      Enhance HD
+                      {busyScenes.has(activeScene.id) ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <Play />
+                      )}
+                      Draft video
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onEnhance(activeScene.id, 'fhd')}
-                      disabled={busyScenes.has(activeScene.id)}
-                    >
-                      Enhance FHD
-                    </Button>
-                  </>
-                )}
+                  )}
+                {videoEnabled &&
+                  activeScene.clips.some((clip) => clip.tier === 'draft') && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onEnhance(activeScene.id, 'hd')}
+                        disabled={busyScenes.has(activeScene.id)}
+                      >
+                        Enhance HD
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onEnhance(activeScene.id, 'fhd')}
+                        disabled={busyScenes.has(activeScene.id)}
+                      >
+                        Enhance FHD
+                      </Button>
+                    </>
+                  )}
               </div>
 
               <SubtitleEditor
@@ -4232,7 +5086,9 @@ function ReelDetail({
             <div
               className="relative mb-0.5 h-4"
               style={{
-                width: cutTotalSeconds * TIMELINE_PX_PER_SEC + (storyboard.scenes.length - 1) * 4,
+                width:
+                  cutTotalSeconds * TIMELINE_PX_PER_SEC +
+                  (storyboard.scenes.length - 1) * 4,
               }}
               aria-hidden
             >
@@ -4276,8 +5132,9 @@ function ReelDetail({
             </div>
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Click a block to select its active clip · drag either green edge for source IN/OUT · the
-            yellow playhead and both segmented bars follow the resulting cut in real time.
+            Click a block to select its active clip · drag either green edge for
+            source IN/OUT · the yellow playhead and both segmented bars follow
+            the resulting cut in real time.
           </p>
         </div>
       )}
@@ -4339,7 +5196,12 @@ function VideoPlanBar({
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" variant="outline" className="h-8 text-[12px]" onClick={onOpenTimeline}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-[12px]"
+            onClick={onOpenTimeline}
+          >
             <Film /> Timeline
           </Button>
           {videoEnabled ? (
@@ -4349,7 +5211,11 @@ function VideoPlanBar({
               onClick={onAssemble}
               disabled={assembling || draftableCount === 0}
             >
-              {assembling ? <Loader2 className="animate-spin" /> : <Clapperboard />}
+              {assembling ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Clapperboard />
+              )}
               Assemble draft reel
               {draftableCount > 0 ? ` (${draftableCount})` : ''}
             </Button>
@@ -4371,8 +5237,8 @@ function VideoPlanBar({
                 }
               />
               <TooltipContent side="top" className="max-w-64">
-                Stills render live through FLUX.2. Set VIDEO_ENABLED=true on the deployment to turn
-                on the FLUX 3 Video draft → enhance pipeline.
+                Stills render live through FLUX.2. Set VIDEO_ENABLED=true on the
+                deployment to turn on the FLUX 3 Video draft → enhance pipeline.
               </TooltipContent>
             </Tooltip>
           )}
@@ -4400,12 +5266,14 @@ function EmptyBoard({
         One idea. A sequence of shots.
       </h1>
       <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
-        Describe the film in a paragraph — the shot list writes itself, scene by scene. Then walk
-        the sequence: refine each prompt, render the still, draft the clip, enhance the keepers.
+        Describe the film in a paragraph — the shot list writes itself, scene by
+        scene. Then walk the sequence: refine each prompt, render the still,
+        draft the clip, enhance the keepers.
       </p>
       <div className="mt-4 flex items-center justify-center gap-2">
         <Button onClick={onCreate} disabled={creating}>
-          {creating ? <Loader2 className="animate-spin" /> : <Plus />} New storyboard
+          {creating ? <Loader2 className="animate-spin" /> : <Plus />} New
+          storyboard
         </Button>
         <Button variant="outline" onClick={onExample} disabled={creating}>
           <Sparkles /> Load example board
@@ -4423,9 +5291,10 @@ function SignedOutPreview({ signInPath }: { signInPath: string }) {
         Scenes — one idea, a sequence of shots
       </h1>
       <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
-        Type the idea, get a sequential shot list, and walk it node by node: pinned references keep
-        the subject consistent through FLUX.2, and each finished still becomes a FLUX 3 Video draft
-        you enhance only when it earns it.
+        Type the idea, get a sequential shot list, and walk it node by node:
+        pinned references keep the subject consistent through FLUX.2, and each
+        finished still becomes a FLUX 3 Video draft you enhance only when it
+        earns it.
       </p>
       <a href={signInPath} className={buttonVariants({ className: 'mt-4' })}>
         Sign in to build
@@ -4443,7 +5312,9 @@ function ReferencePickerDialog({
   onOpenChange: (open: boolean) => void;
   onPick: (assetId: string) => void;
 }) {
-  const [assets, setAssets] = useState<Array<{ id: string; url: string; prompt: string }>>([]);
+  const [assets, setAssets] = useState<
+    Array<{ id: string; url: string; prompt: string }>
+  >([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   // Mounted fresh on every open, so the loading state resets naturally.
@@ -4474,8 +5345,8 @@ function ReferencePickerDialog({
         <DialogHeader>
           <DialogTitle>Pin a reference</DialogTitle>
           <DialogDescription>
-            Pick any output from your shared history. It will ride along as a FLUX.2 reference image
-            with every scene render.
+            Pick any output from your shared history. It will ride along as a
+            FLUX.2 reference image with every scene render.
           </DialogDescription>
         </DialogHeader>
         {state === 'loading' && (
@@ -4484,12 +5355,14 @@ function ReferencePickerDialog({
           </p>
         )}
         {state === 'error' && (
-          <p className="text-[12px] text-destructive">Could not load history.</p>
+          <p className="text-[12px] text-destructive">
+            Could not load history.
+          </p>
         )}
         {state === 'ready' && assets.length === 0 && (
           <p className="rounded-md border border-dashed p-4 text-[12px] leading-relaxed text-muted-foreground">
-            No stored outputs yet — generate an image in the Playground first, then pin it here as
-            the storyboard reference.
+            No stored outputs yet — generate an image in the Playground first,
+            then pin it here as the storyboard reference.
           </p>
         )}
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
