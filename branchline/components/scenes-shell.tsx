@@ -2166,17 +2166,6 @@ function SceneDetail({
                   : undefined
               }
             />
-            {tab === 'still' && scene.takes.length > 0 && (
-              <TakesTree
-                takes={scene.takes}
-                activeGenerationId={scene.generationId}
-                onSetActive={(generationId) =>
-                  onPatch({ activeGenerationId: generationId })
-                }
-                onNewTake={onRenderStill}
-                busy={busyStill || stillRunning}
-              />
-            )}
             {tab === 'still' && hasStill && (
               <RefineTakeForm
                 busy={busyStill || stillRunning}
@@ -2823,15 +2812,9 @@ function RefineTakeForm({
   );
 }
 
-// --- take tree ---------------------------------------------------------------
-// Variations of a frame form a real tree: a fresh render is a root, every
-// refinement (seeded objects, camera move, relight…) branches off its parent
-// via the run's refinedFrom link. Layout is computed from data, so the canvas
-// edges always land on their tiles.
-
-const TREE_TILE_W = 96;
-const TREE_GAP = 10;
-const TREE_EDGE_H = 24;
+// Variations form a real tree through each run's refinedFrom link. The tree is
+// rendered only inside Frame Track, where choosing an active video source is
+// explicit and contextual.
 
 type TakeNode = TakeDto & { children: TakeNode[] };
 
@@ -2850,197 +2833,6 @@ function buildTakeTree(takes: TakeDto[]): TakeNode[] {
   const byAge = (a: TakeNode, b: TakeNode) => a.createdAt - b.createdAt;
   for (const node of nodes.values()) node.children.sort(byAge);
   return roots.sort(byAge);
-}
-
-function subtreeWidth(node: TakeNode): number {
-  if (!node.children.length) return TREE_TILE_W;
-  return (
-    node.children.reduce((total, child) => total + subtreeWidth(child), 0) +
-    TREE_GAP * (node.children.length - 1)
-  );
-}
-
-function TakeTile({
-  node,
-  label,
-  active,
-  onSetActive,
-}: {
-  node: TakeNode;
-  label: string;
-  active: boolean;
-  onSetActive: (generationId: string) => void;
-}) {
-  const asset = node.run?.assets[0];
-  const instruction = node.run?.parameters?.instruction;
-  return (
-    <button
-      type="button"
-      onClick={() => !active && onSetActive(node.generationId)}
-      title={typeof instruction === 'string' ? instruction : undefined}
-      className={cn(
-        'relative aspect-video w-24 shrink-0 overflow-hidden rounded border bg-muted outline-none transition-all focus-visible:ring-2 focus-visible:ring-ring/50',
-        active
-          ? 'cursor-default border-[var(--brand)] ring-2 ring-[var(--brand-soft)]'
-          : 'hover:border-foreground/30',
-      )}
-      aria-label={`${label}${active ? ' (active)' : ''}`}
-      aria-pressed={active}
-    >
-      {asset ? (
-        <NextImage
-          src={asset.url}
-          alt={label}
-          width={192}
-          height={108}
-          unoptimized
-          className="size-full object-cover"
-        />
-      ) : (
-        <span className="grid size-full place-items-center text-muted-foreground">
-          {node.run && ['queued', 'running'].includes(node.run.status) ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <ShieldAlert className="size-3.5" />
-          )}
-        </span>
-      )}
-      <span className="absolute bottom-0.5 left-0.5 rounded bg-background/85 px-1 font-mono text-[9px] backdrop-blur">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function TakeTreeBranch({
-  node,
-  labels,
-  activeGenerationId,
-  onSetActive,
-}: {
-  node: TakeNode;
-  labels: Map<string, string>;
-  activeGenerationId: string | null;
-  onSetActive: (generationId: string) => void;
-}) {
-  const width = subtreeWidth(node);
-  const childWidths = node.children.map(subtreeWidth);
-  const childCenters = childWidths.map(
-    (childWidth, childIndex) =>
-      childWidths
-        .slice(0, childIndex)
-        .reduce((total, value) => total + value, 0) +
-      childIndex * TREE_GAP +
-      childWidth / 2,
-  );
-  const bend = TREE_EDGE_H * 0.62;
-
-  return (
-    <div style={{ width }} className="flex shrink-0 flex-col items-center">
-      <TakeTile
-        node={node}
-        label={labels.get(node.generationId) ?? 'T?'}
-        active={node.generationId === activeGenerationId}
-        onSetActive={onSetActive}
-      />
-      {node.children.length > 0 && (
-        <>
-          <svg
-            width={width}
-            height={TREE_EDGE_H}
-            viewBox={`0 0 ${width} ${TREE_EDGE_H}`}
-            className="shrink-0"
-            aria-hidden
-          >
-            {node.children.map((child, childIndex) => (
-              <path
-                key={child.id}
-                d={`M ${width / 2} 0 C ${width / 2} ${bend}, ${childCenters[childIndex]} ${TREE_EDGE_H - bend}, ${childCenters[childIndex]} ${TREE_EDGE_H}`}
-                className={cn(
-                  'graph-edge',
-                  child.generationId === activeGenerationId &&
-                    'graph-edge-active',
-                )}
-              />
-            ))}
-          </svg>
-          <div className="flex items-start" style={{ gap: TREE_GAP }}>
-            {node.children.map((child) => (
-              <TakeTreeBranch
-                key={child.id}
-                node={child}
-                labels={labels}
-                activeGenerationId={activeGenerationId}
-                onSetActive={onSetActive}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function TakesTree({
-  takes,
-  activeGenerationId,
-  onSetActive,
-  onNewTake,
-  busy,
-}: {
-  takes: TakeDto[];
-  activeGenerationId: string | null;
-  onSetActive: (generationId: string) => void;
-  onNewTake: () => void;
-  busy: boolean;
-}) {
-  const roots = buildTakeTree(takes);
-  const labels = new Map(
-    takes
-      .slice()
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((take, index) => [take.generationId, `T${index + 1}`]),
-  );
-  return (
-    <div className="mt-2">
-      <SystemLabel>Take tree</SystemLabel>
-      <div className="mt-1.5 overflow-x-auto pb-1">
-        <div className="flex items-start" style={{ gap: TREE_GAP }}>
-          {roots.map((root) => (
-            <TakeTreeBranch
-              key={root.id}
-              node={root}
-              labels={labels}
-              activeGenerationId={activeGenerationId}
-              onSetActive={onSetActive}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={onNewTake}
-            disabled={busy}
-            className="grid aspect-video w-24 shrink-0 place-items-center rounded border border-dashed text-muted-foreground outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
-            aria-label="Render a new root take"
-          >
-            {busy ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <span className="flex flex-col items-center gap-0.5">
-                <Plus className="size-3.5" />
-                <span className="font-mono text-[8px] uppercase tracking-wider">
-                  New take
-                </span>
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-        A refinement branches off the take it was made from — click any node to
-        make it the scene&apos;s active frame.
-      </p>
-    </div>
-  );
 }
 
 const FRAME_TRACK_TILE_W = 164;
