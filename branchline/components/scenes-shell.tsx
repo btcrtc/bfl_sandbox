@@ -122,11 +122,13 @@ const BUNDLED_DRAFT_SCENE_TITLES = new Set([
   'The new work',
   'What was seen',
   'Time captured',
+  'The work awakens',
 ]);
 const BUNDLED_DRAFT_DURATION_OVERRIDES = new Map([
   ['The new work', 15],
   ['What was seen', 15],
   ['Time captured', 15],
+  ['The work awakens', 15],
 ]);
 
 type TrimRange = { startMs: number; endMs: number };

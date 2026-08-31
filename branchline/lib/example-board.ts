@@ -149,7 +149,7 @@ export const EXAMPLE_BOARD = {
         'ridges while the lit room remains still, letting the audience decide what is watching.',
       videoPrompt:
         'Seven-second locked aftermath with only an imperceptible pullback. Fog climbs between the foreground ridges and gradually veils the workshop. The interior light dims until two small warm points remain aligned in the window; hold them motionless for two seconds, then let one point blink mechanically. Keep the effect ambiguous and preserve the exact building and landscape—nothing emerges. Sound: the ticking stops, silence holds, then one quiet intake of air.',
-      durationSec: 7,
+      durationSec: 15,
       still: '/scenes/ads-art/scene-10.webp',
       subtitle: { speaker: null, text: '[Das neue Werk erwacht.]' },
     },

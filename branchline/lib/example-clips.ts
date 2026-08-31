@@ -35,6 +35,12 @@ export const EXAMPLE_DRAFT_CLIPS = [
     durationSec: 15,
     syncScene: true,
   },
+  {
+    sceneIndex: 9,
+    path: '/scenes/ads-art/scene-10-draft.mp4',
+    durationSec: 15,
+    syncScene: true,
+  },
 ] as const;
 
 type SceneRef = {
