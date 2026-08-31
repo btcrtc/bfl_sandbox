@@ -6,6 +6,7 @@ import {
   generationJobs,
   generations,
   storyboardClips,
+  storyboardScenes,
   storyboards,
 } from '@/db/schema';
 import { EXAMPLE_BOARD } from '@/lib/example-board';
@@ -15,6 +16,14 @@ export const EXAMPLE_DRAFT_CLIPS = [
   { sceneIndex: 1, path: '/scenes/ads-art/scene-02-draft.mp4', durationSec: 6 },
   { sceneIndex: 2, path: '/scenes/ads-art/scene-03-draft.mp4', durationSec: 5 },
   { sceneIndex: 3, path: '/scenes/ads-art/scene-04-draft.mp4', durationSec: 6 },
+  { sceneIndex: 5, path: '/scenes/ads-art/scene-06-draft.mp4', durationSec: 6 },
+  {
+    sceneIndex: 6,
+    path: '/scenes/ads-art/scene-07-draft.mp4',
+    durationSec: 6,
+    syncVideoPrompt: true,
+  },
+  { sceneIndex: 7, path: '/scenes/ads-art/scene-08-draft.mp4', durationSec: 6 },
 ] as const;
 
 type SceneRef = {
@@ -60,7 +69,11 @@ export async function registerBundledExampleClips(input: {
     const assetId = crypto.randomUUID();
     const clipId = crypto.randomUUID();
     const createdAt = now + draft.sceneIndex;
-    const prompt = scene.videoPrompt?.trim() || scene.prompt.trim();
+    const canonicalVideoPrompt = expected.videoPrompt.trim();
+    const prompt =
+      'syncVideoPrompt' in draft && draft.syncVideoPrompt
+        ? canonicalVideoPrompt
+        : scene.videoPrompt?.trim() || scene.prompt.trim();
 
     await db.batch([
       db.insert(generations).values({
@@ -112,6 +125,18 @@ export async function registerBundledExampleClips(input: {
         generationId,
         createdAt,
       }),
+      ...('syncVideoPrompt' in draft && draft.syncVideoPrompt
+        ? [
+            db
+              .update(storyboardScenes)
+              .set({
+                videoPrompt: canonicalVideoPrompt,
+                durationSec: draft.durationSec,
+                updatedAt: createdAt,
+              })
+              .where(eq(storyboardScenes.id, scene.id)),
+          ]
+        : []),
     ]);
     attached.push({ sceneId: scene.id, clipId });
   }

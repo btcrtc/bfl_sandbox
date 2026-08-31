@@ -109,8 +109,8 @@ export const EXAMPLE_BOARD = {
         'Isolated product portrait of the brass memory machine against black: a grid of miniature ' +
         'landscapes, materials and fragments replacing a conventional clock face.',
       videoPrompt:
-        'Five-second hero reveal against black. Execute a controlled ten-degree clockwise orbit for subtle parallax while the miniature frames awaken from left to right with restrained internal movement and the exposed brass gears synchronise. The machine must remain rigid and identical to the start frame: no extra components, no liquid deformation and no cut. Sound: layered clockwork settling into one low, confident rhythm.',
-      durationSec: 5,
+        'Single continuous six-second shot from the supplied frame. Begin nearly locked, then make an extremely slow, controlled push-in toward the brass memory machine. The holographic image cells flicker asynchronously, briefly stutter like damaged film, then awaken one by one: forest mist drifts, water ripples, the star field slowly breathes, and the fragmented eyes blink once. Let subtle scan-line interference and light glitches pass across the holograms without moving their borders. Keep the brass cage and the entire machine perfectly rigid and identical to the source frame—no new panels, no warping, no morphing and no cut. Sound: low mechanical hum, soft projector chatter, tiny electrical glitches and a clock tick gradually forming into a pulse.',
+      durationSec: 6,
       still: '/scenes/ads-art/scene-07.webp',
       subtitle: {
         speaker: null,

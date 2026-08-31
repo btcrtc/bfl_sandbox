@@ -114,6 +114,15 @@ const DURATION_OPTIONS = ['5', '8', '10', '12', '15', '20'];
 const SCENE_COUNT_OPTIONS = ['3', '4', '5', '6'];
 const MIN_TRIM_MS = 1_000;
 const TRIM_STEP_MS = 100;
+const BUNDLED_DRAFT_SCENE_TITLES = new Set([
+  'The valley before time',
+  'Counting time',
+  'A heart for darkness',
+  'The witnesses arrive',
+  'The new work',
+  'What was seen',
+  'Time captured',
+]);
 
 type TrimRange = { startMs: number; endMs: number };
 
@@ -283,6 +292,8 @@ export function ScenesShell({
 
   // --- data loading ---------------------------------------------------------
 
+  const exampleClipsSyncedRef = useRef(new Set<string>());
+
   const loadList = useCallback(async () => {
     if (!viewer) return;
     try {
@@ -309,6 +320,27 @@ export function ScenesShell({
       );
       if (!response.ok) throw new Error();
       const data = (await response.json()) as { storyboard: StoryboardDto };
+      const needsBundledDraft = data.storyboard.scenes.some(
+        (scene) =>
+          BUNDLED_DRAFT_SCENE_TITLES.has(scene.title) &&
+          !scene.clips.some((clip) => clip.tier === 'draft'),
+      );
+      if (
+        needsBundledDraft &&
+        !exampleClipsSyncedRef.current.has(data.storyboard.id)
+      ) {
+        exampleClipsSyncedRef.current.add(data.storyboard.id);
+        const syncResponse = await fetch(
+          `/api/storyboards/${encodeURIComponent(id)}/example-clips`,
+          { method: 'POST' },
+        );
+        if (syncResponse.ok) {
+          const syncData = (await syncResponse.json()) as {
+            storyboard?: StoryboardDto;
+          };
+          if (syncData.storyboard) data.storyboard = syncData.storyboard;
+        }
+      }
       // Ignore stale responses after the user switched boards.
       if (activeIdRef.current === id) setStoryboard(data.storyboard);
     } catch {
