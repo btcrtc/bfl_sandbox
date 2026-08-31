@@ -22,6 +22,7 @@ type CreateBody = {
   parentAssetId?: unknown;
   variationType?: unknown;
   variationLabel?: unknown;
+  variationPrompt?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
           parentRunId: parsed.branch.parentRunId,
           variationType: parsed.branch.variationType,
           variationLabel: parsed.branch.variationLabel,
+          variationPrompt: parsed.branch.variationPrompt,
         }
       : undefined,
   });
@@ -113,14 +115,22 @@ function validate(body: CreateBody | null) {
       ? body.parentAssetId
       : null;
   const variationType =
-    body.variationType === 'object' || body.variationType === 'camera'
+    body.variationType === 'object' ||
+    body.variationType === 'camera' ||
+    body.variationType === 'lens' ||
+    body.variationType === 'light' ||
+    body.variationType === 'refine'
       ? body.variationType
       : null;
   const variationLabel =
     typeof body.variationLabel === 'string'
       ? body.variationLabel.trim().slice(0, 80)
       : null;
-  if ((parentAssetId || variationType || variationLabel) && !parentRunId) {
+  const variationPrompt =
+    typeof body.variationPrompt === 'string'
+      ? body.variationPrompt.trim().slice(0, 800)
+      : null;
+  if ((parentAssetId || variationType || variationLabel || variationPrompt) && !parentRunId) {
     return { error: 'A variation needs a parent run.' } as const;
   }
 
@@ -137,7 +147,7 @@ function validate(body: CreateBody | null) {
       seed,
       guidance: MODEL_CAPS[model as BflModel].guidance ? guidance : null,
     },
-    branch: { parentRunId, parentAssetId, variationType, variationLabel },
+    branch: { parentRunId, parentAssetId, variationType, variationLabel, variationPrompt },
   };
 }
 

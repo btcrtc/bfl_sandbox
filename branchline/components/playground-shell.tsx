@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Aperture,
   ArrowRight,
   Box,
   Camera,
@@ -28,6 +29,8 @@ import {
   History,
   GitBranch,
   Image as ImageIcon,
+  Layers3,
+  Lightbulb,
   Loader2,
   Palette,
   Play,
@@ -39,6 +42,7 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   SquareStack,
+  SunMedium,
   WandSparkles,
   X,
 } from 'lucide-react';
@@ -186,8 +190,91 @@ type RunPayload = {
 type BranchRequest = {
   parentRunId: string;
   parentAssetId: string;
-  variationType: 'object' | 'camera';
+  variationType: FrameLayerType;
   variationLabel: string;
+  variationPrompt: string;
+};
+
+type FrameLayerType = 'camera' | 'lens' | 'light' | 'refine';
+
+const FRAME_LAYER_META: Record<
+  FrameLayerType,
+  { label: string; description: string; icon: typeof Camera }
+> = {
+  camera: {
+    label: 'Camera',
+    description: 'Position, height, angle and blocking.',
+    icon: Camera,
+  },
+  lens: {
+    label: 'Lens',
+    description: 'Focal length, glass character and depth.',
+    icon: Aperture,
+  },
+  light: {
+    label: 'Light',
+    description: 'Motivation, ratio, colour and atmosphere.',
+    icon: SunMedium,
+  },
+  refine: {
+    label: 'Polish',
+    description: 'A final material or production-design pass.',
+    icon: WandSparkles,
+  },
+};
+
+const FRAME_LAYER_PRESETS: Record<
+  FrameLayerType,
+  Array<{ label: string; prompt: string }>
+> = {
+  camera: [
+    {
+      label: 'Low three-quarter',
+      prompt:
+        'Move the camera to a low three-quarter position at threshold height. Preserve every subject and set element while making foreground depth more dramatic.',
+    },
+    {
+      label: 'Strict overhead',
+      prompt:
+        'Move to a strict overhead composition. Preserve the story action, spatial geography, production design and light direction.',
+    },
+  ],
+  lens: [
+    {
+      label: 'Cooke S4 · 40 mm',
+      prompt:
+        'Photograph through a Cooke S4 40 mm lens: gentle warmth, rounded falloff, soft highlight roll-off and dimensional but natural perspective.',
+    },
+    {
+      label: 'Zeiss Super Speed · 85 mm',
+      prompt:
+        'Photograph through a Zeiss Super Speed 85 mm lens wide open: compressed depth, crisp centre, soft edge falloff and subtle vintage halation.',
+    },
+  ],
+  light: [
+    {
+      label: 'Tungsten practical',
+      prompt:
+        'Motivate the key from one tungsten practical in frame. Keep deep negative fill, warm skin-side highlights and a cool ambient background.',
+    },
+    {
+      label: 'Blue-hour ambient',
+      prompt:
+        'Shift the ambient exposure to blue hour with soft cyan skylight, restrained warm practicals and dense, readable shadow detail.',
+    },
+  ],
+  refine: [
+    {
+      label: 'Material fidelity',
+      prompt:
+        'Increase material specificity and micro-detail without changing composition: believable wood grain, worn metal, fabric texture and controlled film grain.',
+    },
+    {
+      label: 'Production polish',
+      prompt:
+        'Polish the frame for final production: remove incidental visual noise, strengthen the focal hierarchy and preserve natural photographic texture.',
+    },
+  ],
 };
 
 function randomSeed() {
@@ -382,6 +469,14 @@ export function PlaygroundShell({
   const [lastRunAt, setLastRunAt] = useState<number | null>(null);
   const [highlightRunId, setHighlightRunId] = useState<string | null>(null);
   const [branchingRunId, setBranchingRunId] = useState<string | null>(null);
+  const [activeFrameRunId, setActiveFrameRunId] = useState<string | null>(null);
+  const [frameLayerType, setFrameLayerType] = useState<FrameLayerType>('lens');
+  const [frameLayerLabel, setFrameLayerLabel] = useState(
+    FRAME_LAYER_PRESETS.lens[0].label,
+  );
+  const [frameLayerPrompt, setFrameLayerPrompt] = useState(
+    FRAME_LAYER_PRESETS.lens[0].prompt,
+  );
 
   const dimensions = aspectOptions.find((option) => option.value === aspect) ?? aspectOptions[1];
   const selected = inspectorCopy[selectedNode];
@@ -552,7 +647,12 @@ export function PlaygroundShell({
         const data = (await response.json()) as { id?: string; mode?: string; error?: string };
         if (!response.ok || !data.id) throw new Error(data.error || 'Could not create the run.');
         setLastRunAt(Date.now());
-        if (!branch) setBranchingRunId(data.id);
+        if (!branch) {
+          setBranchingRunId(data.id);
+          setActiveFrameRunId(data.id);
+        } else {
+          setActiveFrameRunId(data.id);
+        }
         setHistoryOpen(true);
         setHighlightRunId(data.id);
         window.setTimeout(() => setHighlightRunId((current) => (current === data.id ? null : current)), 6_000);
@@ -623,7 +723,7 @@ export function PlaygroundShell({
   const createFrameVariation = useCallback(
     (
       parent: HistoryRun | null,
-      variationType: 'object' | 'camera',
+      variationType: FrameLayerType,
       variationLabel: string,
       direction: string,
     ) => {
@@ -641,10 +741,14 @@ export function PlaygroundShell({
       payload.prompt = [
         parent.prompt,
         '',
-        `Director branch — ${variationLabel}: ${direction}`,
-        variationType === 'object'
-          ? 'Preserve the camera, lens, light direction, palette and geography. Change only the staged subject or production-design element described above.'
-          : 'Preserve the subjects, wardrobe, production design, lighting continuity and story beat. Change only the camera position, lens and blocking described above.',
+        `${FRAME_LAYER_META[variationType].label} layer — ${variationLabel}: ${direction}`,
+        variationType === 'camera'
+          ? 'Preserve the subjects, wardrobe, production design, lighting continuity and story beat. Change only camera position, angle and blocking.'
+          : variationType === 'lens'
+            ? 'Preserve camera position, subjects, blocking, light and geography. Change only focal rendering and optical character.'
+            : variationType === 'light'
+              ? 'Preserve camera, lens, subjects, blocking and production design. Change only the motivated light and atmosphere.'
+              : 'Preserve the approved composition, camera, lens and lighting. Apply only the finishing instruction above.',
       ].join('\n');
       setPrompt(payload.prompt);
       setSeed(payload.seed);
@@ -653,6 +757,7 @@ export function PlaygroundShell({
         parentAssetId: parentAsset.id,
         variationType,
         variationLabel,
+        variationPrompt: direction,
       });
     },
     [runWorkflow],
@@ -724,19 +829,17 @@ export function PlaygroundShell({
         typeof item.parameters.parentRunId !== 'string',
     ) ??
     null;
-  const objectBranches = branchRoot
-    ? historyItems.filter(
-        (item) =>
-          item.parameters.parentRunId === branchRoot.id && item.parameters.variationType === 'object',
-      )
-    : [];
-  const cameraBranches = (parent: HistoryRun | null) =>
-    parent
-      ? historyItems.filter(
-          (item) =>
-            item.parameters.parentRunId === parent.id && item.parameters.variationType === 'camera',
-        )
-      : [];
+  const frameLayerRuns = historyItems.filter((item) =>
+    ['camera', 'lens', 'light', 'refine'].includes(String(item.parameters.variationType)),
+  );
+  const activeFrame =
+    (activeFrameRunId
+      ? historyItems.find((item) => item.id === activeFrameRunId && item.assets.length > 0)
+      : null) ?? branchRoot;
+  const activeFrameLabel =
+    activeFrame && typeof activeFrame.parameters.variationLabel === 'string'
+      ? activeFrame.parameters.variationLabel
+      : 'Base image';
   const detailRun = detailRunId
     ? (historyItems.find((item) => item.id === detailRunId) ?? null)
     : null;
@@ -762,54 +865,12 @@ export function PlaygroundShell({
     },
   };
 
-  const objectPlans = [
-    {
-      label: 'Witness at the threshold',
-      note: 'Seed the silent visitor and clock cabinet into the snowy yard; keep the warm doorway as the axis.',
-      image: '/scenes/ads-art/scene-04.webp',
-      direction:
-        'Introduce a tall, still visitor carrying a cabinet of clocks at the forest edge. Place the figure on the cold side of the warm doorway axis.',
-      cameras: [
-        {
-          label: 'Low doorway · 40 mm',
-          note: 'Near-ground three-quarter view; warm spill leads directly to the visitor.',
-          image: '/scenes/ads-art/scene-04.webp',
-          direction:
-            'Move to a low three-quarter camera just inside the doorway, 40 mm lens, warm foreground threshold leading to the visitor in the blue snow.',
-        },
-        {
-          label: 'Lateral winter wide · 65 mm',
-          note: 'Compress the yard and tree line; make the distance between men feel dangerous.',
-          image: '/scenes/ads-art/scene-09.webp',
-          direction:
-            'Use a lateral 65 mm wide composition from across the yard, compressing the visitor, doorway and black tree line into one tense plane.',
-        },
-      ],
-    },
-    {
-      label: 'Clockmaker at work',
-      note: 'Seed the maker, candle and loose mechanisms; preserve the nocturnal workshop grammar.',
-      image: '/scenes/ads-art/scene-02.webp',
-      direction:
-        'Introduce the elderly clockmaker at a scarred bench with one candle, watch parts and pale wood curls. Keep him absorbed rather than posing.',
-      cameras: [
-        {
-          label: 'Overhead mechanism · 35 mm',
-          note: 'Hands, tools and movement become blocking; the maker stays just outside frame.',
-          image: '/scenes/ads-art/scene-03.webp',
-          direction:
-            'Shift to a strict overhead 35 mm insert: both weathered hands bracket the mechanism in a hard island of tungsten light.',
-        },
-        {
-          label: 'Candle profile · 85 mm',
-          note: 'A patient portrait: eye, flame and mechanism occupy three distinct depth planes.',
-          image: '/scenes/ads-art/scene-05.webp',
-          direction:
-            'Move to an intimate 85 mm side profile at bench height, with the candle, the maker’s eye and the mechanism on three separated focus planes.',
-        },
-      ],
-    },
-  ] as const;
+  const chooseFrameLayerType = (type: FrameLayerType) => {
+    const first = FRAME_LAYER_PRESETS[type][0];
+    setFrameLayerType(type);
+    setFrameLayerLabel(first.label);
+    setFrameLayerPrompt(first.prompt);
+  };
 
   return (
     <TooltipProvider delay={350}>
@@ -1182,7 +1243,7 @@ export function PlaygroundShell({
                 variant="outline"
                 className="bg-background/90 font-mono text-[10px] backdrop-blur"
               >
-                DIRECTOR&apos;S FRAME LAB
+                FRAME STACK
               </Badge>
               <span className="text-[11px] text-muted-foreground">
                 {lastRunAt ? `Last run ${formatAge(lastRunAt)}` : 'Draft — not run yet'}
@@ -1252,132 +1313,232 @@ export function PlaygroundShell({
             })}
             </div>
 
-            <div className="absolute inset-x-4 bottom-4 top-[34%] z-10 overflow-auto rounded-xl border bg-background/88 p-3 shadow-[var(--floating-shadow)] backdrop-blur-md">
+            <div className="absolute inset-x-4 bottom-4 top-[32%] z-10 overflow-auto rounded-xl border bg-background/92 p-3 shadow-[var(--floating-shadow)] backdrop-blur-md">
               <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2.5">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <GitBranch className="size-3.5" />
-                    <SystemLabel>Static frame branches</SystemLabel>
+                    <Layers3 className="size-3.5" />
+                    <SystemLabel>Frame stack</SystemLabel>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Hold the story beat. Stage two object passes, then cover each pass with two camera decisions.
+                  <p className="mt-1 max-w-2xl text-[11px] text-muted-foreground">
+                    Start from one approved image. Add one camera, lens, light or polish layer at a
+                    time; every generated frame can become the parent of the next decision.
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="font-mono text-[8px] uppercase">
+                    {frameLayerRuns.length} saved layers
+                  </Badge>
                   <Button variant="outline" size="xs" onClick={() => setApiPayloadOpen(true)}>
                     <Code2 /> API payload
                   </Button>
-                  {branchRoot && (
-                    <Button variant="outline" size="xs" onClick={() => setDetailRunId(branchRoot.id)}>
-                      Open master
-                    </Button>
-                  )}
                 </div>
               </div>
 
-              <div className="mt-3 grid min-w-[820px] grid-cols-[0.8fr_1.15fr_1.65fr] items-stretch gap-3">
+              <div className="mt-3 grid grid-cols-[0.72fr_1.05fr_1.45fr] items-stretch gap-3">
                 <div className="flex flex-col">
                   <div className="mb-1.5 flex items-center gap-1.5">
                     <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">1</span>
-                    <SystemLabel>Master frame</SystemLabel>
+                    <SystemLabel>Base image</SystemLabel>
                   </div>
-                  <div className="my-auto">
-                    <FrameBranchCard
-                      eyebrow="Story intent"
-                      label={branchRoot ? branchRoot.prompt.slice(0, 52) : 'Establish the visual grammar'}
-                      note="One frame fixes geography, light direction, palette and emotional temperature for every child."
-                      image="/scenes/ads-art/scene-01.webp"
-                      run={branchRoot}
-                      icon={WandSparkles}
-                      actionLabel="Run master frame"
-                      onAction={() => void runWorkflow()}
-                      onOpen={() => branchRoot && setDetailRunId(branchRoot.id)}
-                    />
-                  </div>
+                  <FrameBranchCard
+                    eyebrow="Locked story beat"
+                    label={branchRoot ? branchRoot.prompt.slice(0, 52) : 'Establish the source frame'}
+                    note="This image anchors subjects, geography and production design. It remains untouched while modifiers branch from it."
+                    image="/scenes/ads-art/scene-01.webp"
+                    run={branchRoot}
+                    icon={ImageIcon}
+                    actionLabel="Generate base image"
+                    onAction={() => void runWorkflow()}
+                    onOpen={() => branchRoot && setDetailRunId(branchRoot.id)}
+                  />
+                  {branchRoot && (
+                    <Button
+                      variant={activeFrame?.id === branchRoot.id ? 'default' : 'outline'}
+                      size="xs"
+                      className="mt-2 w-full"
+                      onClick={() => setActiveFrameRunId(branchRoot.id)}
+                    >
+                      <GitBranch />
+                      {activeFrame?.id === branchRoot.id ? 'Current source' : 'Continue from base'}
+                    </Button>
+                  )}
                 </div>
 
                 <div className="flex flex-col border-l pl-3">
                   <div className="mb-1.5 flex items-center gap-1.5">
                     <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">2</span>
-                    <SystemLabel>Object staging</SystemLabel>
+                    <SystemLabel>Add prompt layer</SystemLabel>
                   </div>
-                  <div className="grid flex-1 grid-rows-2 gap-2">
-                    {objectPlans.map((plan, objectIndex) => {
-                      const run =
-                        objectBranches.find(
-                          (item) => item.parameters.variationLabel === plan.label,
-                        ) ?? objectBranches[objectIndex] ?? null;
+                  <div className="grid grid-cols-4 gap-1">
+                    {(Object.keys(FRAME_LAYER_META) as FrameLayerType[]).map((type) => {
+                      const meta = FRAME_LAYER_META[type];
+                      const Icon = meta.icon;
                       return (
-                        <FrameBranchCard
-                          key={plan.label}
-                          eyebrow={`Object pass ${String(objectIndex + 1).padStart(2, '0')}`}
-                          label={plan.label}
-                          note={plan.note}
-                          image={plan.image}
-                          run={run}
-                          icon={SquareStack}
-                          actionLabel="Seed object pass"
-                          disabled={!branchRoot?.assets[0] || isRunning}
-                          onAction={() =>
-                            createFrameVariation(branchRoot, 'object', plan.label, plan.direction)
-                          }
-                          onOpen={() => run && setDetailRunId(run.id)}
-                        />
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => chooseFrameLayerType(type)}
+                          className={cn(
+                            'flex min-w-0 flex-col items-center gap-1 rounded-md border px-1.5 py-2 text-[9px] outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
+                            frameLayerType === type && 'border-[var(--brand)] bg-[var(--brand-soft)]',
+                          )}
+                        >
+                          <Icon className="size-3.5" />
+                          <span className="truncate">{meta.label}</span>
+                        </button>
                       );
                     })}
                   </div>
+                  <Select
+                    value={frameLayerLabel}
+                    onValueChange={(value) => {
+                      const preset = FRAME_LAYER_PRESETS[frameLayerType].find(
+                        (entry) => entry.label === value,
+                      );
+                      if (!preset) return;
+                      setFrameLayerLabel(preset.label);
+                      setFrameLayerPrompt(preset.prompt);
+                    }}
+                  >
+                    <SelectTrigger className="mt-2 h-8! w-full bg-background text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      {FRAME_LAYER_PRESETS[frameLayerType].map((preset) => (
+                        <SelectItem key={preset.label} value={preset.label}>
+                          {preset.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={frameLayerLabel}
+                    onChange={(event) => setFrameLayerLabel(event.target.value)}
+                    maxLength={80}
+                    aria-label="Prompt layer name"
+                    className="mt-2 h-8 bg-background text-[11px]"
+                    placeholder="Layer name"
+                  />
+                  <Textarea
+                    value={frameLayerPrompt}
+                    onChange={(event) => setFrameLayerPrompt(event.target.value)}
+                    maxLength={800}
+                    className="mt-2 min-h-20 resize-none bg-background text-[11px] leading-4"
+                    placeholder="Describe only the camera, lens, light or finishing decision…"
+                  />
+                  <div className="mt-2 rounded-md bg-muted/55 px-2 py-1.5 text-[9px] leading-3.5 text-muted-foreground">
+                    Source:{' '}
+                    <span className="font-medium text-foreground">
+                      {activeFrame ? activeFrameLabel : 'Generate a base image first'}
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="mt-2 w-full"
+                    disabled={!activeFrame?.assets[0] || isRunning || frameLayerPrompt.trim().length < 3}
+                    onClick={() =>
+                      createFrameVariation(
+                        activeFrame,
+                        frameLayerType,
+                        frameLayerLabel.trim() || FRAME_LAYER_META[frameLayerType].label,
+                        frameLayerPrompt.trim(),
+                      )
+                    }
+                  >
+                    {isRunning ? <Loader2 className="animate-spin" /> : <Plus />}
+                    Add {FRAME_LAYER_META[frameLayerType].label.toLowerCase()} layer
+                  </Button>
                 </div>
 
-                <div className="flex flex-col border-l pl-3">
-                  <div className="mb-1.5 flex items-center gap-1.5">
-                    <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">3</span>
-                    <SystemLabel>Camera coverage</SystemLabel>
+                <div className="flex min-w-0 flex-col border-l pl-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <span className="grid size-4 place-items-center rounded-full bg-foreground font-mono text-[8px] text-background">3</span>
+                      <SystemLabel>Saved branches</SystemLabel>
+                    </span>
+                    <span className="font-mono text-[8px] uppercase text-muted-foreground">
+                      select to continue
+                    </span>
                   </div>
-                  <div className="grid flex-1 grid-cols-2 grid-rows-2 gap-2">
-                    {objectPlans.flatMap((plan, objectIndex) => {
-                      const parent =
-                        objectBranches.find(
-                          (item) => item.parameters.variationLabel === plan.label,
-                        ) ?? objectBranches[objectIndex] ?? null;
-                      const children = cameraBranches(parent);
-                      return plan.cameras.map((cameraPlan, cameraIndex) => {
-                        const run =
-                          children.find(
-                            (item) => item.parameters.variationLabel === cameraPlan.label,
-                          ) ?? children[cameraIndex] ?? null;
+                  {frameLayerRuns.length ? (
+                    <div className="grid flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1">
+                      {frameLayerRuns.slice(0, 8).map((run) => {
+                        const type = String(run.parameters.variationType) as FrameLayerType;
+                        const meta = FRAME_LAYER_META[type];
+                        const Icon = meta?.icon ?? Lightbulb;
+                        const asset = run.assets[0];
+                        const selected = activeFrame?.id === run.id;
+                        const layerLabel =
+                          typeof run.parameters.variationLabel === 'string'
+                            ? run.parameters.variationLabel
+                            : meta?.label ?? 'Prompt layer';
+                        const layerPrompt =
+                          typeof run.parameters.variationPrompt === 'string'
+                            ? run.parameters.variationPrompt
+                            : run.prompt;
                         return (
-                          <FrameBranchCard
-                            key={`${plan.label}:${cameraPlan.label}`}
-                            eyebrow={`From object pass ${objectIndex + 1}`}
-                            label={cameraPlan.label}
-                            note={cameraPlan.note}
-                            image={cameraPlan.image}
-                            run={run}
-                            icon={Camera}
-                            actionLabel="Try camera"
-                            disabled={!parent?.assets[0] || isRunning}
-                            onAction={() =>
-                              createFrameVariation(
-                                parent,
-                                'camera',
-                                cameraPlan.label,
-                                cameraPlan.direction,
-                              )
-                            }
-                            onOpen={() => run && setDetailRunId(run.id)}
-                          />
+                          <article
+                            key={run.id}
+                            className={cn(
+                              'overflow-hidden rounded-lg border bg-background transition-colors',
+                              selected && 'border-[var(--brand)] ring-2 ring-[var(--brand-soft)]',
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setDetailRunId(run.id)}
+                              className="relative block aspect-[2.4/1] w-full overflow-hidden bg-muted text-left"
+                            >
+                              {asset ? (
+                                <NextImage src={asset.url} alt="" fill unoptimized className="object-cover" />
+                              ) : (
+                                <span className="grid size-full place-items-center text-muted-foreground">
+                                  {['queued', 'running'].includes(run.status) ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <ImageIcon className="size-4" />
+                                  )}
+                                </span>
+                              )}
+                              <span className="absolute left-1.5 top-1.5 rounded bg-black/65 p-1 text-white backdrop-blur-sm">
+                                <Icon className="size-3" />
+                              </span>
+                            </button>
+                            <div className="p-2">
+                              <p className="truncate text-[10px] font-medium">
+                                {layerLabel}
+                              </p>
+                              <p className="mt-0.5 line-clamp-2 text-[9px] leading-3.5 text-muted-foreground">
+                                {layerPrompt}
+                              </p>
+                              <Button
+                                variant={selected ? 'default' : 'ghost'}
+                                size="xs"
+                                className="mt-1.5 w-full justify-start px-1.5"
+                                disabled={!asset}
+                                onClick={() => setActiveFrameRunId(run.id)}
+                              >
+                                <GitBranch /> {selected ? 'Current source' : 'Continue from here'}
+                              </Button>
+                            </div>
+                          </article>
                         );
-                      });
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  ) : (
+                    <div className="grid flex-1 place-items-center rounded-lg border border-dashed p-5 text-center">
+                      <div>
+                        <Layers3 className="mx-auto size-5 text-muted-foreground" />
+                        <p className="mt-2 text-[11px] font-medium">No modifier layers yet</p>
+                        <p className="mt-1 max-w-xs text-[9px] leading-4 text-muted-foreground">
+                          Add a lens to the base image, then use that result as the parent for light,
+                          camera or a final prompt-polish pass.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-2 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
-                <span>Lock story beat</span>
-                <span>Preserve continuity</span>
-                <span>Vary one decision at a time</span>
-                <span>Share the chosen branch with production</span>
               </div>
             </div>
           </section>
