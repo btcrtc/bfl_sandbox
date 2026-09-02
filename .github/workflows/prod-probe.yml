@@ -1,9 +1,12 @@
 name: Probe production build
 
-# Manual probe: checks which build is live on Railway by requesting files
-# that only exist in newer builds. No secrets involved.
+# Probes which build is live on Railway by requesting files that only exist
+# in newer builds. Fire it by committing a timestamp to .github/probe-request
+# on a work branch (the GitHub App cannot use workflow_dispatch). No secrets.
 on:
-  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths: ['.github/probe-request']
 
 jobs:
   probe:
