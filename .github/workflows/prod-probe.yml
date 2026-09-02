@@ -25,3 +25,21 @@ jobs:
           probe "/scenes/ads-art/scene-01-draft.mp4"
           # Present since the previous build (DP-shot-list stills):
           probe "/example/scene-01.jpg"
+          # Crawl the served JS chunks (one level deep) for a UI string that
+          # exists only in the merge commit, to tell the two builds apart.
+          tmp=$(mktemp -d)
+          curl -sL --max-time 20 "$BASE/scenes" -o "$tmp/page.html"
+          grep -oE '/assets/[A-Za-z0-9_.-]+\.js' "$tmp/page.html" | sort -u > "$tmp/urls"
+          for i in 1 2; do
+            while read -r u; do
+              f="$tmp/$(basename "$u")"
+              [ -f "$f" ] || curl -s --max-time 20 "$BASE$u" -o "$f" || true
+            done < "$tmp/urls"
+            cat "$tmp"/*.js 2>/dev/null | grep -oE '/assets/[A-Za-z0-9_.-]+\.js' | sort -u > "$tmp/urls"
+          done
+          echo "chunks fetched: $(ls "$tmp"/*.js 2>/dev/null | wc -l)"
+          if grep -l "Play from here" "$tmp"/*.js >/dev/null 2>&1; then
+            echo "merge marker 'Play from here': FOUND — merged build is live"
+          else
+            echo "merge marker 'Play from here': NOT FOUND — pre-merge build is live"
+          fi
